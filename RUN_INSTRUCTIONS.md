@@ -47,7 +47,7 @@ That's it! The service is now running at `http://localhost:8082`
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_BASE_URL` | OpenAI API endpoint | `https://api.openai.com/v1` |
+| `OPENAI_BASE_URL` | OpenAI-compatible API endpoint | `https://api.openai.com/v1` |
 | `PORT` | Server port | `8082` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `WEB_CONCURRENCY` | Number of Gunicorn workers | `4` |
