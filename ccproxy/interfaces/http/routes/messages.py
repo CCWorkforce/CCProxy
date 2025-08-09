@@ -50,7 +50,7 @@ async def create_message_proxy(request: Request) -> Response:
         warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be ignored.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
 
     is_stream = bool(anthropic_request.stream)
-    
+
     # Check cache for non-streaming requests
     if not is_stream:
         cached_response = await response_cache.get_cached_response(
@@ -74,10 +74,10 @@ async def create_message_proxy(request: Request) -> Response:
                 },
             ))
             return JSONResponse(content=cached_response.model_dump(exclude_unset=True))
-        
+
         # Mark request as pending to prevent duplicate processing
         await response_cache.mark_request_pending(anthropic_request)
-    
+
     target_model_name = select_target_model(anthropic_request.model, request_id, settings.big_model_name, settings.small_model_name)
 
     estimated_input_tokens = count_tokens_for_anthropic_request(
@@ -194,14 +194,14 @@ async def create_message_proxy(request: Request) -> Response:
                                 choice['message']['content'] = content[:1000] + '...[truncated]'
                 debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": response_data}))
             anthropic_response_obj = convert_openai_to_anthropic_response(openai_response_obj, anthropic_request.model, request_id=request_id)
-            
+
             # Cache the successful response for future use
             await response_cache.cache_response(
                 anthropic_request,
                 anthropic_response_obj,
                 request_id=request_id
             )
-            
+
             duration_ms = (time.monotonic() - request.state.start_time_monotonic) * 1000
             info(LogRecord(
                 event=LogEvent.REQUEST_COMPLETED.value,

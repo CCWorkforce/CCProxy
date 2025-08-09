@@ -10,6 +10,27 @@ from typing import Any, Dict, Optional, Tuple
 
 from .config import Settings
 
+def _sanitize_for_json(obj):
+    if isinstance(obj, bytes):
+        try:
+            return obj.decode("utf-8", "replace")
+        except Exception:
+            try:
+                return obj.decode("latin-1", "replace")
+            except Exception:
+                return repr(obj)
+    if dataclasses.is_dataclass(obj):
+        return _sanitize_for_json(dataclasses.asdict(obj))
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_sanitize_for_json(x) for x in obj]
+    try:
+        json.dumps(obj)
+        return obj
+    except TypeError:
+        return repr(obj)
+
 
 class LogEvent(enum.Enum):
     MODEL_SELECTION = "model_selection"
@@ -69,7 +90,7 @@ class JSONFormatter(logging.Formatter):
         }
         log_payload = getattr(record, "log_record", None)
         if isinstance(log_payload, LogRecord):
-            detail = dataclasses.asdict(log_payload)
+            detail = _sanitize_for_json(dataclasses.asdict(log_payload))
             # Limit data field size for performance
             if detail.get("data") and isinstance(detail["data"], dict):
                 for key, value in detail["data"].items():
@@ -80,15 +101,15 @@ class JSONFormatter(logging.Formatter):
             header["message"] = record.getMessage()
             if record.exc_info:
                 exc_type, exc_value, exc_tb = record.exc_info
-                header["error"] = {
+                header["error"] = _sanitize_for_json({
                     "name": exc_type.__name__ if exc_type else "UnknownError",
                     "message": str(exc_value),
                     "stack_trace": "".join(
                         traceback.format_exception(exc_type, exc_value, exc_tb)
                     ),
                     "args": exc_value.args if hasattr(exc_value, "args") else [],
-                }
-        return json.dumps(header, ensure_ascii=False, separators=(",", ":"))
+                })
+        return json.dumps(_sanitize_for_json(header), ensure_ascii=False, separators=(",", ":"))
 
 
 class ConsoleJSONFormatter(JSONFormatter):
@@ -100,7 +121,7 @@ class ConsoleJSONFormatter(JSONFormatter):
         }
         log_payload = getattr(record, "log_record", None)
         if isinstance(log_payload, LogRecord):
-            detail = dataclasses.asdict(log_payload)
+            detail = _sanitize_for_json(dataclasses.asdict(log_payload))
             if detail.get("error") and detail["error"].get("stack_trace"):
                 detail["error"]["stack_trace"] = None
             header["detail"] = detail
@@ -108,12 +129,12 @@ class ConsoleJSONFormatter(JSONFormatter):
             header["message"] = record.getMessage()
             if record.exc_info:
                 exc_type, exc_value, _ = record.exc_info
-                header["error"] = {
+                header["error"] = _sanitize_for_json({
                     "name": exc_type.__name__ if exc_type else "UnknownError",
                     "message": str(exc_value),
                     "args": exc_value.args if hasattr(exc_value, "args") else [],
-                }
-        return json.dumps(header, separators=(",", ":"))
+                })
+        return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
 
 
 _logger: Optional[logging.Logger] = None
@@ -185,7 +206,7 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
             name=type(exc).__name__,
             message=str(exc),
             stack_trace=stack_str,
-            args=exc.args if hasattr(exc, "args") else tuple(),
+            args=_sanitize_for_json(exc.args) if hasattr(exc, "args") else tuple(),
         )
         if not record.message and str(exc):
             record.message = str(exc)
