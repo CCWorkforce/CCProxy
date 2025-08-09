@@ -6,8 +6,8 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
-from ....config import Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
-from ....logging import debug, info, warning, LogRecord, LogEvent
+from ....config import ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
+from ....logging import debug, info, warning, LogRecord, LogEvent, is_debug_enabled
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
 )
@@ -19,6 +19,7 @@ from ....application.converters import (
     convert_openai_to_anthropic_response,
 )
 from ....application.model_selection import select_target_model
+from ....application.response_cache import response_cache
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
 from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
 from ....infrastructure.providers.openai_provider import OpenAIProvider
@@ -49,6 +50,34 @@ async def create_message_proxy(request: Request) -> Response:
         warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be ignored.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
 
     is_stream = bool(anthropic_request.stream)
+    
+    # Check cache for non-streaming requests
+    if not is_stream:
+        cached_response = await response_cache.get_cached_response(
+            anthropic_request,
+            request_id=request_id,
+            wait_for_pending=True,
+            timeout_seconds=30.0
+        )
+        if cached_response:
+            duration_ms = (time.monotonic() - request.state.start_time_monotonic) * 1000
+            info(LogRecord(
+                event=LogEvent.REQUEST_COMPLETED.value,
+                message="Returned cached response",
+                request_id=request_id,
+                data={
+                    "status_code": 200,
+                    "duration_ms": duration_ms,
+                    "from_cache": True,
+                    "input_tokens": cached_response.usage.input_tokens,
+                    "output_tokens": cached_response.usage.output_tokens,
+                },
+            ))
+            return JSONResponse(content=cached_response.model_dump(exclude_unset=True))
+        
+        # Mark request as pending to prevent duplicate processing
+        await response_cache.mark_request_pending(anthropic_request)
+    
     target_model_name = select_target_model(anthropic_request.model, request_id, settings.big_model_name, settings.small_model_name)
 
     estimated_input_tokens = count_tokens_for_anthropic_request(
@@ -133,7 +162,7 @@ async def create_message_proxy(request: Request) -> Response:
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
     if target_model_name in SUPPORT_REASONING_EFFORT_MODELS:
-        openai_params["reasoning_effort"] = "high"
+        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else ReasoningEfforts.Medium.value
 
     debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Prepared OpenAI request parameters", request_id, {"params": openai_params}))
 
@@ -154,8 +183,25 @@ async def create_message_proxy(request: Request) -> Response:
         else:
             debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Sending non-streaming request to OpenAI-compatible API", request_id))
             openai_response_obj = await provider.create_chat_completion(**openai_params)
-            debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": getattr(openai_response_obj, "model_dump", lambda: {} )()}))
+            if is_debug_enabled():
+                response_data = openai_response_obj.model_dump()
+                # Truncate large content for logging performance
+                if 'choices' in response_data:
+                    for choice in response_data['choices']:
+                        if 'message' in choice and 'content' in choice['message']:
+                            content = choice['message']['content']
+                            if content and len(content) > 1000:
+                                choice['message']['content'] = content[:1000] + '...[truncated]'
+                debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": response_data}))
             anthropic_response_obj = convert_openai_to_anthropic_response(openai_response_obj, anthropic_request.model, request_id=request_id)
+            
+            # Cache the successful response for future use
+            await response_cache.cache_response(
+                anthropic_request,
+                anthropic_response_obj,
+                request_id=request_id
+            )
+            
             duration_ms = (time.monotonic() - request.state.start_time_monotonic) * 1000
             info(LogRecord(
                 event=LogEvent.REQUEST_COMPLETED.value,
@@ -171,9 +217,15 @@ async def create_message_proxy(request: Request) -> Response:
             ))
             return JSONResponse(content=anthropic_response_obj.model_dump(exclude_unset=True))
     except openai.APIError as e:
+        # Clear pending request on error
+        if not is_stream:
+            await response_cache.clear_pending_request(anthropic_request)
         err_type, err_msg, err_status, prov_details = _get_anthropic_error_details_from_exc(e)
         return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
     except Exception as e:
+        # Clear pending request on error
+        if not is_stream:
+            await response_cache.clear_pending_request(anthropic_request)
         return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
 
 

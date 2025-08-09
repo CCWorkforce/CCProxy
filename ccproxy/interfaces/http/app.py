@@ -7,10 +7,12 @@ from ...config import Settings
 from ...logging import init_logging
 from ...infrastructure.providers.openai_provider import OpenAIProvider
 from ...domain.models import AnthropicErrorType
+from ...application.response_cache import response_cache
 from .middleware import logging_middleware
 from .errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
+from .routes.monitoring import router as monitoring_router
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -29,6 +31,19 @@ def create_app(settings: Settings) -> FastAPI:
 
     app.include_router(messages_router, tags=["API"])
     app.include_router(health_router, tags=["Health"])
+    app.include_router(monitoring_router, tags=["Monitoring"])
+
+    @app.on_event("startup")
+    async def startup_event():
+        """Initialize background tasks on startup."""
+        await response_cache.start_cleanup_task()
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        """Clean up resources on shutdown."""
+        await response_cache.stop_cleanup_task()
+        if hasattr(app.state.provider, 'close'):
+            await app.state.provider.close()
 
     @app.exception_handler(openai.APIError)
     async def openai_api_error_handler(request: Request, exc: openai.APIError):

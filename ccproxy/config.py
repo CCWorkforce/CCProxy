@@ -5,6 +5,9 @@ from pydantic import Field, AliasChoices
 from typing import Optional, FrozenSet
 
 
+# Base model names for faster prefix matching
+GPT5_BASE_MODELS = {"gpt-5-mini", "gpt-5"}
+
 # Models that support reasoning features (e.g., reasoning_effort)
 SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini-2025-08-07",
@@ -29,10 +32,19 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5",
 })
 
+def is_gpt5_model(model_name: str) -> bool:
+    """Fast check if model is a GPT-5 variant."""
+    return any(model_name.startswith(base) for base in GPT5_BASE_MODELS)
+
 class MessageRoles(StrEnum):
     Developer = "developer"
     System = "system"
     User = "user"
+
+class ReasoningEfforts(StrEnum):
+    High = "high"
+    Medium = "medium"
+    Low = "low"
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""

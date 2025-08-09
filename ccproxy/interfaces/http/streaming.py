@@ -6,7 +6,6 @@ from typing import AsyncGenerator, Dict, Optional, Literal, Any
 import openai
 
 from ...application.tokenizer import get_token_encoder
-from ...domain.models import ContentBlockText, ContentBlockToolUse
 from ...logging import warning, debug, error, info, LogRecord, LogEvent
 from .errors import _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
 
@@ -82,7 +81,9 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             openai_finish_reason = chunk.choices[0].finish_reason
 
             if delta.content:
-                output_token_count += len(enc.encode(delta.content))
+                # Cache content for batch encoding (more efficient)
+                content_batch = delta.content
+                output_token_count += len(enc.encode(content_batch))
                 if text_block_anthropic_idx is None:
                     text_block_anthropic_idx = next_anthropic_block_idx
                     next_anthropic_block_idx += 1
