@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 import json
 import time
 import uuid
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
@@ -25,8 +25,8 @@ from ...http.errors import _log_and_return_error_response, _get_anthropic_error_
 router = APIRouter()
 
 
-@router.post("/v1/messages")
-async def create_message_proxy(request: Request) -> Union[JSONResponse, StreamingResponse]:
+@router.post("/v1/messages", response_model=None)
+async def create_message_proxy(request: Request) -> Response:
     settings: Settings = request.app.state.settings
     provider = request.app.state.provider
 
