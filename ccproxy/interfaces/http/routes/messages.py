@@ -88,9 +88,23 @@ async def create_message_proxy(request: Request) -> Response:
     openai_params: Dict[str, Any] = {
         "model": target_model_name,
         "messages": cast(List[Dict[str, Any]], openai_messages),
-        "max_tokens": anthropic_request.max_tokens,
         "stream": is_stream,
     }
+    if target_model_name not in SUPPORT_REASONING_EFFORT_MODELS:
+        openai_params["max_tokens"] = anthropic_request.max_tokens
+    else:
+        warning(
+            LogRecord(
+                LogEvent.PARAMETER_UNSUPPORTED.value,
+                "Model supports reasoning; 'max_tokens' will be omitted.",
+                request_id,
+                {
+                    "parameter": "max_tokens",
+                    "value": anthropic_request.max_tokens,
+                    "target_model": target_model_name,
+                },
+            )
+        )
     if anthropic_request.temperature is not None:
         if target_model_name in NO_SUPPORT_TEMPERATURE_MODELS:
             warning(
