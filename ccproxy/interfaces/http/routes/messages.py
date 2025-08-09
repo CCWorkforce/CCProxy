@@ -73,7 +73,12 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
     ))
 
     try:
-        openai_messages = convert_anthropic_to_openai_messages(anthropic_request.messages, anthropic_request.system, request_id=request_id)
+        openai_messages = convert_anthropic_to_openai_messages(
+            anthropic_request.messages,
+            anthropic_request.system,
+            request_id=request_id,
+            target_model_name=target_model_name,
+        )
         openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
         openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
     except Exception as e:

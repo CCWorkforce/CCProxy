@@ -8,6 +8,7 @@ from ..domain.models import (
     ContentBlockToolUse, ContentBlockToolResult, ContentBlock, MessagesResponse,
     Usage
 )
+from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles
 from ..logging import warning, error, debug, LogRecord, LogEvent
 
 
@@ -79,6 +80,7 @@ def convert_anthropic_to_openai_messages(
     anthropic_messages: List[Message],
     anthropic_system: Optional[Union[str, List[SystemContent]]] = None,
     request_id: Optional[str] = None,
+    target_model_name: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     openai_messages: List[Dict[str, Any]] = []
 
@@ -102,7 +104,10 @@ def convert_anthropic_to_openai_messages(
         system_text_content = "\n".join(system_texts)
 
     if system_text_content:
-        openai_messages.append({"role": "system", "content": system_text_content})
+        role_value = MessageRoles.System.value
+        if target_model_name and target_model_name in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+            role_value = MessageRoles.Developer.value
+        openai_messages.append({"role": role_value, "content": system_text_content})
 
     for i, msg in enumerate(anthropic_messages):
         role = msg.role

@@ -1,3 +1,4 @@
+from enum import StrEnum
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, FrozenSet
 
@@ -25,6 +26,11 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-2025-08-07",
     "gpt-5",
 })
+
+class MessageRoles(StrEnum):
+    Developer = "developer"
+    System = "system"
+    User = "user"
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
