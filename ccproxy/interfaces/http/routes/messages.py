@@ -19,7 +19,6 @@ from ....application.converters import (
     convert_openai_to_anthropic_response,
 )
 from ....application.model_selection import select_target_model
-from ....application.response_cache import response_cache
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
 from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
 from ....infrastructure.providers.openai_provider import OpenAIProvider
@@ -31,6 +30,7 @@ router = APIRouter()
 async def create_message_proxy(request: Request) -> Response:
     settings: Settings = request.app.state.settings
     provider: OpenAIProvider = request.app.state.provider
+    response_cache = request.app.state.response_cache
 
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     request.state.request_id = request_id
