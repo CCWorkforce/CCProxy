@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     base_url: str = "https://openrouter.ai/api/v1"
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "ClaudeCodeProxy"
-    app_version: str = "0.2.0"
+    app_version: str = "0.1.0"
     log_level: str = "INFO"
     log_file_path: Optional[str] = "log.jsonl"
     host: str = "127.0.0.1"
