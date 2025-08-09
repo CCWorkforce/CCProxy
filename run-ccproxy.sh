@@ -49,7 +49,7 @@ if [ ! -f ".env" ]; then
     echo "  SMALL_MODEL_NAME=your_small_model_name"
     echo ""
     echo "Optional variables:"
-    echo "  BASE_URL=https://api.openai.com/v1"
+    echo "  OPENAI_BASE_URL=https://api.openai.com/v1"
     echo "  HOST=127.0.0.1"
     echo "  PORT=8082"
     echo "  LOG_LEVEL=INFO"
@@ -147,7 +147,7 @@ fi
 
 # Display optional configuration
 print_info "Optional configuration:"
-echo "  BASE_URL: ${BASE_URL:-https://api.openai.com/v1 (default)}"
+echo "  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1 (default)}"
 echo "  HOST: ${HOST:-127.0.0.1 (default)}"
 echo "  PORT: ${PORT:-8082 (default)}"
 echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO (default)}"

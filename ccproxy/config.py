@@ -56,11 +56,11 @@ class Settings(BaseSettings):
         default=...,
         validation_alias=AliasChoices("OPENAI_API_KEY", "OPENROUTER_API_KEY"),
     )
-    big_model_name: str = Field(default=..., validation_alias=AliasChoices("BIG_MODEL_NAME"))
-    small_model_name: str = Field(default=..., validation_alias=AliasChoices("SMALL_MODEL_NAME"))
+    big_model_name: str = Field(default="gpt-5-2025-08-07", validation_alias=AliasChoices("BIG_MODEL_NAME"))
+    small_model_name: str = Field(default="gpt-5-mini-2025-08-07", validation_alias=AliasChoices("SMALL_MODEL_NAME"))
 
     # Optional with defaults
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = Field(default="https://api.openai.com/v1", validation_alias=AliasChoices("OPENAI_BASE_URL"))
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "ClaudeCodeProxy"
     app_version: str = "0.1.0"

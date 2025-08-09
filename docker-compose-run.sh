@@ -91,7 +91,7 @@ BIG_MODEL_NAME=gpt-4
 SMALL_MODEL_NAME=gpt-3.5-turbo
 
 # Optional configuration
-BASE_URL=https://api.openai.com/v1
+OPENAI_BASE_URL=https://api.openai.com/v1
 PORT=8082
 LOG_LEVEL=INFO
 WEB_CONCURRENCY=4
