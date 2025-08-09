@@ -34,6 +34,11 @@ class MessageRoles(StrEnum):
     System = "system"
     User = "user"
 
+class ReasoningEfforts(StrEnum):
+    High = "high"
+    Medium = "medium"
+    Low = "low"
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
