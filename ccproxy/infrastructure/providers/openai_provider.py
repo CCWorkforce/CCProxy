@@ -16,7 +16,7 @@ class OpenAIProvider:
             ),
             timeout=httpx.Timeout(180.0),
         )
-        
+
         self._client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.base_url,
@@ -30,8 +30,8 @@ class OpenAIProvider:
 
     async def create_chat_completion(self, **params: Any) -> Any:
         return await self._client.chat.completions.create(**params)
-    
+
     async def close(self):
         """Clean up the HTTP client when shutting down."""
-        if hasattr(self._client, '_client'):
-            await self._client._client.close()
+        if hasattr(self._client, "_client"):
+            await self._client._client.aclose()
