@@ -1,7 +1,7 @@
 from enum import StrEnum
 import sys
-import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, AliasChoices
 from typing import Optional, FrozenSet
 
 
@@ -37,13 +37,18 @@ class MessageRoles(StrEnum):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_prefix="", case_sensitive=False)
+
     # Required
-    openai_api_key: str
-    big_model_name: str
-    small_model_name: str
+    openai_api_key: str = Field(
+        default=...,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "OPENROUTER_API_KEY"),
+    )
+    big_model_name: str = Field(default=..., validation_alias=AliasChoices("BIG_MODEL_NAME"))
+    small_model_name: str = Field(default=..., validation_alias=AliasChoices("SMALL_MODEL_NAME"))
 
     # Optional with defaults
-    base_url: str = "https://openrouter.ai/api/v1"
+    base_url: str = "https://api.openai.com/v1"
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "ClaudeCodeProxy"
     app_version: str = "0.1.0"
@@ -56,33 +61,27 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._validate_required_models()
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.big_model_name = os.getenv("BIG_MODEL_NAME")
-        self.small_model_name = os.getenv("SMALL_MODEL_NAME")
 
     def _validate_required_models(self):
         """Validate that required model settings are configured."""
         errors = []
 
-        if not self.openai_api_key.strip():
+        if not (self.openai_api_key and self.openai_api_key.strip()):
             errors.append(
-                "OPENAI_API_KEY is required but not configured. "
-                "Please set the OPENAI_API_KEY environment variable or add it to your .env file."
+                "API key is required. Set OPENAI_API_KEY or OPENROUTER_API_KEY (preferred for OpenRouter) in your environment or .env."
+            )
+        elif "openrouter.ai" in (self.base_url or "") and not self.openai_api_key.startswith("sk-or-"):
+            errors.append(
+                "Using OpenRouter base_url but API key doesn't look like an OpenRouter key (expected to start with 'sk-or-'). Set OPENROUTER_API_KEY (or put your OpenRouter key into OPENAI_API_KEY)."
             )
 
-        if not self.big_model_name.strip():
-            errors.append(
-                "BIG_MODEL_NAME is required but not configured. "
-                "Please set the BIG_MODEL_NAME environment variable or add it to your .env file."
-            )
+        if not (self.big_model_name and self.big_model_name.strip()):
+            errors.append("BIG_MODEL_NAME is required. Set it in your environment or .env.")
 
-        if not self.small_model_name.strip():
-            errors.append(
-                "SMALL_MODEL_NAME is required but not configured. "
-                "Please set the SMALL_MODEL_NAME environment variable or add it to your .env file."
-            )
+        if not (self.small_model_name and self.small_model_name.strip()):
+            errors.append("SMALL_MODEL_NAME is required. Set it in your environment or .env.")
 
-        if len(errors) > 0:
-            error_message = "\n".join([f"❌ {error}" for error in errors])
-            print(f"\n[bold red]Configuration Error:[/bold red]\n{error_message}\n")
+        if errors:
+            error_message = "\n".join(errors)
+            print(f"\nConfiguration Error:\n{error_message}\n")
             sys.exit(1)
