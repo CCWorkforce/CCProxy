@@ -14,26 +14,26 @@ def get_token_encoder(
 ) -> tiktoken.Encoding:
     """Gets a tiktoken encoder, caching it for performance."""
 
-    cache_key = "gpt-4"
+    cache_key = model_name
     if cache_key not in _token_encoder_cache:
         try:
-            _token_encoder_cache[cache_key] = tiktoken.encoding_for_model(cache_key)
+            _token_encoder_cache[cache_key] = tiktoken.encoding_for_model(model_name)
         except Exception:
             try:
                 _token_encoder_cache[cache_key] = tiktoken.get_encoding("cl100k_base")
                 warning(
                     LogRecord(
                         event=LogEvent.TOKEN_ENCODER_LOAD_FAILED.value,
-                        message=f"Could not load tiktoken encoder for '{cache_key}', using 'cl100k_base'. Token counts may be approximate.",
+                        message=f"Could not load tiktoken encoder for '{model_name}', using 'cl100k_base'. Token counts may be approximate.",
                         request_id=request_id,
-                        data={"model_tried": cache_key},
+                        data={"model_tried": model_name},
                     )
                 )
             except Exception as e_cl:
                 warning(
                     LogRecord(
                         event=LogEvent.TOKEN_ENCODER_LOAD_FAILED.value,
-                        message="Failed to load any tiktoken encoder (gpt-4, cl100k_base). Token counting will be inaccurate.",
+                        message="Failed to load any tiktoken encoder. Token counting will be inaccurate.",
                         request_id=request_id,
                     ),
                     exc=e_cl,
@@ -41,7 +41,7 @@ def get_token_encoder(
 
                 class DummyEncoder:
                     def encode(self, text: str) -> List[int]:
-                        return list(range(len(text)))
+                        return list(range(len(text) // 4))
 
                 _token_encoder_cache[cache_key] = DummyEncoder()
     return _token_encoder_cache[cache_key]

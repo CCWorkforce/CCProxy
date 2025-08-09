@@ -3,8 +3,6 @@ import enum
 import json
 import logging
 import os
-import sys
-import time
 import traceback
 from datetime import datetime, timezone
 from logging.config import dictConfig
@@ -71,7 +69,13 @@ class JSONFormatter(logging.Formatter):
         }
         log_payload = getattr(record, "log_record", None)
         if isinstance(log_payload, LogRecord):
-            header["detail"] = dataclasses.asdict(log_payload)
+            detail = dataclasses.asdict(log_payload)
+            # Limit data field size for performance
+            if detail.get("data") and isinstance(detail["data"], dict):
+                for key, value in detail["data"].items():
+                    if isinstance(value, str) and len(value) > 5000:
+                        detail["data"][key] = value[:5000] + "...[truncated]"
+            header["detail"] = detail
         else:
             header["message"] = record.getMessage()
             if record.exc_info:

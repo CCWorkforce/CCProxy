@@ -155,7 +155,15 @@ async def create_message_proxy(request: Request) -> Response:
             debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Sending non-streaming request to OpenAI-compatible API", request_id))
             openai_response_obj = await provider.create_chat_completion(**openai_params)
             if is_debug_enabled():
-                debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": openai_response_obj.model_dump()}))
+                response_data = openai_response_obj.model_dump()
+                # Truncate large content for logging performance
+                if 'choices' in response_data:
+                    for choice in response_data['choices']:
+                        if 'message' in choice and 'content' in choice['message']:
+                            content = choice['message']['content']
+                            if content and len(content) > 1000:
+                                choice['message']['content'] = content[:1000] + '...[truncated]'
+                debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": response_data}))
             anthropic_response_obj = convert_openai_to_anthropic_response(openai_response_obj, anthropic_request.model, request_id=request_id)
             duration_ms = (time.monotonic() - request.state.start_time_monotonic) * 1000
             info(LogRecord(
