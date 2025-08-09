@@ -36,5 +36,12 @@ See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
 Before starting Claude Code, run:
 
+```bash
 export ANTHROPIC_BASE_URL=http://localhost:8082
+```
+
+The start your coding session with Claude Code with:
+
+```bash
 claude
+```
