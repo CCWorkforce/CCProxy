@@ -9,7 +9,7 @@ from ..domain.models import (
     Usage
 )
 from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles
-from ..logging import warning, error, debug, LogRecord, LogEvent
+from ..logging import warning, error, LogRecord, LogEvent
 
 
 StopReasonType = Optional[
@@ -18,7 +18,7 @@ StopReasonType = Optional[
 
 
 def _serialize_tool_result_content_for_openai(
-    anthropic_tool_result_content: Union[str, List[Dict[str, Any]], List[Any]],
+    anthropic_tool_result_content: object,
     request_id: Optional[str],
     log_context: Dict,
 ) -> str:
@@ -57,23 +57,17 @@ def _serialize_tool_result_content_for_openai(
             )
         return result_str
 
-    try:
-        return json.dumps(anthropic_tool_result_content)
-    except TypeError as e:
-        warning(
-            LogRecord(
-                event=LogEvent.TOOL_RESULT_SERIALIZATION_FAILURE.value,
-                message=f"Failed to serialize tool result content to JSON: {e}. Returning error JSON.",
-                request_id=request_id,
-                data=log_context,
-            )
+    # At this point, content should be either str or list per schema; any other type indicates malformed input.
+    actual_type = type(anthropic_tool_result_content).__name__
+    error(
+        LogRecord(
+            event=LogEvent.TOOL_RESULT_SERIALIZATION_FAILURE.value,
+            message="Unsupported tool result content type; expected str or list.",
+            request_id=request_id,
+            data={**log_context, "actual_type": actual_type},
         )
-        return json.dumps(
-            {
-                "error": "Serialization failed",
-                "original_type": str(type(anthropic_tool_result_content)),
-            }
-        )
+    )
+    raise TypeError(f"Unsupported tool result content type: {actual_type}")
 
 
 def convert_anthropic_to_openai_messages(
