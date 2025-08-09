@@ -32,7 +32,7 @@ command_exists() {
 
 # Check if Python 3 is installed
 if ! command_exists python3; then
-    print_error "Python 3 is not installed. Please install Python 3.8 or higher."
+    print_error "Python 3 is not installed. Please install Python 3.13 or higher."
     exit 1
 fi
 
@@ -66,18 +66,18 @@ while IFS='=' read -r key value; do
     if [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]]; then
         continue
     fi
-    
+
     # Trim whitespace from key
     key=$(echo "$key" | xargs)
-    
+
     # Skip if key is empty after trimming
     if [[ -z "$key" ]]; then
         continue
     fi
-    
+
     # Remove quotes from value if present
     value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
-    
+
     # Export the variable
     export "$key=$value"
 done < .env
@@ -87,7 +87,7 @@ set +a  # Stop marking variables for export
 check_required_var() {
     local var_name=$1
     local var_value=${!var_name}
-    
+
     if [ -z "$var_value" ]; then
         print_error "Required environment variable '$var_name' is not set!"
         return 1
@@ -165,13 +165,13 @@ print_info "Checking Python dependencies..."
 if command_exists pip3; then
     # Check if required packages are installed
     MISSING_PACKAGES=""
-    
+
     for package in fastapi uvicorn openai pydantic tiktoken httpx; do
         if ! python3 -c "import $package" 2>/dev/null; then
             MISSING_PACKAGES="$MISSING_PACKAGES $package"
         fi
     done
-    
+
     if [ -n "$MISSING_PACKAGES" ]; then
         print_info "Missing Python packages detected:$MISSING_PACKAGES"
         print_info "Consider running: pip3 install -r requirements.txt"
