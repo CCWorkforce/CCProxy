@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, cast
 import json
 import time
 import uuid
@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
 from ....config import Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
-from ....logging import debug, info, warning, error, LogRecord, LogEvent
+from ....logging import debug, info, warning, LogRecord, LogEvent
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
 )
@@ -21,6 +21,7 @@ from ....application.converters import (
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
 from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
+from ....infrastructure.providers.openai_provider import OpenAIProvider
 
 router = APIRouter()
 
@@ -28,7 +29,7 @@ router = APIRouter()
 @router.post("/v1/messages", response_model=None)
 async def create_message_proxy(request: Request) -> Response:
     settings: Settings = request.app.state.settings
-    provider = request.app.state.provider
+    provider: OpenAIProvider = request.app.state.provider
 
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     request.state.request_id = request_id
