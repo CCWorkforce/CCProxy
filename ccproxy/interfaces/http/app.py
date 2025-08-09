@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from pydantic import ValidationError
 import openai
@@ -17,15 +18,34 @@ from .routes.monitoring import router as monitoring_router
 
 def create_app(settings: Settings) -> FastAPI:
     init_logging(settings)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        await app.state.response_cache.start_cleanup_task()
+        try:
+            yield
+        finally:
+            try:
+                await app.state.response_cache.stop_cleanup_task()
+            finally:
+                provider = getattr(app.state, "provider", None)
+                if provider and hasattr(provider, "close"):
+                    try:
+                        await provider.close()
+                    except Exception:
+                        pass
+
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
         docs_url=None,
         redoc_url=None,
         description="Routes Anthropic API requests to an OpenAI-compatible API, selecting models dynamically.",
+        lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.provider = OpenAIProvider(settings)
+    app.state.response_cache = response_cache
 
     app.middleware("http")(logging_middleware)
 
@@ -33,17 +53,6 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(health_router, tags=["Health"])
     app.include_router(monitoring_router, tags=["Monitoring"])
 
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize background tasks on startup."""
-        await response_cache.start_cleanup_task()
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Clean up resources on shutdown."""
-        await response_cache.stop_cleanup_task()
-        if hasattr(app.state.provider, 'close'):
-            await app.state.provider.close()
 
     @app.exception_handler(openai.APIError)
     async def openai_api_error_handler(request: Request, exc: openai.APIError):

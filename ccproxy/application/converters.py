@@ -103,6 +103,11 @@ def convert_anthropic_to_openai_messages(
             role_value = MessageRoles.Developer.value
         openai_messages.append({"role": role_value, "content": system_text_content})
 
+    # Add developer message to enforce UTF-8 encoding compliance
+    if target_model_name and target_model_name in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+        utf8_enforcement_message = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
+        openai_messages.append({"role": MessageRoles.Developer.value, "content": utf8_enforcement_message})
+
     for i, msg in enumerate(anthropic_messages):
         role = msg.role
         content = msg.content

@@ -160,7 +160,16 @@ class OpenAIProvider:
         if not self._client:
             self._initialize_sync()
 
-        return await self._client.chat.completions.create(**params)
+        try:
+            return await self._client.chat.completions.create(**params)
+        except UnicodeDecodeError as e:
+            # Convert UnicodeDecodeError to a more specific OpenAI API error
+            import openai
+            raise openai.APIError(
+                message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                request=None,
+                body=None
+            ) from e
 
     async def _create_chat_completion_aiohttp(self, **params: Any) -> Any:
         """Create a chat completion using aiohttp backend."""
