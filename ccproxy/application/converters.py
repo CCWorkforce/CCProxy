@@ -8,7 +8,8 @@ from ..domain.models import (
     ContentBlockToolUse, ContentBlockToolResult, ContentBlock, MessagesResponse,
     Usage
 )
-from ..logging import warning, error, debug, LogRecord, LogEvent
+from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles
+from ..logging import warning, error, LogRecord, LogEvent
 
 
 StopReasonType = Optional[
@@ -17,7 +18,7 @@ StopReasonType = Optional[
 
 
 def _serialize_tool_result_content_for_openai(
-    anthropic_tool_result_content: Union[str, List[Dict[str, Any]], List[Any]],
+    anthropic_tool_result_content: object,
     request_id: Optional[str],
     log_context: Dict,
 ) -> str:
@@ -56,29 +57,24 @@ def _serialize_tool_result_content_for_openai(
             )
         return result_str
 
-    try:
-        return json.dumps(anthropic_tool_result_content)
-    except TypeError as e:
-        warning(
-            LogRecord(
-                event=LogEvent.TOOL_RESULT_SERIALIZATION_FAILURE.value,
-                message=f"Failed to serialize tool result content to JSON: {e}. Returning error JSON.",
-                request_id=request_id,
-                data=log_context,
-            )
+    # At this point, content should be either str or list per schema; any other type indicates malformed input.
+    actual_type = type(anthropic_tool_result_content).__name__
+    error(
+        LogRecord(
+            event=LogEvent.TOOL_RESULT_SERIALIZATION_FAILURE.value,
+            message="Unsupported tool result content type; expected str or list.",
+            request_id=request_id,
+            data={**log_context, "actual_type": actual_type},
         )
-        return json.dumps(
-            {
-                "error": "Serialization failed",
-                "original_type": str(type(anthropic_tool_result_content)),
-            }
-        )
+    )
+    raise TypeError(f"Unsupported tool result content type: {actual_type}")
 
 
 def convert_anthropic_to_openai_messages(
     anthropic_messages: List[Message],
     anthropic_system: Optional[Union[str, List[SystemContent]]] = None,
     request_id: Optional[str] = None,
+    target_model_name: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     openai_messages: List[Dict[str, Any]] = []
 
@@ -102,7 +98,10 @@ def convert_anthropic_to_openai_messages(
         system_text_content = "\n".join(system_texts)
 
     if system_text_content:
-        openai_messages.append({"role": "system", "content": system_text_content})
+        role_value = MessageRoles.System.value
+        if target_model_name and target_model_name in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+            role_value = MessageRoles.Developer.value
+        openai_messages.append({"role": role_value, "content": system_text_content})
 
     for i, msg in enumerate(anthropic_messages):
         role = msg.role

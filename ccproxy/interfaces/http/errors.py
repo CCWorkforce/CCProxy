@@ -93,7 +93,7 @@ def _get_anthropic_error_details_from_exc(
     return error_type, error_message, status_code, provider_details
 
 
-def _format_anthropic_error_sse_event(
+def format_anthropic_error_sse_event(
     error_type: AnthropicErrorType,
     message: str,
     provider_details: Optional[ProviderErrorMetadata] = None,
@@ -148,7 +148,7 @@ def _build_anthropic_error_response(
     )
 
 
-async def _log_and_return_error_response(
+async def log_and_return_error_response(
     request: Request,
     status_code: int,
     anthropic_error_type: AnthropicErrorType,

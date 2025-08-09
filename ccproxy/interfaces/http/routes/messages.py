@@ -1,13 +1,13 @@
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, cast
 import json
 import time
 import uuid
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
-from ....config import Settings
-from ....logging import debug, info, warning, error, LogRecord, LogEvent
+from ....config import Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
+from ....logging import debug, info, warning, LogRecord, LogEvent
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
 )
@@ -20,15 +20,16 @@ from ....application.converters import (
 )
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
-from ...http.errors import _log_and_return_error_response, _get_anthropic_error_details_from_exc
+from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
+from ....infrastructure.providers.openai_provider import OpenAIProvider
 
 router = APIRouter()
 
 
-@router.post("/v1/messages")
-async def create_message_proxy(request: Request) -> Union[JSONResponse, StreamingResponse]:
+@router.post("/v1/messages", response_model=None)
+async def create_message_proxy(request: Request) -> Response:
     settings: Settings = request.app.state.settings
-    provider = request.app.state.provider
+    provider: OpenAIProvider = request.app.state.provider
 
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     request.state.request_id = request_id
@@ -39,10 +40,10 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
         debug(LogRecord(LogEvent.ANTHROPIC_REQUEST.value, "Received Anthropic request body", request_id, {"body": raw_body}))
         anthropic_request = MessagesRequest.model_validate(raw_body)
     except json.JSONDecodeError as e:
-        return await _log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
+        return await log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
     except Exception as e:
         # Pydantic v2 ValidationError or others
-        return await _log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
+        return await log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
 
     if getattr(anthropic_request, "top_k", None) is not None:
         warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be ignored.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
@@ -73,20 +74,53 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
     ))
 
     try:
-        openai_messages = convert_anthropic_to_openai_messages(anthropic_request.messages, anthropic_request.system, request_id=request_id)
+        openai_messages = convert_anthropic_to_openai_messages(
+            anthropic_request.messages,
+            anthropic_request.system,
+            request_id=request_id,
+            target_model_name=target_model_name,
+        )
         openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
         openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
     except Exception as e:
-        return await _log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
+        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
 
     openai_params: Dict[str, Any] = {
         "model": target_model_name,
         "messages": cast(List[Dict[str, Any]], openai_messages),
-        "max_tokens": anthropic_request.max_tokens,
         "stream": is_stream,
     }
+    if target_model_name not in SUPPORT_REASONING_EFFORT_MODELS:
+        openai_params["max_tokens"] = anthropic_request.max_tokens
+    else:
+        warning(
+            LogRecord(
+                LogEvent.PARAMETER_UNSUPPORTED.value,
+                "Model supports reasoning; 'max_tokens' will be omitted.",
+                request_id,
+                {
+                    "parameter": "max_tokens",
+                    "value": anthropic_request.max_tokens,
+                    "target_model": target_model_name,
+                },
+            )
+        )
     if anthropic_request.temperature is not None:
-        openai_params["temperature"] = anthropic_request.temperature
+        if target_model_name in NO_SUPPORT_TEMPERATURE_MODELS:
+            warning(
+                LogRecord(
+                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    "Model does not support 'temperature'; it will be ignored.",
+                    request_id,
+                    {
+                        "parameter": "temperature",
+                        "value": anthropic_request.temperature,
+                        "target_model": target_model_name,
+                    },
+                )
+            )
+        else:
+            openai_params["temperature"] = anthropic_request.temperature
     if anthropic_request.top_p is not None:
         openai_params["top_p"] = anthropic_request.top_p
     if anthropic_request.stop_sequences:
@@ -98,6 +132,8 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
+    if target_model_name in SUPPORT_REASONING_EFFORT_MODELS:
+        openai_params["reasoning_effort"] = "high"
 
     debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Prepared OpenAI request parameters", request_id, {"params": openai_params}))
 
@@ -136,9 +172,9 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
             return JSONResponse(content=anthropic_response_obj.model_dump(exclude_unset=True))
     except openai.APIError as e:
         err_type, err_msg, err_status, prov_details = _get_anthropic_error_details_from_exc(e)
-        return await _log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
+        return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
     except Exception as e:
-        return await _log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
+        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
 
 
 @router.post("/v1/messages/count_tokens")

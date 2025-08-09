@@ -1,4 +1,4 @@
-import openai
+from openai import AsyncOpenAI
 from typing import Any
 
 from ...config import Settings
@@ -6,7 +6,7 @@ from ...config import Settings
 
 class OpenAIProvider:
     def __init__(self, settings: Settings):
-        self._client = openai.AsyncClient(
+        self._client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.base_url,
             default_headers={

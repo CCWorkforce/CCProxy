@@ -1,6 +1,9 @@
 import uvicorn
+from dotenv import load_dotenv
 from ccproxy.config import Settings
 from ccproxy.interfaces.http.app import create_app
+
+load_dotenv()
 
 try:
     settings = Settings()

@@ -8,7 +8,7 @@ import openai
 from ...application.tokenizer import get_token_encoder
 from ...domain.models import ContentBlockText, ContentBlockToolUse
 from ...logging import warning, debug, error, info, LogRecord, LogEvent
-from .errors import _get_anthropic_error_details_from_exc, _format_anthropic_error_sse_event
+from .errors import _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
 
 
 StopReasonType = Optional[
@@ -255,7 +255,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             ),
             exc=e,
         )
-        yield _format_anthropic_error_sse_event(
+        yield format_anthropic_error_sse_event(
             error_type, error_msg_str, provider_err_details
         )
 
