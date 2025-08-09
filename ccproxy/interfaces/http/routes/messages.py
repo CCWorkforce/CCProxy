@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
-from ....config import Settings
+from ....config import Settings, NO_SUPPORT_TEMPERATURE_MODELS
 from ....logging import debug, info, warning, error, LogRecord, LogEvent
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
@@ -86,7 +86,21 @@ async def create_message_proxy(request: Request) -> Union[JSONResponse, Streamin
         "stream": is_stream,
     }
     if anthropic_request.temperature is not None:
-        openai_params["temperature"] = anthropic_request.temperature
+        if target_model_name in NO_SUPPORT_TEMPERATURE_MODELS:
+            warning(
+                LogRecord(
+                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    "Model does not support 'temperature'; it will be ignored.",
+                    request_id,
+                    {
+                        "parameter": "temperature",
+                        "value": anthropic_request.temperature,
+                        "target_model": target_model_name,
+                    },
+                )
+            )
+        else:
+            openai_params["temperature"] = anthropic_request.temperature
     if anthropic_request.top_p is not None:
         openai_params["top_p"] = anthropic_request.top_p
     if anthropic_request.stop_sequences:
