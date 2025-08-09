@@ -1,6 +1,30 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import Optional, FrozenSet
 
+
+# Models that support reasoning features (e.g., reasoning_effort)
+SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
+    "gpt-5-mini-2025-08-07",
+    "gpt-5-mini",
+    "gpt-5-2025-08-07",
+    "gpt-5",
+})
+
+# Models that do not support temperature (e.g., temperature)
+NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
+    "gpt-5-mini-2025-08-07",
+    "gpt-5-mini",
+    "gpt-5-2025-08-07",
+    "gpt-5",
+})
+
+# Models that support developer messages (e.g., developer_message)
+SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
+    "gpt-5-mini-2025-08-07",
+    "gpt-5-mini",
+    "gpt-5-2025-08-07",
+    "gpt-5",
+})
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
