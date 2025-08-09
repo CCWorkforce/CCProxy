@@ -151,6 +151,8 @@ class ResponseCache:
         """
         cache_key = self._generate_cache_key(request)
 
+        event: Optional[asyncio.Event] = None
+
         async with self._lock:
             # Check if response is already cached
             if cache_key in self._cache:
