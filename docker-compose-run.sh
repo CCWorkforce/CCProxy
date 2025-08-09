@@ -151,19 +151,19 @@ case "$ACTION" in
             $COMPOSE_CMD up
         fi
         ;;
-        
+
     down|stop)
         print_info "Stopping CCProxy service..."
         $COMPOSE_CMD down
         print_success "Service stopped"
         ;;
-        
+
     restart)
         print_info "Restarting CCProxy service..."
         $COMPOSE_CMD restart
         print_success "Service restarted"
         ;;
-        
+
     logs)
         if [[ "$2" == "-f" ]]; then
             $COMPOSE_CMD logs -f
@@ -171,13 +171,13 @@ case "$ACTION" in
             $COMPOSE_CMD logs --tail=100
         fi
         ;;
-        
+
     build|rebuild)
         print_info "Building CCProxy image..."
         $COMPOSE_CMD build
         print_success "Build complete"
         ;;
-        
+
     status|ps)
         print_info "Service status:"
         $COMPOSE_CMD ps
@@ -189,12 +189,12 @@ case "$ACTION" in
             print_warning "Health check: API is not responding"
         fi
         ;;
-        
+
     shell|exec)
         print_info "Opening shell in container..."
         $COMPOSE_CMD exec ccproxy /bin/bash
         ;;
-        
+
     clean)
         print_warning "This will stop the service and remove all volumes!"
         read -p "Are you sure? (y/N): " -n 1 -r
@@ -206,7 +206,7 @@ case "$ACTION" in
             print_info "Cancelled"
         fi
         ;;
-        
+
     *)
         print_error "Unknown command: $ACTION"
         echo ""
