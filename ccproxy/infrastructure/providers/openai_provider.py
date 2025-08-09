@@ -234,18 +234,3 @@ class OpenAIProvider:
 OptimizedOpenAIProvider = OpenAIProvider
 
 
-def get_optimized_provider(
-    settings: Settings,
-    backend: Literal["httpx", "httpx-http2", "aiohttp"] = "httpx-http2"
-) -> OpenAIProvider:
-    """
-    Factory function to get the optimized provider based on backend choice.
-
-    Args:
-        settings: Application settings
-        backend: HTTP client backend to use
-
-    Returns:
-        Optimized provider instance
-    """
-    return OpenAIProvider(settings, backend=backend)
