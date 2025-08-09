@@ -23,8 +23,13 @@ uvicorn==0.35.0
 uvloop==0.21.0
 watchfiles==1.1.0
 
-# HTTP client with connection pooling
-httpx==0.28.1
+# HTTP client with connection pooling and HTTP/2 support
+httpx[http2]==0.28.1
+
+# Alternative high-performance HTTP client (optional)
+aiohttp==3.12.15
+aiodns==3.5.0
+yarl==1.20.1
 
 # Python dotenv for environment variables
 python-dotenv==1.1.1
