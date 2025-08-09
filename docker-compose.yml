@@ -1,0 +1,76 @@
+services:
+  # Production service with Gunicorn
+  ccproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: ccproxy:latest
+    container_name: ${CONTAINER_NAME:-ccproxy}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8082}:${PORT:-8082}"
+    env_file:
+      - .env  # Automatically loads all variables from .env file
+    environment:
+      # Override specific values if needed
+      - HOST=0.0.0.0  # Must be 0.0.0.0 for Docker
+      - PORT=${PORT:-8082}
+      - LOG_FILE_PATH=/app/logs/ccproxy.jsonl
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-4}
+    volumes:
+      - ./logs:/app/logs
+      - ccproxy_cache:/app/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ccproxy_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Optional: Development version with debugging tools
+  ccproxy-dev:
+    build:
+      context: .
+      target: development
+    image: ccproxy:dev
+    container_name: ccproxy-dev
+    profiles:
+      - development
+    ports:
+      - "${PORT:-8082}:8082"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BIG_MODEL_NAME=${BIG_MODEL_NAME}
+      - SMALL_MODEL_NAME=${SMALL_MODEL_NAME}
+      - BASE_URL=${BASE_URL:-https://api.openai.com/v1}
+      - HOST=0.0.0.0
+      - PORT=${PORT:-8082}
+      - LOG_LEVEL=DEBUG
+      - LOG_FILE_PATH=/app/logs/ccproxy.jsonl
+    volumes:
+      - ./logs:/app/logs
+      - ./ccproxy:/app/ccproxy:ro  # Mount source code for development
+      - ccproxy_cache:/app/.cache
+    networks:
+      - ccproxy_network
+    stdin_open: true
+    tty: true
+
+volumes:
+  ccproxy_cache:
+    driver: local
+
+networks:
+  ccproxy_network:
+    driver: bridge

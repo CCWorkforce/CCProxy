@@ -1,0 +1,25 @@
+[Unit]
+Description=CCProxy - Anthropic to OpenAI API Bridge
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/ccproxy
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/ccproxy/run-ccproxy.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ccproxy/ccproxy.log
+StandardError=append:/var/log/ccproxy/ccproxy-error.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/ccproxy /opt/ccproxy/log.jsonl
+
+[Install]
+WantedBy=multi-user.target
