@@ -20,7 +20,7 @@ from ....application.converters import (
 )
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
-from ...http.errors import _log_and_return_error_response, _get_anthropic_error_details_from_exc
+from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
 
 router = APIRouter()
 
@@ -39,10 +39,10 @@ async def create_message_proxy(request: Request) -> Response:
         debug(LogRecord(LogEvent.ANTHROPIC_REQUEST.value, "Received Anthropic request body", request_id, {"body": raw_body}))
         anthropic_request = MessagesRequest.model_validate(raw_body)
     except json.JSONDecodeError as e:
-        return await _log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
+        return await log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
     except Exception as e:
         # Pydantic v2 ValidationError or others
-        return await _log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
+        return await log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
 
     if getattr(anthropic_request, "top_k", None) is not None:
         warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be ignored.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
@@ -82,7 +82,7 @@ async def create_message_proxy(request: Request) -> Response:
         openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
         openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
     except Exception as e:
-        return await _log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
+        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
 
     openai_params: Dict[str, Any] = {
         "model": target_model_name,
@@ -157,9 +157,9 @@ async def create_message_proxy(request: Request) -> Response:
             return JSONResponse(content=anthropic_response_obj.model_dump(exclude_unset=True))
     except openai.APIError as e:
         err_type, err_msg, err_status, prov_details = _get_anthropic_error_details_from_exc(e)
-        return await _log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
+        return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
     except Exception as e:
-        return await _log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
+        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
 
 
 @router.post("/v1/messages/count_tokens")

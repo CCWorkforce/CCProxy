@@ -1,5 +1,7 @@
 from enum import StrEnum
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import sys
+import os
+from pydantic_settings import BaseSettings
 from typing import Optional, FrozenSet
 
 
@@ -35,8 +37,6 @@ class MessageRoles(StrEnum):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
     # Required
     openai_api_key: str
     big_model_name: str
@@ -55,10 +55,34 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        missing = []
-        if not self.big_model_name or not self.big_model_name.strip():
-            missing.append("BIG_MODEL_NAME")
-        if not self.small_model_name or not self.small_model_name.strip():
-            missing.append("SMALL_MODEL_NAME")
-        if missing:
-            raise ValueError(f"Missing required settings: {', '.join(missing)}")
+        self._validate_required_models()
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.big_model_name = os.getenv("BIG_MODEL_NAME")
+        self.small_model_name = os.getenv("SMALL_MODEL_NAME")
+
+    def _validate_required_models(self):
+        """Validate that required model settings are configured."""
+        errors = []
+
+        if not self.openai_api_key.strip():
+            errors.append(
+                "OPENAI_API_KEY is required but not configured. "
+                "Please set the OPENAI_API_KEY environment variable or add it to your .env file."
+            )
+
+        if not self.big_model_name.strip():
+            errors.append(
+                "BIG_MODEL_NAME is required but not configured. "
+                "Please set the BIG_MODEL_NAME environment variable or add it to your .env file."
+            )
+
+        if not self.small_model_name.strip():
+            errors.append(
+                "SMALL_MODEL_NAME is required but not configured. "
+                "Please set the SMALL_MODEL_NAME environment variable or add it to your .env file."
+            )
+
+        if len(errors) > 0:
+            error_message = "\n".join([f"❌ {error}" for error in errors])
+            print(f"\n[bold red]Configuration Error:[/bold red]\n{error_message}\n")
+            sys.exit(1)
