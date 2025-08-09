@@ -183,16 +183,43 @@ class OpenAIProvider:
         if params.get("stream", False):
             return await self._create_chat_completion_stream_aiohttp(**params)
 
-        async with self._aiohttp_session.post(url, json=params) as response:
-            if response.status != 200:
-                error_data = await response.text()
-                raise Exception(f"API error: {response.status} - {error_data}")
+        try:
+            async with self._aiohttp_session.post(url, json=params) as response:
+                if response.status != 200:
+                    error_data = await response.text()
+                    raise Exception(f"API error: {response.status} - {error_data}")
 
-            data = await response.json()
+                # Read response with error handling for malformed content
+                try:
+                    data = await response.json()
+                except UnicodeDecodeError as e:
+                    # Convert UnicodeDecodeError to a more specific OpenAI API error
+                    import openai
+                    raise openai.APIError(
+                        message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                        request=None,
+                        body=None
+                    ) from e
+                except json.JSONDecodeError as e:
+                    # Handle invalid JSON response
+                    import openai
+                    raise openai.APIError(
+                        message=f"Received invalid JSON response from API: {str(e)}",
+                        request=None,
+                        body=None
+                    ) from e
 
-            # Convert to OpenAI response format
-            from openai.types.chat import ChatCompletion
-            return ChatCompletion(**data)
+                # Convert to OpenAI response format
+                from openai.types.chat import ChatCompletion
+                return ChatCompletion(**data)
+        except UnicodeDecodeError as e:
+            # Also catch UnicodeDecodeError at the outer level for any other potential sources
+            import openai
+            raise openai.APIError(
+                message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                request=None,
+                body=None
+            ) from e
 
     async def _create_chat_completion_stream_aiohttp(self, **params: Any):
         """Create a streaming chat completion using aiohttp backend."""
@@ -201,19 +228,47 @@ class OpenAIProvider:
         url = f"{self.settings.base_url}/chat/completions"
         params["stream"] = True
 
-        async with self._aiohttp_session.post(url, json=params) as response:
-            if response.status != 200:
-                error_data = await response.text()
-                raise Exception(f"API error: {response.status} - {error_data}")
+        try:
+            async with self._aiohttp_session.post(url, json=params) as response:
+                if response.status != 200:
+                    error_data = await response.text()
+                    raise Exception(f"API error: {response.status} - {error_data}")
 
-            async for line in response.content:
-                if line:
-                    line = line.decode('utf-8').strip()
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data != "[DONE]":
-                            from openai.types.chat import ChatCompletionChunk
-                            yield ChatCompletionChunk(**json.loads(data))
+                async for line in response.content:
+                    if line:
+                        try:
+                            line = line.decode('utf-8').strip()
+                        except UnicodeDecodeError as e:
+                            # Convert UnicodeDecodeError to a more specific OpenAI API error
+                            import openai
+                            raise openai.APIError(
+                                message=f"Received malformed streaming response that could not be decoded as UTF-8: {str(e)}",
+                                request=None,
+                                body=None
+                            ) from e
+
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data != "[DONE]":
+                                try:
+                                    from openai.types.chat import ChatCompletionChunk
+                                    yield ChatCompletionChunk(**json.loads(data))
+                                except json.JSONDecodeError as e:
+                                    # Handle invalid JSON in streaming response
+                                    import openai
+                                    raise openai.APIError(
+                                        message=f"Received invalid JSON in streaming response: {str(e)}",
+                                        request=None,
+                                        body=None
+                                    ) from e
+        except UnicodeDecodeError as e:
+            # Also catch UnicodeDecodeError at the outer level for any other potential sources
+            import openai
+            raise openai.APIError(
+                message=f"Received malformed streaming response from API that could not be decoded as UTF-8: {str(e)}",
+                request=None,
+                body=None
+            ) from e
 
     async def close(self):
         """Clean up the HTTP client when shutting down."""
