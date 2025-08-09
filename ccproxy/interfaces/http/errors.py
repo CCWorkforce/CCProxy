@@ -70,7 +70,7 @@ def _get_anthropic_error_details_from_exc(
 
     if isinstance(exc, openai.APIError):
         error_message = exc.message or str(exc)
-        status_code = exc.status_code or 500
+        status_code = getattr(exc, 'status_code', 500)
         error_type = STATUS_CODE_ERROR_MAP.get(
             status_code, AnthropicErrorType.API_ERROR
         )
