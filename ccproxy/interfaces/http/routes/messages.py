@@ -162,7 +162,7 @@ async def create_message_proxy(request: Request) -> Response:
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
     if target_model_name in SUPPORT_REASONING_EFFORT_MODELS:
-        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else ReasoningEfforts.Medium.value
+        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else ReasoningEfforts.Low.value
 
     debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Prepared OpenAI request parameters", request_id, {"params": openai_params}))
 
