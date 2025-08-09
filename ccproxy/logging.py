@@ -84,23 +84,32 @@ class JSONFormatter(logging.Formatter):
                     ),
                     "args": exc_value.args if hasattr(exc_value, "args") else [],
                 }
-        return json.dumps(header, ensure_ascii=False)
+        return json.dumps(header, ensure_ascii=False, separators=(",", ":"))
 
 
 class ConsoleJSONFormatter(JSONFormatter):
     def format(self, record: logging.LogRecord) -> str:
-        log_dict = json.loads(super().format(record))
-        if (
-            "detail" in log_dict
-            and "error" in log_dict["detail"]
-            and log_dict["detail"]["error"]
-        ):
-            if "stack_trace" in log_dict["detail"]["error"]:
-                del log_dict["detail"]["error"]["stack_trace"]
-        elif "error" in log_dict and log_dict["error"]:
-            if "stack_trace" in log_dict["error"]:
-                del log_dict["error"]["stack_trace"]
-        return json.dumps(log_dict)
+        header = {
+            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+        }
+        log_payload = getattr(record, "log_record", None)
+        if isinstance(log_payload, LogRecord):
+            detail = dataclasses.asdict(log_payload)
+            if detail.get("error") and detail["error"].get("stack_trace"):
+                detail["error"]["stack_trace"] = None
+            header["detail"] = detail
+        else:
+            header["message"] = record.getMessage()
+            if record.exc_info:
+                exc_type, exc_value, _ = record.exc_info
+                header["error"] = {
+                    "name": exc_type.__name__ if exc_type else "UnknownError",
+                    "message": str(exc_value),
+                    "args": exc_value.args if hasattr(exc_value, "args") else [],
+                }
+        return json.dumps(header, separators=(",", ":"))
 
 
 _logger: Optional[logging.Logger] = None
@@ -160,12 +169,18 @@ def init_logging(settings: Settings) -> logging.Logger:
 
 def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None:
     if exc:
+        include_stack = False
+        try:
+            include_stack = any(isinstance(h, logging.FileHandler) for h in (_logger.handlers if _logger else []))
+        except Exception:
+            include_stack = False
+        stack_str = None
+        if include_stack:
+            stack_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         record.error = LogError(
             name=type(exc).__name__,
             message=str(exc),
-            stack_trace="".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            ),
+            stack_trace=stack_str,
             args=exc.args if hasattr(exc, "args") else tuple(),
         )
         if not record.message and str(exc):
@@ -175,6 +190,9 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
 
     _logger.log(level=level, msg=record.message, extra={"log_record": record})
 
+
+def is_debug_enabled() -> bool:
+    return _logger is not None and _logger.isEnabledFor(logging.DEBUG)
 
 def debug(record: LogRecord):
     _log(logging.DEBUG, record)

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
 from ....config import ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
-from ....logging import debug, info, warning, LogRecord, LogEvent
+from ....logging import debug, info, warning, LogRecord, LogEvent, is_debug_enabled
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
 )
@@ -154,7 +154,8 @@ async def create_message_proxy(request: Request) -> Response:
         else:
             debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Sending non-streaming request to OpenAI-compatible API", request_id))
             openai_response_obj = await provider.create_chat_completion(**openai_params)
-            debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": getattr(openai_response_obj, "model_dump", lambda: {} )()}))
+            if is_debug_enabled():
+                debug(LogRecord(LogEvent.OPENAI_RESPONSE.value, "Received OpenAI response", request_id, {"response": openai_response_obj.model_dump()}))
             anthropic_response_obj = convert_openai_to_anthropic_response(openai_response_obj, anthropic_request.model, request_id=request_id)
             duration_ms = (time.monotonic() - request.state.start_time_monotonic) * 1000
             info(LogRecord(
