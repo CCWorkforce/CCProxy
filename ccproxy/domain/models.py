@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
@@ -94,10 +95,8 @@ class ProviderErrorMetadata(BaseModel):
     raw_error: Optional[Dict[str, Any]] = None
 
 
-import enum
 
-
-class AnthropicErrorType(str, enum.Enum):
+class AnthropicErrorType(StrEnum):
     INVALID_REQUEST = "invalid_request_error"
     AUTHENTICATION = "authentication_error"
     PERMISSION = "permission_error"
