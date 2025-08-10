@@ -34,6 +34,8 @@ CCProxy includes high-performance HTTP client optimizations for faster OpenAI AP
 
 See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
+To set up and run CCProxy, follow the steps in [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md).
+
 Before starting Claude Code, run:
 
 ```bash

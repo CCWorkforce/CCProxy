@@ -18,7 +18,7 @@ def create_application():
     except Exception as e:
         # Fail fast on invalid config
         raise SystemExit(f"Configuration error: {e}")
-    
+
     return create_app(settings)
 
 # Create the app instance for Gunicorn
