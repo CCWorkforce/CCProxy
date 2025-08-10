@@ -70,12 +70,12 @@ class Settings(BaseSettings):
     # Optional with defaults
     base_url: str = Field(default="https://api.openai.com/v1", validation_alias=AliasChoices("OPENAI_BASE_URL"))
     referer_url: str = "http://localhost:8082/claude_proxy"
-    app_name: str = "ClaudeCodeProxy"
-    app_version: str = "0.1.0"
-    log_level: str = "INFO"
+    app_name: str = "CCProxy"
+    app_version: str = "0.1.1"
+    log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     host: str = "127.0.0.1"
-    port: int = 8082
+    port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
     reload: bool = True
 
     def __init__(self, **kwargs):
