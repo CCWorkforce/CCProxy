@@ -179,6 +179,7 @@ async def create_message_proxy(request: Request) -> Response:
                     estimated_input_tokens,
                     request_id,
                     request.state.start_time_monotonic,
+                    thinking_enabled=anthropic_request.thinking is not None,
                 ),
                 media_type="text/event-stream",
             )

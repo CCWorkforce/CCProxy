@@ -33,8 +33,20 @@ class ContentBlockToolResult(BaseModel):
     is_error: Optional[bool] = None
 
 
+class ContentBlockThinking(BaseModel):
+    type: Literal["thinking"]
+    thinking: str
+    signature: Optional[str] = None
+
+
+class ContentBlockRedactedThinking(BaseModel):
+    type: Literal["redacted_thinking"]
+    data: str
+
+
 ContentBlock = Union[
-    ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult
+    ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult,
+    ContentBlockThinking, ContentBlockRedactedThinking
 ]
 
 
@@ -59,6 +71,11 @@ class ToolChoice(BaseModel):
     name: Optional[str] = None
 
 
+class ThinkingConfig(BaseModel):
+    type: Literal["enabled"] = "enabled"
+    budget_tokens: int = Field(ge=1024, description="Token budget for thinking, minimum 1024")
+
+
 class MessagesRequest(BaseModel):
     model: str
     max_tokens: int
@@ -72,6 +89,7 @@ class MessagesRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     tools: Optional[List[Tool]] = None
     tool_choice: Optional[ToolChoice] = None
+    thinking: Optional[ThinkingConfig] = None
 
 
 class TokenCountRequest(BaseModel):
