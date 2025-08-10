@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OSN WebSocket Server - Code Linting Script
+# CCProxy - Code Linting Script
 # This script uses ruff to scan and fix all Python files for linting issues
 
 set -e
@@ -19,7 +19,7 @@ PYTHON_FILES_PATTERN="*.py"
 RUFF_CONFIG_FILE="pyproject.toml"
 VENV_DIR="venv"
 
-echo -e "${BLUE}🔍 OSN WebSocket Server - Code Linting${NC}"
+echo -e "${BLUE}🔍 CCProxy - Code Linting${NC}"
 echo -e "${BLUE}=====================================${NC}"
 echo ""
 
