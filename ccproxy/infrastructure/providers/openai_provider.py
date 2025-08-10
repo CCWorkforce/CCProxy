@@ -7,8 +7,49 @@ from openai import AsyncOpenAI
 from typing import Any, Optional, Literal
 import httpx
 import os
+import logging
 
 from ...config import Settings
+
+
+def _safe_decode_response(response_bytes: bytes, context: str = "API response") -> str:
+    """
+    Safely decode response bytes to UTF-8 string with error handling.
+
+    Args:
+        response_bytes: Raw bytes from HTTP response
+        context: Description of the response context for logging
+
+    Returns:
+        Decoded UTF-8 string
+
+    Raises:
+        UnicodeDecodeError: If decoding fails even with error handling
+    """
+    try:
+        # First try strict UTF-8 decoding
+        return response_bytes.decode('utf-8')
+    except UnicodeDecodeError as e:
+        # Log the issue
+        logging.warning(
+            f"Malformed UTF-8 bytes detected in {context}. "
+            f"Attempting recovery with byte replacement. Error: {str(e)}"
+        )
+
+        try:
+            # Try with error replacement - replaces malformed bytes with replacement character
+            decoded = response_bytes.decode('utf-8', errors='replace')
+
+            # Log successful recovery
+            logging.info(f"Successfully recovered {context} by replacing malformed UTF-8 bytes")
+            return decoded
+        except Exception as recovery_error:
+            # If even replacement fails, raise the original error
+            logging.error(
+                f"Failed to recover {context} even with byte replacement. "
+                f"Recovery error: {str(recovery_error)}"
+            )
+            raise e
 
 
 class OpenAIProvider:
@@ -98,6 +139,7 @@ class OpenAIProvider:
             default_headers={
                 "HTTP-Referer": self.settings.referer_url,
                 "X-Title": self.settings.app_name,
+                "Accept-Charset": "utf-8",  # Explicitly request UTF-8 responses
             },
             timeout=180.0,
             http_client=self._http_client,
@@ -143,6 +185,7 @@ class OpenAIProvider:
                 "Authorization": f"Bearer {self.settings.openai_api_key}",
                 "Content-Type": "application/json",
                 "User-Agent": "CCProxy/1.0 AIOHTTPClient",
+                "Accept-Charset": "utf-8",  # Explicitly request UTF-8 responses
             },
             connector_owner=True,
             raise_for_status=False,
@@ -170,6 +213,16 @@ class OpenAIProvider:
                 request=None,
                 body=None
             ) from e
+        except Exception as e:
+            # Handle other potential encoding issues from httpx/openai client
+            if "utf-8" in str(e).lower() or "codec can't decode" in str(e).lower():
+                import openai
+                raise openai.APIError(
+                    message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                    request=None,
+                    body=None
+                ) from e
+            raise
 
     async def _create_chat_completion_aiohttp(self, **params: Any) -> Any:
         """Create a chat completion using aiohttp backend."""
@@ -189,22 +242,42 @@ class OpenAIProvider:
                     error_data = await response.text()
                     raise Exception(f"API error: {response.status} - {error_data}")
 
-                # Read response with error handling for malformed content
+                # Read response with comprehensive error handling for malformed content
                 try:
-                    data = await response.json()
-                except UnicodeDecodeError as e:
-                    # Convert UnicodeDecodeError to a more specific OpenAI API error
-                    import openai
-                    raise openai.APIError(
-                        message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
-                        request=None,
-                        body=None
-                    ) from e
+                    # First try to read response text with UTF-8 handling
+                    response_text = None
+                    try:
+                        response_text = await response.text(encoding='utf-8')
+                    except UnicodeDecodeError as e:
+                        # Use safe decoding utility for malformed bytes
+                        try:
+                            response_bytes = await response.read()
+                            response_text = _safe_decode_response(response_bytes, "non-streaming API response")
+                        except UnicodeDecodeError:
+                            # Convert UnicodeDecodeError to OpenAI API error
+                            import openai
+                            raise openai.APIError(
+                                message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                                request=None,
+                                body=None
+                            ) from e
+
+                    # Parse JSON from the cleaned text
+                    data = json.loads(response_text)
+
                 except json.JSONDecodeError as e:
                     # Handle invalid JSON response
                     import openai
                     raise openai.APIError(
                         message=f"Received invalid JSON response from API: {str(e)}",
+                        request=None,
+                        body=None
+                    ) from e
+                except UnicodeDecodeError as e:
+                    # Convert UnicodeDecodeError to a more specific OpenAI API error
+                    import openai
+                    raise openai.APIError(
+                        message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
                         request=None,
                         body=None
                     ) from e
@@ -239,13 +312,17 @@ class OpenAIProvider:
                         try:
                             line = line.decode('utf-8').strip()
                         except UnicodeDecodeError as e:
-                            # Convert UnicodeDecodeError to a more specific OpenAI API error
-                            import openai
-                            raise openai.APIError(
-                                message=f"Received malformed streaming response that could not be decoded as UTF-8: {str(e)}",
-                                request=None,
-                                body=None
-                            ) from e
+                            # Use safe decoding utility for malformed bytes
+                            try:
+                                line = _safe_decode_response(line, "streaming response line").strip()
+                            except UnicodeDecodeError:
+                                # Convert UnicodeDecodeError to a more specific OpenAI API error
+                                import openai
+                                raise openai.APIError(
+                                    message=f"Received malformed streaming response that could not be decoded as UTF-8: {str(e)}",
+                                    request=None,
+                                    body=None
+                                ) from e
 
                         if line.startswith("data: "):
                             data = line[6:]
@@ -292,9 +369,3 @@ class OpenAIProvider:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.close()
-
-
-# Backward compatibility aliases
-OptimizedOpenAIProvider = OpenAIProvider
-
-
