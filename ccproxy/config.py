@@ -10,6 +10,10 @@ GPT5_BASE_MODELS = {"gpt-5-mini", "gpt-5"}
 
 # Models that support reasoning features (e.g., reasoning_effort)
 SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
+    "o3",
+    "o3-2025-04-16",
+    "o4-mini",
+    "o4-mini-2025-04-16",
     "gpt-5-mini-2025-08-07",
     "gpt-5-mini",
     "gpt-5-2025-08-07",
@@ -18,6 +22,10 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
 
 # Models that do not support temperature (e.g., temperature)
 NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
+    "o3",
+    "o3-2025-04-16",
+    "o4-mini",
+    "o4-mini-2025-04-16",
     "gpt-5-mini-2025-08-07",
     "gpt-5-mini",
     "gpt-5-2025-08-07",
@@ -26,6 +34,10 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
 
 # Models that support developer messages (e.g., developer_message)
 SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
+    "o3",
+    "o3-2025-04-16",
+    "o4-mini",
+    "o4-mini-2025-04-16",
     "gpt-5-mini-2025-08-07",
     "gpt-5-mini",
     "gpt-5-2025-08-07",

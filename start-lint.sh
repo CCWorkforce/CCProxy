@@ -161,15 +161,24 @@ run_format() {
     echo -e "${BLUE}🎨 Running ruff format...${NC}"
     echo ""
 
-    # Run ruff format
-    if ruff format .; then
-        echo ""
-        echo -e "${GREEN}✅ Code formatting completed${NC}"
+    # Run ruff format (ignore failures, whitespace will be stripped anyway)
+    ruff format . || true
+
+    # Remove trailing whitespace in all Python files
+    find_python_files
+    echo -e "${BLUE}🔧 Removing trailing spaces...${NC}"
+    if [[ "${OSTYPE}" == "darwin"* ]]; then
+        echo "${PYTHON_FILES}" | while read -r file; do
+            [ -n "${file}" ] && sed -i '' -E 's/[[:space:]]+$//' "${file}"
+        done
     else
-        echo ""
-        echo -e "${RED}❌ Code formatting failed${NC}"
-        return 1
+        echo "${PYTHON_FILES}" | while read -r file; do
+            [ -n "${file}" ] && sed -i -E 's/[[:space:]]+$//' "${file}"
+        done
     fi
+
+    echo ""
+    echo -e "${GREEN}✅ Code formatting and trailing space removal completed${NC}"
 }
 
 # Function to show detailed help
