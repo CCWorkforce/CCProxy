@@ -1,8 +1,8 @@
 from enum import StrEnum
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AliasChoices
-from typing import Optional, FrozenSet, List
+from pydantic import Field, AliasChoices, field_validator
+from typing import Optional, FrozenSet, List, Union
 
 from urllib.parse import urlparse
 
@@ -97,18 +97,27 @@ class Settings(BaseSettings):
     enable_hsts: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_HSTS"))
 
     enable_cors: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_CORS"))
-    cors_allow_origins: List[str] = Field(default_factory=list, validation_alias=AliasChoices("CORS_ALLOW_ORIGINS"))
-    cors_allow_methods: List[str] = Field(default_factory=lambda: ["POST", "OPTIONS"], validation_alias=AliasChoices("CORS_ALLOW_METHODS"))
-    cors_allow_headers: List[str] = Field(default_factory=lambda: ["Authorization", "Content-Type", "X-Requested-With"], validation_alias=AliasChoices("CORS_ALLOW_HEADERS"))
+    cors_allow_origins: Union[List[str], str] = Field(default_factory=list, validation_alias=AliasChoices("CORS_ALLOW_ORIGINS"))
+    cors_allow_methods: Union[List[str], str] = Field(default_factory=lambda: ["POST", "OPTIONS"], validation_alias=AliasChoices("CORS_ALLOW_METHODS"))
+    cors_allow_headers: Union[List[str], str] = Field(default_factory=lambda: ["Authorization", "Content-Type", "X-Requested-With"], validation_alias=AliasChoices("CORS_ALLOW_HEADERS"))
 
-    allowed_hosts: List[str] = Field(default_factory=list, validation_alias=AliasChoices("ALLOWED_HOSTS"))
+    allowed_hosts: Union[List[str], str] = Field(default_factory=list, validation_alias=AliasChoices("ALLOWED_HOSTS"))
 
     restrict_base_url: bool = Field(default=True, validation_alias=AliasChoices("RESTRICT_BASE_URL"))
-    allowed_base_url_hosts: List[str] = Field(default_factory=lambda: ["api.openai.com"], validation_alias=AliasChoices("ALLOWED_BASE_URL_HOSTS"))
+    allowed_base_url_hosts: Union[List[str], str] = Field(default_factory=lambda: ["api.openai.com"], validation_alias=AliasChoices("ALLOWED_BASE_URL_HOSTS"))
 
-    redact_log_fields: List[str] = Field(default_factory=lambda: ["openai_api_key", "authorization"], validation_alias=AliasChoices("REDACT_LOG_FIELDS"))
+    redact_log_fields: Union[List[str], str] = Field(default_factory=lambda: ["openai_api_key", "authorization"], validation_alias=AliasChoices("REDACT_LOG_FIELDS"))
 
     max_stream_seconds: int = Field(default=600, validation_alias=AliasChoices("MAX_STREAM_SECONDS"))
+
+    @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
+    @classmethod
+    def parse_comma_separated(cls, v):
+        if isinstance(v, str):
+            if v.strip() == "":
+                return []
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

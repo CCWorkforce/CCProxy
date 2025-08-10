@@ -24,7 +24,7 @@ def _sanitize_for_json(obj):
     if dataclasses.is_dataclass(obj):
         return _sanitize_for_json(dataclasses.asdict(obj))
     if isinstance(obj, dict):
-                redacted = {}
+        redacted = {}
         for k, v in obj.items():
             if isinstance(k, str) and k.lower() in _REDACT_KEYS:
                 redacted[k] = "***REDACTED***"
