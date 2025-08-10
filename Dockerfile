@@ -81,7 +81,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     # Gunicorn settings
-    WEB_CONCURRENCY=4 \
+    WEB_CONCURRENCY=${WEB_CONCURRENCY:-4} \
     WORKER_CLASS=uvicorn.workers.UvicornWorker \
     WORKER_CONNECTIONS=1000 \
     MAX_REQUESTS=1000 \
@@ -148,7 +148,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     # Gunicorn settings
-    WEB_CONCURRENCY=4 \
+    WEB_CONCURRENCY=${WEB_CONCURRENCY:-4} \
     WORKER_CLASS=uvicorn.workers.UvicornWorker \
     WORKER_CONNECTIONS=1000 \
     MAX_REQUESTS=1000 \
