@@ -361,6 +361,21 @@ class ResponseCache:
         cache_key = self._generate_cache_key(request)
         self._total_cache_attempts += 1
 
+        # Do not cache responses that indicate an error/timeout
+        if getattr(response, "stop_reason", None) == "error":
+            debug(LogRecord(
+                LogEvent.PARAMETER_UNSUPPORTED.value,
+                "Skipping cache due to error stop_reason",
+                request_id,
+                {"cache_key": cache_key[:8]}
+            ))
+            # Ensure pending request event cleared
+            async with self._lock:
+                if cache_key in self._pending_requests:
+                    event = self._pending_requests.pop(cache_key)
+                    event.set()
+            return False
+
         # Check if caching is temporarily disabled due to validation failures
         if self._is_caching_disabled():
             warning(LogRecord(
