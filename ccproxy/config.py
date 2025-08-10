@@ -43,6 +43,14 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5",
 })
 
+# Models that are in the top tier of the OpenAI API
+TOP_TIER_MODELS: FrozenSet[str] = frozenset({
+    "o3",
+    "o3-2025-04-16",
+    "gpt-5-2025-08-07",
+    "gpt-5",
+})
+
 
 class MessageRoles(StrEnum):
     Developer = "developer"

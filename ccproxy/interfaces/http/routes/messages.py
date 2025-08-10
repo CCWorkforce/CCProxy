@@ -6,7 +6,9 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 import openai
 
-from ....config import ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
+from ....application.response_cache import ResponseCache
+
+from ....config import TOP_TIER_MODELS, ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
 from ....logging import debug, info, warning, LogRecord, LogEvent, is_debug_enabled
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
@@ -30,7 +32,7 @@ router = APIRouter()
 async def create_message_proxy(request: Request) -> Response:
     settings: Settings = request.app.state.settings
     provider: OpenAIProvider = request.app.state.provider
-    response_cache = request.app.state.response_cache
+    response_cache: ResponseCache = request.app.state.response_cache
 
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     request.state.request_id = request_id
@@ -162,7 +164,7 @@ async def create_message_proxy(request: Request) -> Response:
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
     if target_model_name in SUPPORT_REASONING_EFFORT_MODELS:
-        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else ReasoningEfforts.Low.value
+        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else (ReasoningEfforts.Low.value if target_model_name in TOP_TIER_MODELS else ReasoningEfforts.Medium.value)
 
     debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Prepared OpenAI request parameters", request_id, {"params": openai_params}))
 
