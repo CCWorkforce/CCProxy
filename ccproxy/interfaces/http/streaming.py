@@ -21,22 +21,27 @@ async def handle_anthropic_streaming_response_from_openai_stream(
     estimated_input_tokens: int,
     request_id: str,
     start_time_mono: float,
+    thinking_enabled: bool = False,
 ) -> AsyncGenerator[str, None]:
     """
     Consumes an OpenAI stream and yields Anthropic-compatible SSE events.
-    BUGFIX: Correctly handles content block indexing for mixed text/tool_use.
+    Supports thinking blocks for Claude 4 and beyond Anthropic models.
     """
 
     anthropic_message_id = f"msg_stream_{request_id}_{uuid.uuid4().hex[:8]}"
 
     next_anthropic_block_idx = 0
+    thinking_block_anthropic_idx: Optional[int] = None
     text_block_anthropic_idx: Optional[int] = None
 
     openai_tool_idx_to_anthropic_block_idx: Dict[int, int] = {}
 
     tool_states: Dict[int, Dict[str, Any]] = {}
+    thinking_content_buffer = ""
+    thinking_signature_buffer = ""
 
     sent_tool_block_starts: set[int] = set()
+    sent_thinking_block_start = False
 
     output_token_count = 0
     final_anthropic_stop_reason: StopReasonType = None
@@ -80,7 +85,44 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             delta = chunk.choices[0].delta
             openai_finish_reason = chunk.choices[0].finish_reason
 
-            if delta.content:
+            # Handle thinking content first (simulated from OpenAI content with special markers)
+            if thinking_enabled and delta.content:
+                if delta.content.startswith("<thinking>"):
+                    # Extract thinking content from special OpenAI format
+                    thinking_content = delta.content.replace("<thinking>", "").replace("</thinking>", "")
+                    if thinking_content:
+                        thinking_content_buffer += thinking_content
+                        output_token_count += len(enc.encode(thinking_content))
+
+                        if not sent_thinking_block_start:
+                            thinking_block_anthropic_idx = next_anthropic_block_idx
+                            next_anthropic_block_idx += 1
+                            start_thinking_event = {
+                                "type": "content_block_start",
+                                "index": thinking_block_anthropic_idx,
+                                "content_block": {"type": "thinking", "thinking": ""},
+                            }
+                            yield f"event: content_block_start\ndata: {json.dumps(start_thinking_event)}\n\n"
+                            sent_thinking_block_start = True
+
+                        thinking_delta_event = {
+                            "type": "content_block_delta",
+                            "index": thinking_block_anthropic_idx,
+                            "delta": {"type": "thinking_delta", "thinking": thinking_content},
+                        }
+                        yield f"event: content_block_delta\ndata: {json.dumps(thinking_delta_event)}\n\n"
+                elif delta.content.startswith("<signature>"):
+                    # Handle signature deltas from OpenAI (simulated format)
+                    signature_fragment = delta.content.replace("<signature>", "").replace("</signature>", "")
+                    if signature_fragment and thinking_block_anthropic_idx is not None:
+                        thinking_signature_buffer += signature_fragment
+                        signature_delta_event = {
+                            "type": "content_block_delta",
+                            "index": thinking_block_anthropic_idx,
+                            "delta": {"type": "signature_delta", "signature": signature_fragment},
+                        }
+                        yield f"event: content_block_delta\ndata: {json.dumps(signature_delta_event)}\n\n"
+            elif delta.content:
                 # Cache content for batch encoding (more efficient)
                 content_batch = delta.content
                 output_token_count += len(enc.encode(content_batch))
@@ -195,6 +237,22 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 if openai_finish_reason == "tool_calls":
                     final_anthropic_stop_reason = "tool_use"
                 break
+
+        # Stop thinking block if present
+        if thinking_block_anthropic_idx is not None and sent_thinking_block_start:
+            # Add final signature delta if no signature was streamed incrementally
+            if thinking_content_buffer and not thinking_signature_buffer:
+                # Generate a mock signature as fallback for OpenAI providers that don't support signatures
+                import hashlib
+                signature_mock = hashlib.sha256(thinking_content_buffer.encode()).hexdigest()[:64]
+                signature_delta_event = {
+                    "type": "content_block_delta",
+                    "index": thinking_block_anthropic_idx,
+                    "delta": {"type": "signature_delta", "signature": signature_mock},
+                }
+                yield f"event: content_block_delta\ndata: {json.dumps(signature_delta_event)}\n\n"
+
+            yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': thinking_block_anthropic_idx})}\n\n"
 
         if text_block_anthropic_idx is not None:
             yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': text_block_anthropic_idx})}\n\n"

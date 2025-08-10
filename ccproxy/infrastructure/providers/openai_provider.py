@@ -144,7 +144,7 @@ class OpenAIProvider:
             timeout=180.0,
             http_client=self._http_client,
             # Retry configuration
-            max_retries=2,
+            max_retries=3,
         )
 
     async def _initialize_aiohttp(self):

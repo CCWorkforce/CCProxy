@@ -2,7 +2,7 @@ import json
 import tiktoken
 from typing import Dict, List, Optional, Union
 
-from ..domain.models import Message, SystemContent, Tool, ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult
+from ..domain.models import Message, SystemContent, Tool, ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult, ContentBlockThinking, ContentBlockRedactedThinking
 from ..logging import warning, debug, LogRecord, LogEvent
 
 
@@ -116,6 +116,12 @@ def count_tokens_for_anthropic_request(
                                 request_id=request_id,
                             )
                         )
+                elif isinstance(block, ContentBlockThinking):
+                    total_tokens += len(enc.encode(block.thinking))
+                elif isinstance(block, ContentBlockRedactedThinking):
+                    # Redacted thinking blocks don't contribute to visible tokens
+                    # but should still be counted as they represent computation
+                    total_tokens += 100  # Placeholder token count for redacted thinking
 
     if tools:
         total_tokens += 2
