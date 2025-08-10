@@ -15,11 +15,7 @@ services:
     env_file:
       - .env  # Automatically loads all variables from .env file
     environment:
-      # Override specific values if needed
       - HOST=0.0.0.0  # Must be 0.0.0.0 for Docker
-      - PORT=${PORT:-8082}
-      - LOG_FILE_PATH=/app/logs/ccproxy.jsonl
-      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-4}
     volumes:
       - ./logs:/app/logs
       - ccproxy_cache:/app/.cache

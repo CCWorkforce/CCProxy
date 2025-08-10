@@ -25,20 +25,28 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:  # noqa: D401
-        body = await request.body()
-        if len(body) > self._max_bytes:
+        # Check content-length header first for efficiency
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self._max_bytes:
             return await log_and_return_error_response(
                 request,
                 413,
                 AnthropicErrorType.REQUEST_TOO_LARGE,
-                f"Request body too large: {len(body)} bytes (limit {self._max_bytes}).",
+                f"Request body too large: {content_length} bytes (limit {self._max_bytes}).",
             )
+        
+        # For body size checking, we need to read the body but avoid breaking ASGI
+        # Only check the actual body size if content-length wasn't sufficient
+        if not content_length:
+            body = await request.body()
+            if len(body) > self._max_bytes:
+                return await log_and_return_error_response(
+                    request,
+                    413,
+                    AnthropicErrorType.REQUEST_TOO_LARGE,
+                    f"Request body too large: {len(body)} bytes (limit {self._max_bytes}).",
+                )
 
-        # Replace receiver so downstream handlers can still read the body
-        async def receiver() -> dict:  # type: ignore[override]
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        request._receive = receiver  # type: ignore[attr-defined]
         return await call_next(request)
 
 
