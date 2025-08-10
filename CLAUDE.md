@@ -58,7 +58,7 @@ Big-picture architecture
   - ccproxy/interfaces/http/streaming.py converts OpenAI ChatCompletionChunk streams into Anthropic SSE events, tracking content, tool-use, and thinking/signature blocks, with accurate stop-reason mapping
 - Tokenization and model selection
   - ccproxy/application/tokenizer.py caches tiktoken encoders; counts tokens across message/content/tool structures with fallbacks
-  - ccproxy/application/model_selection.py selects target OpenAI model based on requested Anthropic model (e.g., opus/sonnet→BIG, haiku→SMALL; openrouter/ passthrough)
+  - ccproxy/application/model_selection.py selects target OpenAI model based on requested Anthropic model (opus/sonnet→BIG, haiku→SMALL)
 - Caching and validation
   - ccproxy/application/response_cache.py: LRU+TTL cache with memory budget, validation guard (JSON/UTF‑8), pending-request de‑duplication, background cleanup; exposed via app.state.response_cache
   - ccproxy/application/request_validator.py: LRU cache of validated MessagesRequest instances to avoid repeated Pydantic validation cost
