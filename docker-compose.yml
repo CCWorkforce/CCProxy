@@ -38,34 +38,6 @@ services:
         reservations:
           memory: 512M
 
-  # Optional: Development version with debugging tools
-  ccproxy-dev:
-    build:
-      context: .
-      target: development
-    image: ccproxy:dev
-    container_name: ccproxy-dev
-    profiles:
-      - development
-    ports:
-      - "${PORT:-8082}:8082"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - BIG_MODEL_NAME=${BIG_MODEL_NAME}
-      - SMALL_MODEL_NAME=${SMALL_MODEL_NAME}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      - HOST=0.0.0.0
-      - PORT=${PORT:-8082}
-      - LOG_LEVEL=DEBUG
-      - LOG_FILE_PATH=/app/logs/ccproxy.jsonl
-    volumes:
-      - ./logs:/app/logs
-      - ./ccproxy:/app/ccproxy:ro  # Mount source code for development
-      - ccproxy_cache:/app/.cache
-    networks:
-      - ccproxy_network
-    stdin_open: true
-    tty: true
 
 volumes:
   ccproxy_cache:
