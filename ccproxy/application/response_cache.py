@@ -188,7 +188,7 @@ class ResponseCache:
                 return False
 
             # Check for essential fields
-            required_fields = ["id", "content", "model", "role", "stop_reason", "usage"]
+            required_fields = ["id", "content", "model", "stop_reason", "usage"]
             missing_fields = [field for field in required_fields if field not in parsed]
             if missing_fields:
                 warning(LogRecord(
@@ -219,7 +219,7 @@ class ResponseCache:
 
             return True
 
-        except (json.JSONEncodeError, json.JSONDecodeError, UnicodeDecodeError) as e:
+        except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as e:
             warning(LogRecord(
                 LogEvent.PARAMETER_UNSUPPORTED.value,
                 "Response validation failed: JSON/encoding error",
