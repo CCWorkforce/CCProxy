@@ -160,6 +160,7 @@ class OpenAIProvider:
                 "aiohttp is not installed. Install it with: pip install aiohttp aiodns"
             )
 
+        read_timeout = float(self.settings.max_stream_seconds)
         # Create optimized connector
         connector = aiohttp.TCPConnector(
             limit=500,  # Total connection pool limit
@@ -173,10 +174,10 @@ class OpenAIProvider:
 
         # Create session with optimized settings
         timeout = aiohttp.ClientTimeout(
-            total=_read_timeout,
+            total=read_timeout,
             connect=10,
             sock_connect=10,
-            sock_read=180,
+            sock_read=read_timeout,
         )
 
         self._aiohttp_session = aiohttp.ClientSession(
