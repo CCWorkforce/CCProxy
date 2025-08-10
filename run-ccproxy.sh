@@ -153,10 +153,15 @@ echo "  PORT: ${PORT:-8082 (default)}"
 echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO (default)}"
 echo "  LOG_FILE_PATH: ${LOG_FILE_PATH:-log.jsonl (default)}"
 
-# Check if main.py exists
-if [ ! -f "main.py" ]; then
-    print_error "main.py not found in $SCRIPT_DIR"
+# Check required files
+if [ ! -f "wsgi.py" ]; then
+    print_error "wsgi.py not found in $SCRIPT_DIR"
     print_info "Please ensure you're running this script from the CCProxy root directory."
+    exit 1
+fi
+if [ ! -f "gunicorn.conf.py" ]; then
+    print_error "gunicorn.conf.py not found in $SCRIPT_DIR"
+    print_info "Please ensure gunicorn.conf.py is present in the project root."
     exit 1
 fi
 
@@ -166,7 +171,7 @@ if command_exists pip3; then
     # Check if required packages are installed
     MISSING_PACKAGES=""
 
-    for package in fastapi uvicorn openai pydantic tiktoken httpx; do
+    for package in fastapi uvicorn openai pydantic tiktoken httpx gunicorn; do
         if ! python3 -c "import $package" 2>/dev/null; then
             MISSING_PACKAGES="$MISSING_PACKAGES $package"
         fi
@@ -191,5 +196,5 @@ echo "=========================================="
 echo ""
 
 # Run the application
-print_info "Launching Python application..."
-exec python3 main.py
+print_info "Launching Gunicorn server..."
+exec gunicorn --config gunicorn.conf.py wsgi:app
