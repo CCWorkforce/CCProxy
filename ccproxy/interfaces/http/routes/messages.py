@@ -49,7 +49,7 @@ async def create_message_proxy(request: Request) -> Response:
         return await log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
 
     if getattr(anthropic_request, "top_k", None) is not None:
-        warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be ignored.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
+        warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be omitted.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
 
     is_stream = bool(anthropic_request.stream)
 
@@ -141,7 +141,7 @@ async def create_message_proxy(request: Request) -> Response:
             warning(
                 LogRecord(
                     LogEvent.PARAMETER_UNSUPPORTED.value,
-                    "Model does not support 'temperature'; it will be ignored.",
+                    "Model does not support 'temperature'; it will be omitted.",
                     request_id,
                     {
                         "parameter": "temperature",
