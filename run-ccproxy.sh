@@ -40,10 +40,15 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    print_error ".env file not found in $SCRIPT_DIR"
-    print_info "Please create a .env file with the following required variables:"
+# Determine env file (prefer .env, fallback to .env.local)
+ENV_FILE=".env"
+if [ ! -f "$ENV_FILE" ]; then
+    if [ -f ".env.local" ]; then
+        ENV_FILE=".env.local"
+        print_info "Using $ENV_FILE as configuration source (override by creating .env)."
+    else
+        print_error "No .env or .env.local file found in $SCRIPT_DIR"
+        print_info "Please create a .env file with at least the following required variables:"
     echo "  OPENAI_API_KEY=your_api_key_here"
     echo "  BIG_MODEL_NAME=your_big_model_name"
     echo "  SMALL_MODEL_NAME=your_small_model_name"
@@ -54,10 +59,11 @@ if [ ! -f ".env" ]; then
     echo "  PORT=8082"
     echo "  LOG_LEVEL=INFO"
     exit 1
+    fi
 fi
 
-# Load environment variables from .env file
-print_info "Loading environment variables from .env file..."
+# Load environment variables from $ENV_FILE
+print_info "Loading environment variables from $ENV_FILE..."
 
 # Export variables from .env file while preserving existing environment variables
 set -a  # Mark all new variables for export
@@ -80,7 +86,7 @@ while IFS='=' read -r key value; do
 
     # Export the variable
     export "$key=$value"
-done < .env
+done < "$ENV_FILE"
 set +a  # Stop marking variables for export
 
 # Function to check required environment variable
@@ -152,6 +158,24 @@ echo "  HOST: ${HOST:-127.0.0.1 (default)}"
 echo "  PORT: ${PORT:-8082 (default)}"
 echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO (default)}"
 echo "  LOG_FILE_PATH: ${LOG_FILE_PATH:-log.jsonl (default)}"
+echo "  WEB_CONCURRENCY: ${WEB_CONCURRENCY:-unset}"
+echo ""
+print_info "Security/Guardrail configuration:"
+echo "  MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-unset}"
+echo "  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-unset}"
+echo "  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-unset}"
+echo "  RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-unset}"
+echo "  SECURITY_HEADERS_ENABLED: ${SECURITY_HEADERS_ENABLED:-unset}"
+echo "  ENABLE_HSTS: ${ENABLE_HSTS:-unset}"
+echo "  ENABLE_CORS: ${ENABLE_CORS:-unset}"
+echo "  CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-unset}"
+echo "  CORS_ALLOW_METHODS: ${CORS_ALLOW_METHODS:-unset}"
+echo "  CORS_ALLOW_HEADERS: ${CORS_ALLOW_HEADERS:-unset}"
+echo "  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-unset}"
+echo "  RESTRICT_BASE_URL: ${RESTRICT_BASE_URL:-unset}"
+echo "  ALLOWED_BASE_URL_HOSTS: ${ALLOWED_BASE_URL_HOSTS:-unset}"
+echo "  REDACT_LOG_FIELDS: ${REDACT_LOG_FIELDS:-unset}"
+echo "  MAX_STREAM_SECONDS: ${MAX_STREAM_SECONDS:-unset}"
 
 # Check required files
 if [ ! -f "wsgi.py" ]; then

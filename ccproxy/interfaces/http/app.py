@@ -47,7 +47,37 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.provider = OpenAIProvider(settings)
     app.state.response_cache = response_cache
 
+    # Core middleware
     app.middleware("http")(logging_middleware)
+
+    # Guardrail middleware (order: body-size → rate-limit → security headers)
+    from .guardrails import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
+
+    settings = app.state.settings
+
+    if settings.max_request_bytes:
+        app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
+
+    if settings.rate_limit_enabled:
+        app.add_middleware(
+            RateLimitMiddleware,
+            per_minute=settings.rate_limit_per_minute,
+            burst=settings.rate_limit_burst,
+        )
+
+    if settings.enable_cors:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_allow_origins,
+            allow_methods=settings.cors_allow_methods,
+            allow_headers=settings.cors_allow_headers,
+            allow_credentials=False,
+            max_age=600,
+        )
+
+    if settings.security_headers_enabled:
+        app.add_middleware(SecurityHeadersMiddleware, enable_hsts=settings.enable_hsts)
 
     app.include_router(messages_router, tags=["API"])
     app.include_router(health_router, tags=["Health"])

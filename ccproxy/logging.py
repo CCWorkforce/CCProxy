@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional, Tuple
 
 from .config import Settings
 
+_REDACT_KEYS: list[str] = []
+
 def _sanitize_for_json(obj):
     if isinstance(obj, bytes):
         try:
@@ -22,7 +24,13 @@ def _sanitize_for_json(obj):
     if dataclasses.is_dataclass(obj):
         return _sanitize_for_json(dataclasses.asdict(obj))
     if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+                redacted = {}
+        for k, v in obj.items():
+            if isinstance(k, str) and k.lower() in _REDACT_KEYS:
+                redacted[k] = "***REDACTED***"
+            else:
+                redacted[k] = _sanitize_for_json(v)
+        return redacted
     if isinstance(obj, (list, tuple, set)):
         return [_sanitize_for_json(x) for x in obj]
     try:
@@ -179,6 +187,8 @@ def init_logging(settings: Settings) -> logging.Logger:
         }
     )
     _logger = logging.getLogger(settings.app_name)
+    global _REDACT_KEYS
+    _REDACT_KEYS = [k.lower() for k in settings.redact_log_fields]
     if settings.log_file_path:
         try:
             log_dir = os.path.dirname(settings.log_file_path)
