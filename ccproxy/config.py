@@ -18,6 +18,7 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that do not support temperature (e.g., temperature)
@@ -30,6 +31,7 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that support developer messages (e.g., developer_message)
@@ -42,6 +44,7 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that are in the top tier of the OpenAI API
@@ -61,6 +64,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset({
     ("gpt-5", 272_000),
     ("gpt-5-mini-2025-08-07", 272_000),
     ("gpt-5-mini", 272_000),
+    ("qwen/qwen3-coder", 262_144),
+    ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
 })
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
 
