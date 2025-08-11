@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     base_url: str = Field(default="https://api.openai.com/v1", validation_alias=AliasChoices("OPENAI_BASE_URL"))
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "CCProxy"
-    app_version: str = "0.3.0"
+    app_version: str = "0.3.1"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     host: str = "127.0.0.1"
