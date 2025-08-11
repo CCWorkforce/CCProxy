@@ -42,8 +42,11 @@ class ResponseCache:
         max_size: int = 1000,
         max_memory_mb: int = 500,
         ttl_seconds: int = 3600,
-        cleanup_interval_seconds: int = 300
-    ):
+        cleanup_interval_seconds: int = 300,
+        validation_failure_threshold: int = 25,
+        redact_fields: Optional[List[str]] = None
+    ): 
+        self._redact_fields = [f.lower() for f in redact_fields] if redact_fields else []
         """
         Initialize response cache.
 
@@ -73,10 +76,10 @@ class ResponseCache:
         self._total_cache_attempts = 0
 
         # Circuit breaker for validation failures
-        self._validation_failure_threshold = 10  # Disable caching after 10 consecutive failures
         self._validation_failure_reset_time = 300  # Reset after 5 minutes
         self._consecutive_validation_failures = 0
         self._caching_disabled_until = 0
+        self._validation_failure_threshold = validation_failure_threshold
 
         # Start cleanup task
         self._cleanup_task = None
@@ -135,6 +138,31 @@ class ResponseCache:
                     {"key": key[:8], "age_seconds": current_time - cached.timestamp}
                 ))
 
+    def _redact_sensitive_data(self, data: Any) -> Any:
+        """Recursively redacts sensitive fields in cache data.
+
+        Uses the configured redact fields list to sanitize data before storage.
+
+        Args:
+            data: Input data structure to redact
+
+        Returns:
+            Redacted data structure with sensitive values masked
+        """
+        if not hasattr(self, '_redact_fields') or not self._redact_fields:
+            return data
+        
+        if isinstance(data, dict):
+            return {
+                k: "***REDACTED***"
+                if k.lower() in self._redact_fields else self._redact_sensitive_data(v)
+                for k, v in data.items()
+            }
+        elif isinstance(data, list):
+            return [self._redact_sensitive_data(item) for item in data]
+        return data
+
+
     def _generate_cache_key(self, request: MessagesRequest) -> str:
         """Generate a unique cache key for the request."""
         request_dict = request.model_dump(exclude_unset=True)
@@ -157,6 +185,45 @@ class ResponseCache:
         # Reset circuit breaker if we were previously disabled but enough time has passed
         if self._caching_disabled_until > 0 and current_time >= self._caching_disabled_until:
             self._consecutive_validation_failures = 0
+
+            # Redact sensitive data before caching
+            if self._redact_fields:
+                try:
+                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
+                    response = MessagesResponse(**redacted_response_data)
+                except Exception as e:
+                    warning(LogRecord(
+                        LogEvent.CACHE_EVENT.value,
+                        "Failed to redact sensitive data before caching",
+                        request_id,
+                        {"error": str(e)}
+                    ))
+
+            # Redact sensitive data before caching
+            if self._redact_fields:
+                try:
+                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
+                    response = MessagesResponse(**redacted_response_data)
+                except Exception as e:
+                    warning(LogRecord(
+                        LogEvent.CACHE_EVENT.value,
+                        "Failed to redact sensitive data before caching",
+                        request_id,
+                        {"error": str(e)}
+                    ))
+
+            # Redact sensitive data before caching
+            if self._redact_fields:
+                try:
+                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
+                    response = MessagesResponse(**redacted_response_data)
+                except Exception as e:
+                    warning(LogRecord(
+                        LogEvent.CACHE_EVENT.value,
+                        "Failed to redact sensitive data before caching",
+                        request_id,
+                        {"error": str(e)}
+                    ))
             self._caching_disabled_until = 0
 
         return False
@@ -623,5 +690,7 @@ response_cache = ResponseCache(
     max_size=1000,
     max_memory_mb=500,
     ttl_seconds=3600,
-    cleanup_interval_seconds=300
+    cleanup_interval_seconds=300,
+    validation_failure_threshold=25,
+    redact_fields=["openai_api_key", "authorization"]
 )
