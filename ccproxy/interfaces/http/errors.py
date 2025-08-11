@@ -29,6 +29,12 @@ STATUS_CODE_ERROR_MAP: Dict[int, AnthropicErrorType] = {
 def extract_provider_error_details(
     error_details_dict: Optional[Dict[str, Any]],
 ) -> Optional[ProviderErrorMetadata]:
+    """Parse *provider* metadata embedded in OpenAI error bodies.
+
+    When the upstream OpenAI gateway returns an ``{"error": {..., "metadata": {..}}}``
+    structure this helper extracts the original provider name and raw JSON error
+    for inclusion in Anthropic-formatted error responses and structured logs.
+    """
     if not isinstance(error_details_dict, dict):
         return None
     metadata = error_details_dict.get("metadata")
@@ -60,9 +66,15 @@ def extract_provider_error_details(
     )
 
 
-def _get_anthropic_error_details_from_exc(
+def get_anthropic_error_details_from_execution(
     exc: Exception,
 ) -> Tuple[AnthropicErrorType, str, int, Optional[ProviderErrorMetadata]]:
+    """Map arbitrary exceptions to Anthropic error tuple.
+
+    Returns ``(error_type, message, status_code, provider_details)`` suitable
+    for downstream formatting.  Special-cases OpenAI client exception classes
+    and 429 *insufficient_quota* payloads.
+    """
     """Maps caught exceptions to Anthropic error type, message, status code, and provider details."""
     error_type = AnthropicErrorType.API_ERROR
     error_message = str(exc)
@@ -76,10 +88,18 @@ def _get_anthropic_error_details_from_exc(
             status_code, AnthropicErrorType.API_ERROR
         )
 
+        raw_err: Optional[Dict[str, Any]] = None
         if hasattr(exc, "body") and isinstance(exc.body, dict):
             actual_error_details = exc.body.get("error", exc.body)
             provider_details = extract_provider_error_details(actual_error_details)
+            raw_err = actual_error_details if isinstance(actual_error_details, dict) else None
 
+        if status_code == 429 and raw_err:
+            code = raw_err.get("code") or (raw_err.get("error") or {}).get("code")
+            if code == "insufficient_quota":
+                error_type = AnthropicErrorType.RATE_LIMIT
+                if provider_details and provider_details.raw_error and isinstance(provider_details.raw_error, dict):
+                    pass
     if isinstance(exc, openai.AuthenticationError):
         error_type = AnthropicErrorType.AUTHENTICATION
     elif isinstance(exc, openai.RateLimitError):
@@ -99,6 +119,7 @@ def format_anthropic_error_sse_event(
     message: str,
     provider_details: Optional[ProviderErrorMetadata] = None,
 ) -> str:
+    """Create an *error* SSE compatible with Anthropic Messages streaming."""
     """Formats an error into the Anthropic SSE 'error' event structure."""
     anthropic_err_detail = AnthropicErrorDetail(type=error_type, message=message)
     if provider_details:
@@ -127,6 +148,7 @@ def _build_anthropic_error_response(
     status_code: int,
     provider_details: Optional[ProviderErrorMetadata] = None,
 ) -> JSONResponse:
+    """Return FastAPI JSONResponse with properly-shaped error payload."""
     """Creates a JSONResponse with Anthropic-formatted error."""
     err_detail = AnthropicErrorDetail(type=error_type, message=message)
     if provider_details:
@@ -157,6 +179,7 @@ async def log_and_return_error_response(
     provider_details: Optional[ProviderErrorMetadata] = None,
     caught_exception: Optional[Exception] = None,
 ) -> JSONResponse:
+    """Structured-log the failure then return Anthropic-style error JSON."""
     request_id = getattr(request.state, "request_id", "unknown")
     start_time_mono = getattr(request.state, "start_time_monotonic", time.monotonic())
     duration_ms = (time.monotonic() - start_time_mono) * 1000
@@ -171,6 +194,20 @@ async def log_and_return_error_response(
         log_data["provider_name"] = provider_details.provider_name
         log_data["provider_raw_error"] = provider_details.raw_error
 
+    retry_after_val = None
+    if caught_exception is not None and hasattr(caught_exception, "headers"):
+        try:
+            retry_after_val = getattr(caught_exception, "headers", {}).get("Retry-After")
+        except Exception:
+            retry_after_val = None
+
+    response = _build_anthropic_error_response(
+        anthropic_error_type, error_message, status_code, provider_details
+    )
+    if retry_after_val:
+        response.headers["Retry-After"] = str(retry_after_val)
+        log_data["retry_after"] = retry_after_val
+
     error(
         LogRecord(
             event=LogEvent.REQUEST_FAILURE.value,
@@ -180,6 +217,4 @@ async def log_and_return_error_response(
         ),
         exc=caught_exception,
     )
-    return _build_anthropic_error_response(
-        anthropic_error_type, error_message, status_code, provider_details
-    )
+    return response

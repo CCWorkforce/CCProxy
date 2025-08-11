@@ -1,8 +1,8 @@
 import json
-from typing import Any, Dict, List, Optional, Union, Literal
+from typing import Any, Dict, List, Optional, Union, Literal, Tuple
 
 import openai
-
+from functools import lru_cache
 from ..domain.models import (
     Message, SystemContent, Tool, ToolChoice, ContentBlockText, ContentBlockImage,
     ContentBlockToolUse, ContentBlockToolResult, ContentBlock, MessagesResponse,
@@ -15,6 +15,19 @@ from ..logging import warning, error, LogRecord, LogEvent
 StopReasonType = Optional[
     Literal["end_turn", "max_tokens", "stop_sequence", "tool_use", "error"]
 ]
+
+
+@lru_cache(maxsize=512)
+def _serialize_tool_result_content_for_openai_cached(key: Tuple[str, str]) -> str:
+    content_json, _ = key
+    items = json.loads(content_json)
+    parts = []
+    for item in items:
+        if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
+            parts.append(str(item["text"]))
+        else:
+            parts.append(json.dumps(item))
+    return "\n".join(parts)
 
 
 def _serialize_tool_result_content_for_openai(
@@ -30,31 +43,20 @@ def _serialize_tool_result_content_for_openai(
         return anthropic_tool_result_content
 
     if isinstance(anthropic_tool_result_content, list):
-        processed_parts = []
-        contains_non_text_block = False
-        for item in anthropic_tool_result_content:
-            if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
-                processed_parts.append(str(item["text"]))
-            else:
-                try:
-                    processed_parts.append(json.dumps(item))
-                    contains_non_text_block = True
-                except TypeError:
-                    processed_parts.append(
-                        f"<unserializable_item type='{type(item).__name__}'>"
-                    )
-                    contains_non_text_block = True
-
-        result_str = "\n".join(processed_parts)
-        if contains_non_text_block:
-            warning(
-                LogRecord(
-                    event=LogEvent.TOOL_RESULT_PROCESSING.value,
-                    message="Tool result content list contained non-text or complex items; parts were JSON stringified.",
-                    request_id=request_id,
-                    data={**log_context, "result_str_preview": result_str[:100]},
-                )
-            )
+        try:
+            key = (json.dumps(anthropic_tool_result_content, sort_keys=True, separators=(",", ":")), "1")
+            result_str = _serialize_tool_result_content_for_openai_cached(key)
+        except TypeError:
+            processed_parts = []
+            for item in anthropic_tool_result_content:
+                if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
+                    processed_parts.append(str(item["text"]))
+                else:
+                    try:
+                        processed_parts.append(json.dumps(item))
+                    except TypeError:
+                        processed_parts.append(f"<unserializable_item type='{type(item).__name__}'>")
+            result_str = "\n".join(processed_parts)
         return result_str
 
     # At this point, content should be either str or list per schema; any other type indicates malformed input.
@@ -75,6 +77,7 @@ def convert_anthropic_to_openai_messages(
     anthropic_system: Optional[Union[str, List[SystemContent]]] = None,
     request_id: Optional[str] = None,
     target_model: Optional[str] = None,
+    settings: Optional[object] = None,
 ) -> List[Dict[str, Any]]:
     """Convert Anthropic messages and optional system prompt into the
     OpenAI Chat Completions message format.
@@ -296,9 +299,40 @@ def convert_anthropic_to_openai_messages(
     return final_openai_messages
 
 
+@lru_cache(maxsize=256)
+def _tools_cache(key: Tuple[Tuple[str, str, str], ...]) -> List[Dict[str, Any]]:
+    tools = []
+    for name, desc, schema_json in key:
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": desc,
+                "parameters": json.loads(schema_json),
+            },
+        })
+    return tools
+
+
 def convert_anthropic_tools_to_openai(
     anthropic_tools: Optional[List[Tool]],
+    settings: Optional[object] = None,
 ) -> Optional[List[Dict[str, Any]]]:
+    if settings is not None and not getattr(settings, "cache_converters_enabled", True):
+        # Bypass cache when disabled
+        if not anthropic_tools:
+            return None
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description or "",
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in anthropic_tools
+        ]
     """Convert a list of Anthropic Tool objects into the JSON schema
     expected by OpenAI as the ``tools`` parameter.
 
@@ -306,23 +340,58 @@ def convert_anthropic_tools_to_openai(
     """
     if not anthropic_tools:
         return None
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description or "",
-                "parameters": t.input_schema,
-            },
-        }
-        for t in anthropic_tools
-    ]
+    try:
+        key = tuple((t.name, t.description or "", json.dumps(t.input_schema, sort_keys=True, separators=(",", ":"))) for t in anthropic_tools)
+        return _tools_cache(key)
+    except TypeError:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description or "",
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in anthropic_tools
+        ]
+
+
+@lru_cache(maxsize=256)
+def _tool_choice_cache(key: Tuple[str, Optional[str]]) -> Optional[Union[str, Dict[str, Any]]]:
+    typ, name = key
+    if typ == "auto":
+        return "auto"
+    if typ == "any":
+        return "auto"
+    if typ == "tool" and name:
+        return {"type": "function", "function": {"name": name}}
+    return "auto"
 
 
 def convert_anthropic_tool_choice_to_openai(
     anthropic_choice: Optional[ToolChoice],
     request_id: Optional[str] = None,
+    settings: Optional[object] = None,
 ) -> Optional[Union[str, Dict[str, Any]]]:
+    if settings is not None and not getattr(settings, "cache_converters_enabled", True):
+        # Compute without cache
+        if not anthropic_choice:
+            return None
+        if anthropic_choice.type == "auto":
+            return "auto"
+        if anthropic_choice.type == "any":
+            warning(
+                LogRecord(
+                    event=LogEvent.TOOL_CHOICE_UNSUPPORTED.value,
+                    message="Anthropic tool_choice 'any' mapped to 'auto' (cache bypass).",
+                    request_id=request_id,
+                )
+            )
+            return "auto"
+        if anthropic_choice.type == "tool" and anthropic_choice.name:
+            return {"type": "function", "function": {"name": anthropic_choice.name}}
+        return "auto"
     """Translate an Anthropic ``tool_choice`` object into the value
     accepted by OpenAI Chat Completions.
 
@@ -331,8 +400,6 @@ def convert_anthropic_tool_choice_to_openai(
     """
     if not anthropic_choice:
         return None
-    if anthropic_choice.type == "auto":
-        return "auto"
     if anthropic_choice.type == "any":
         warning(
             LogRecord(
@@ -342,19 +409,7 @@ def convert_anthropic_tool_choice_to_openai(
                 data={"anthropic_tool_choice": anthropic_choice.model_dump()},
             )
         )
-        return "auto"
-    if anthropic_choice.type == "tool" and anthropic_choice.name:
-        return {"type": "function", "function": {"name": anthropic_choice.name}}
-
-    warning(
-        LogRecord(
-            event=LogEvent.TOOL_CHOICE_UNSUPPORTED.value,
-            message=f"Unsupported Anthropic tool_choice: {anthropic_choice.model_dump()}. Defaulting to 'auto'.",
-            request_id=request_id,
-            data={"anthropic_tool_choice": anthropic_choice.model_dump()},
-        )
-    )
-    return "auto"
+    return _tool_choice_cache((anthropic_choice.type, anthropic_choice.name))
 
 
 def convert_openai_to_anthropic_response(

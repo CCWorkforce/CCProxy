@@ -75,6 +75,8 @@ class LogEvent(enum.Enum):
     PARAMETER_UNSUPPORTED = "parameter_unsupported"
     HEALTH_CHECK = "health_check"
     PROVIDER_ERROR_DETAILS = "provider_error_details"
+    CACHE_EVENT = "cache_event"
+    STREAM_EVENT = "stream_event"
 
 
 @dataclasses.dataclass

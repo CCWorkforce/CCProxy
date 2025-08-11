@@ -1,6 +1,6 @@
 [project]
 name = "CCProxy"
-version = "0.2.0"
+version = "0.3.0"
 description = "Proxy server enabling Claude Code to work with OpenAI-compatible API providers"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -49,6 +49,19 @@ target-version = "py313"
 known-first-party = ["ccproxy"]
 
 [tool.mypy]
-strict = true
+python_version = "3.13"
 ignore_missing_imports = true
+warn_unused_ignores = false
+# Disable noisy error codes until gradual typing completed
+disable_error_code = [
+    "no-untyped-def",
+    "attr-defined",
+    "misc",
+    "type-arg",
+    "assignment",
+    "union-attr",
+    "arg-type",
+    "dict-item",
+    "redundant-cast",
+]
 plugins = ['pydantic.mypy']

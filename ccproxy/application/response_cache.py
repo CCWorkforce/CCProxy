@@ -6,7 +6,8 @@ import json
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
+from asyncio import QueueFull
 import sys
 
 from ..domain.models import MessagesRequest, MessagesResponse
@@ -80,6 +81,9 @@ class ResponseCache:
         # Start cleanup task
         self._cleanup_task = None
 
+        # Streaming de-duplication registry
+        self._stream_subscribers: Dict[str, List[asyncio.Queue]] = {}
+
     async def start_cleanup_task(self):
         """Start the background cleanup task."""
         if self._cleanup_task is None:
@@ -105,7 +109,7 @@ class ResponseCache:
                 break
             except Exception as e:
                 warning(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     f"Error in cache cleanup: {str(e)}",
                     None,
                     {"error": str(e)}
@@ -125,7 +129,7 @@ class ResponseCache:
                 cached = self._cache.pop(key)
                 self._memory_usage_bytes -= cached.size_bytes
                 debug(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     "Expired cache entry removed",
                     None,
                     {"key": key[:8], "age_seconds": current_time - cached.timestamp}
@@ -133,9 +137,8 @@ class ResponseCache:
 
     def _generate_cache_key(self, request: MessagesRequest) -> str:
         """Generate a unique cache key for the request."""
-        # Create a deterministic string representation
         request_dict = request.model_dump(exclude_unset=True)
-        request_str = json.dumps(request_dict, sort_keys=True)
+        request_str = json.dumps(request_dict, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(request_str.encode()).hexdigest()
 
     def _is_caching_disabled(self) -> bool:
@@ -180,7 +183,7 @@ class ResponseCache:
             # Basic structure validation
             if not isinstance(parsed, dict):
                 warning(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     "Response validation failed: not a dictionary",
                     None,
                     {"response_type": type(parsed).__name__}
@@ -192,7 +195,7 @@ class ResponseCache:
             missing_fields = [field for field in required_fields if field not in parsed]
             if missing_fields:
                 warning(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     "Response validation failed: missing required fields",
                     None,
                     {"missing_fields": missing_fields}
@@ -210,7 +213,7 @@ class ResponseCache:
                                 text_content.encode('utf-8').decode('utf-8')
                             except UnicodeDecodeError:
                                 warning(LogRecord(
-                                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                                    LogEvent.CACHE_EVENT.value,
                                     "Response validation failed: invalid UTF-8 content",
                                     None,
                                     {"content_type": "text"}
@@ -221,7 +224,7 @@ class ResponseCache:
 
         except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as e:
             warning(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Response validation failed: JSON/encoding error",
                 None,
                 {"error": str(e), "error_type": type(e).__name__}
@@ -229,7 +232,7 @@ class ResponseCache:
             return False
         except Exception as e:
             warning(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Response validation failed: unexpected error",
                 None,
                 {"error": str(e), "error_type": type(e).__name__}
@@ -364,7 +367,7 @@ class ResponseCache:
         # Do not cache responses that indicate an error/timeout
         if getattr(response, "stop_reason", None) == "error":
             debug(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Skipping cache due to error stop_reason",
                 request_id,
                 {"cache_key": cache_key[:8]}
@@ -379,7 +382,7 @@ class ResponseCache:
         # Check if caching is temporarily disabled due to validation failures
         if self._is_caching_disabled():
             warning(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Caching temporarily disabled due to validation failures",
                 request_id,
                 {
@@ -404,7 +407,7 @@ class ResponseCache:
             if self._consecutive_validation_failures >= self._validation_failure_threshold:
                 self._caching_disabled_until = time.time() + self._validation_failure_reset_time
                 warning(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     "Disabling caching due to consecutive validation failures",
                     request_id,
                     {
@@ -415,7 +418,7 @@ class ResponseCache:
                 ))
 
             warning(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Refusing to cache invalid response",
                 request_id,
                 {
@@ -453,7 +456,7 @@ class ResponseCache:
                 self._memory_usage_bytes -= lru_cached.size_bytes
                 self._evictions += 1
                 debug(LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.CACHE_EVENT.value,
                     "Evicted LRU cache entry",
                     request_id,
                     {"evicted_key": lru_key[:8], "size_bytes": lru_cached.size_bytes}
@@ -520,6 +523,42 @@ class ResponseCache:
                 event = self._pending_requests.pop(cache_key)
                 event.set()
 
+    async def subscribe_stream(self, request: MessagesRequest) -> tuple[bool, asyncio.Queue, str]:
+        """Register a subscriber for a streaming request; returns (is_primary, queue, key)."""
+        key = self._generate_cache_key(request)
+        async with self._lock:
+            q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+            subs = self._stream_subscribers.get(key)
+            if subs is None:
+                self._stream_subscribers[key] = [q]
+                return True, q, key
+            else:
+                subs.append(q)
+                return False, q, key
+
+    async def publish_stream_line(self, key: str, line: str) -> None:
+        """Publish a line to all subscribers for the given key."""
+        async with self._lock:
+            subs = list(self._stream_subscribers.get(key, []))
+            for q in subs:
+                try:
+                    q.put_nowait(line)
+                except QueueFull:
+                    # Drop slow subscriber
+                    self._stream_subscribers[key].remove(q)
+                except Exception:
+                    pass
+
+    async def finalize_stream(self, key: str) -> None:
+        """Signal end-of-stream to all subscribers and clear registry for key."""
+        async with self._lock:
+            subs = self._stream_subscribers.pop(key, [])
+        for q in subs:
+            try:
+                await q.put(None)
+            except Exception:
+                pass
+
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics including validation failure metrics."""
         total_requests = self._cache_hits + self._cache_misses
@@ -550,7 +589,7 @@ class ResponseCache:
             self._pending_requests.clear()
             self._memory_usage_bytes = 0
             info(LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.CACHE_EVENT.value,
                 "Cache cleared",
                 None,
                 {"previous_size": len(self._cache)}

@@ -14,6 +14,15 @@ class RequestValidator:
     """Validates and caches request validation results."""
 
     def __init__(self, cache_size: int = 10000):
+        """Create a request validator with an LRU cache.
+
+        Parameters
+        ----------
+        cache_size: int, default 10000
+            Maximum number of validated *Anthropic Messages* payloads to keep
+            in-memory.  The most recently used entries are retained when the
+            limit is reached.
+        """
         self._cache_size = cache_size
         # Use OrderedDict for efficient LRU cache implementation
         self._validation_cache: OrderedDict[str, MessagesRequest] = OrderedDict()
@@ -25,7 +34,23 @@ class RequestValidator:
         """Generate a hash for request caching."""
         return hashlib.md5(request_json.encode()).hexdigest()
 
-    def validate_request(self, raw_body: Dict[str, Any], request_id: Optional[str] = None) -> MessagesRequest:
+    def validate_request(
+        self, raw_body: Dict[str, Any], request_id: Optional[str] = None
+    ) -> MessagesRequest:
+        """Validate and cache an Anthropic *Messages* HTTP body.
+
+        A stable JSON dump of *raw_body* is hashed to detect duplicates.  When
+        an identical request has already been validated the cached
+        :class:`~ccproxy.domain.models.MessagesRequest` instance is returned
+        immediately, avoiding expensive Pydantic validation.
+
+        Parameters
+        ----------
+        raw_body:
+            Parsed JSON body from the incoming HTTP request.
+        request_id:
+            Correlator added to structured log events.
+        """
         """Validate request with caching for repeated requests."""
         request_json = json.dumps(raw_body, sort_keys=True)
         request_hash = self._get_request_hash(request_json)
@@ -56,6 +81,7 @@ class RequestValidator:
         return validated_request
 
     def get_cache_stats(self) -> Dict[str, Any]:
+        """Return hit/miss statistics for monitoring endpoints."""
         """Get cache statistics."""
         total_requests = self._cache_hits + self._cache_misses
         return {
