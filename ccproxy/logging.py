@@ -13,6 +13,21 @@ from .config import Settings
 _REDACT_KEYS: list[str] = []
 
 def _sanitize_for_json(obj):
+    """Recursively sanitize an object for JSON serialization.
+
+    Converts non-serializable types (bytes, dataclasses, etc.) into JSON-compatible structures while redacting sensitive fields. Handles:
+    - Bytes: Decoded as UTF-8 (with 'replace' on error), falling back to Latin-1
+    - Dataclasses: Converted to dictionaries
+    - Dictionaries: Redacts keys listed in _REDACT_KEYS
+    - Lists/sets/tuples: Recursively sanitizes each element
+    - Non-serializable objects: Converted via repr()
+
+    Args:
+        obj (Any): Input object to sanitize.
+
+    Returns:
+        Any: JSON-serializable structure with sensitive data redacted.
+    """
     if isinstance(obj, bytes):
         try:
             return obj.decode("utf-8", "replace")
