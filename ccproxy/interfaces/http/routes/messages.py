@@ -23,7 +23,7 @@ from ....application.converters import (
 )
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
-from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
+from ...http.errors import log_and_return_error_response, get_anthropic_error_details_from_execution, format_anthropic_error_sse_event
 from ...http.http_status import BAD_REQUEST, UNPROCESSABLE_ENTITY, INTERNAL_SERVER_ERROR, PAYLOAD_TOO_LARGE
 from ....infrastructure.providers.openai_provider import OpenAIProvider
 
@@ -209,7 +209,7 @@ async def create_message_proxy(request: Request) -> Response:
                     try:
                         openai_stream_response = await provider.create_chat_completion(**openai_params)
                     except openai.APIError as e:
-                        err_type, err_msg, _, prov_details = _get_anthropic_error_details_from_exc(e)
+                        err_type, err_msg, _, prov_details = get_anthropic_error_details_from_execution(e)
                         await response_cache.publish_stream_line(key, format_anthropic_error_sse_event(err_type, err_msg, prov_details))
                         await response_cache.finalize_stream(key)
                         raise
@@ -292,7 +292,7 @@ async def create_message_proxy(request: Request) -> Response:
         # Clear pending request on error
         if not is_stream:
             await response_cache.clear_pending_request(anthropic_request)
-        err_type, err_msg, err_status, prov_details = _get_anthropic_error_details_from_exc(e)
+        err_type, err_msg, err_status, prov_details = get_anthropic_error_details_from_execution(e)
         return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, e)
     except Exception as e:
         # Clear pending request on error

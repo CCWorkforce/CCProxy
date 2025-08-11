@@ -7,7 +7,7 @@ import openai
 
 from ...application.tokenizer import get_token_encoder
 from ...logging import warning, debug, error, info, LogRecord, LogEvent
-from .errors import _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
+from .errors import get_anthropic_error_details_from_execution, format_anthropic_error_sse_event
 from .http_status import OK, INTERNAL_SERVER_ERROR
 
 
@@ -296,7 +296,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
         stream_status_code = INTERNAL_SERVER_ERROR
         stream_log_event = LogEvent.REQUEST_FAILURE.value
         error_type, error_msg_str, _, provider_err_details = (
-            _get_anthropic_error_details_from_exc(e)
+            get_anthropic_error_details_from_execution(e)
         )
         stream_final_message = f"Error during OpenAI stream conversion: {error_msg_str}"
         final_anthropic_stop_reason = "error"

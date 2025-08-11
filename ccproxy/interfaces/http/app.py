@@ -10,7 +10,7 @@ from ...infrastructure.providers.openai_provider import OpenAIProvider
 from ...domain.models import AnthropicErrorType
 from ...application.response_cache import response_cache
 from .middleware import logging_middleware
-from .errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
+from .errors import log_and_return_error_response, get_anthropic_error_details_from_execution
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
@@ -84,7 +84,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.exception_handler(openai.APIError)
     async def openai_api_error_handler(request: Request, exc: openai.APIError):
-        err_type, err_msg, err_status, prov_details = _get_anthropic_error_details_from_exc(exc)
+        err_type, err_msg, err_status, prov_details = get_anthropic_error_details_from_execution(exc)
         return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, exc)
 
     @app.exception_handler(ValidationError)
