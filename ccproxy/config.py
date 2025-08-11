@@ -52,6 +52,15 @@ TOP_TIER_MODELS: FrozenSet[str] = frozenset({
     "gpt-5",
 })
 
+MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset({
+    ("o3", 200_000),
+    ("o3-2025-04-16", 200_000),
+    ("o4-mini", 200_000),
+    ("o4-mini-2025-04-16", 200_000),
+    ("gpt-5-2025-08-07", 272_000),
+    ("gpt-5", 272_000),
+})
+
 
 class MessageRoles(StrEnum):
     Developer = "developer"
@@ -87,8 +96,6 @@ class Settings(BaseSettings):
     port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
     reload: bool = True
 
-    # Approx 200k tokens * ~4 bytes/token ≈ 800k; use 1 MB safety margin
-    max_request_bytes: int = Field(default=1_000_000, validation_alias=AliasChoices("MAX_REQUEST_BYTES"))
     rate_limit_enabled: bool = Field(default=True, validation_alias=AliasChoices("RATE_LIMIT_ENABLED"))
     rate_limit_per_minute: int = Field(default=60, validation_alias=AliasChoices("RATE_LIMIT_PER_MINUTE"))
     rate_limit_burst: int = Field(default=30, validation_alias=AliasChoices("RATE_LIMIT_BURST"))

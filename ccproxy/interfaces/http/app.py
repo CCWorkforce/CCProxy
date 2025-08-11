@@ -50,13 +50,11 @@ def create_app(settings: Settings) -> FastAPI:
     # Core middleware
     app.middleware("http")(logging_middleware)
 
-    # Guardrail middleware (order: body-size → rate-limit → security headers)
-    from .guardrails import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
+    # Guardrail middleware (order: rate-limit → security headers)
+    from .guardrails import RateLimitMiddleware, SecurityHeadersMiddleware
 
     settings = app.state.settings
 
-    if settings.max_request_bytes:
-        app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
 
     if settings.rate_limit_enabled:
         app.add_middleware(
