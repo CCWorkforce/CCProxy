@@ -137,6 +137,17 @@ class Settings(BaseSettings):
     @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
     @classmethod
     def parse_comma_separated(cls, v):
+        """Parse comma-separated string values into lists for configuration fields.
+
+        Handles both string inputs (splitting by commas) and already-list inputs.
+        Empty strings are converted to empty lists.
+
+        Args:
+            v: Input value which can be a string or list
+
+        Returns:
+            List of stripped, non-empty items
+        """
         if isinstance(v, str):
             if v.strip() == "":
                 return []
@@ -144,6 +155,17 @@ class Settings(BaseSettings):
         return v
 
     def __init__(self, **kwargs):
+        """Initialize settings object and perform validation.
+
+        Calls parent constructor with provided keyword arguments, then validates
+        required model settings and security configurations.
+
+        Args:
+            **kwargs: Keyword arguments for settings initialization
+
+        Raises:
+            SystemExit: If required settings are missing or security validation fails
+        """
         super().__init__(**kwargs)
         self._validate_required_models()
         self._validate_security()
