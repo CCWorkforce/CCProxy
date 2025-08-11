@@ -216,17 +216,41 @@ class TokenCountResponse(BaseModel):
 
 
 class Usage(BaseModel):
+    """Token usage statistics for an API request.
+
+    Attributes:
+        input_tokens (int): Number of tokens in the input messages.
+        output_tokens (int): Number of tokens in the generated response.
+    """
     input_tokens: int
     output_tokens: int
 
 
 class ProviderErrorMetadata(BaseModel):
+    """Metadata associated with an error response from a model provider.
+
+    Attributes:
+        provider_name (str): Name of the provider that generated the error.
+        raw_error (Optional[Dict[str, Any]]): Original error response from the provider.
+    """
     provider_name: str
     raw_error: Optional[Dict[str, Any]] = None
 
 
 
 class AnthropicErrorType(StrEnum):
+    """Enumeration of possible error types returned by the Anthropic API.
+
+    Attributes:
+        INVALID_REQUEST: Parameters were incorrect
+        AUTHENTICATION: Missing or invalid credentials
+        PERMISSION: User lacks required permissions
+        NOT_FOUND: Resource not found
+        RATE_LIMIT: Rate limit exceeded
+        API_ERROR: Generic API error
+        OVERLOADED: Service is overloaded
+        REQUEST_TOO_LARGE: Request payload too large
+    """
     INVALID_REQUEST = "invalid_request_error"
     AUTHENTICATION = "authentication_error"
     PERMISSION = "permission_error"
@@ -238,6 +262,15 @@ class AnthropicErrorType(StrEnum):
 
 
 class AnthropicErrorDetail(BaseModel):
+    """Detailed information about an error encountered during API processing.
+
+    Attributes:
+        type (AnthropicErrorType): Categorized error type
+        message (str): Human-readable error description
+        provider (Optional[str]): Underlying provider name, if different from Anthropic
+        provider_message (Optional[str]): Error message from the provider
+        provider_code (Optional[Union[str, int]]): Provider-specific error code
+    """
     type: AnthropicErrorType
     message: str
     provider: Optional[str] = None
@@ -246,11 +279,29 @@ class AnthropicErrorDetail(BaseModel):
 
 
 class AnthropicErrorResponse(BaseModel):
+    """Structured error response format following Anthropic API specifications.
+
+    Attributes:
+        type (Literal[\"error\"])): Fixed type indicator for error responses
+        error (AnthropicErrorDetail): Detailed error information
+    """
     type: Literal["error"] = "error"
     error: AnthropicErrorDetail
 
 
 class MessagesResponse(BaseModel):
+    """Response model for successful Messages API requests.
+
+    Attributes:
+        id (str): Unique identifier for the message
+        type (Literal[\"message\"])): Fixed response type
+        role (Literal[\"assistant\"])): Role of the message sender
+        model (str): Model that generated the response
+        content (List[ContentBlock]): Generated content blocks
+        stop_reason (Optional[str]): Reason generation stopped
+        stop_sequence (Optional[str]): Stopping sequence that ended generation
+        usage (Usage): Token usage statistics for the request
+    """
     id: str
     type: Literal["message"] = "message"
     role: Literal["assistant"] = "assistant"

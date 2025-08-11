@@ -224,12 +224,12 @@ fi
 echo ""
 print_success "Environment validation complete!"
 print_info "Starting CCProxy..."
-echo "=========================================="
+echo "=================================================="
 echo "  CCProxy - Anthropic to OpenAI-compatible Bridge"
 echo "  Host: ${HOST:-127.0.0.1}"
 echo "  Port: ${PORT:-8082}"
 echo "  API URL: http://${HOST:-127.0.0.1}:${PORT:-8082}"
-echo "=========================================="
+echo "=================================================="
 echo ""
 
 # Run the application
