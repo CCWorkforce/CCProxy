@@ -70,7 +70,7 @@ async def create_message_proxy(request: Request) -> Response:
         return await log_and_return_error_response(request, UNPROCESSABLE_ENTITY, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
 
     if getattr(anthropic_request, "top_k", None) is not None:
-        warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be omitted.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
+        warning(LogRecord(LogEvent.STREAM_EVENT.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be omitted.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
 
     is_stream = bool(anthropic_request.stream)
 
@@ -158,7 +158,7 @@ async def create_message_proxy(request: Request) -> Response:
     else:
         warning(
             LogRecord(
-                LogEvent.PARAMETER_UNSUPPORTED.value,
+                LogEvent.STREAM_EVENT.value,
                 f"Model supports reasoning; 'max_tokens' will be omitted for model {target_model}.",
                 request_id,
                 {
@@ -172,7 +172,7 @@ async def create_message_proxy(request: Request) -> Response:
         if target_model in NO_SUPPORT_TEMPERATURE_MODELS:
             warning(
                 LogRecord(
-                    LogEvent.PARAMETER_UNSUPPORTED.value,
+                    LogEvent.STREAM_EVENT.value,
                     f"Model does not support 'temperature'; it will be omitted for model {target_model}.",
                     request_id,
                     {
@@ -230,11 +230,14 @@ async def create_message_proxy(request: Request) -> Response:
                         await response_cache.finalize_stream(key)
                     create_task(fanout())
                 async def gen():
-                    while True:
-                        item = await q.get()
-                        if item is None:
-                            break
-                        yield item
+                    try:
+                        while True:
+                            item = await q.get()
+                            if item is None:
+                                break
+                            yield item
+                    finally:
+                        await response_cache.finalize_stream(key)
                 return StreamingResponse(gen(), media_type="text/event-stream")
             else:
                 openai_stream_response = await provider.create_chat_completion(**openai_params)

@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     stream_dedupe_enabled: bool = Field(default=True, validation_alias=AliasChoices("STREAM_DEDUPE_ENABLED"))
     metrics_cache_enabled: bool = Field(default=True, validation_alias=AliasChoices("METRICS_CACHE_ENABLED"))
 
+    provider_max_retries: int = Field(default=3, validation_alias=AliasChoices("PROVIDER_MAX_RETRIES"))
+    provider_retry_base_delay: float = Field(default=1.0, validation_alias=AliasChoices("PROVIDER_RETRY_BASE_DELAY"))
+    provider_retry_jitter: float = Field(default=0.5, validation_alias=AliasChoices("PROVIDER_RETRY_JITTER"))
+
     @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
     @classmethod
     def parse_comma_separated(cls, v):

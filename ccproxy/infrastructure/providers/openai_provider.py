@@ -9,6 +9,8 @@ import httpx
 import os
 import logging
 import asyncio
+import random
+import openai
 
 from ...config import Settings
 
@@ -73,6 +75,9 @@ class OpenAIProvider:
         self.settings = settings
         self.backend = backend
         self._client: Optional[AsyncOpenAI] = None
+        self._max_retries = settings.provider_max_retries
+        self._base_delay = settings.provider_retry_base_delay
+        self._jitter = settings.provider_retry_jitter
         self._http_client: Optional[httpx.AsyncClient] = None
         self._aiohttp_session: Optional[Any] = None
         self._aiohttp_init_lock = asyncio.Lock()
@@ -147,7 +152,7 @@ class OpenAIProvider:
             timeout=_read_timeout,
             http_client=self._http_client,
             # Retry configuration
-            max_retries=3,
+            max_retries=self._max_retries,
         )
 
     async def _initialize_aiohttp(self):
@@ -211,26 +216,30 @@ class OpenAIProvider:
         if not self._client:
             self._initialize_sync()
 
-        try:
-            return await self._client.chat.completions.create(**params)
-        except UnicodeDecodeError as e:
-            # Convert UnicodeDecodeError to a more specific OpenAI API error
-            import openai
-            raise openai.APIError(
-                message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
-                request=None,
-                body=None
-            ) from e
-        except Exception as e:
-            # Handle other potential encoding issues from httpx/openai client
-            if "utf-8" in str(e).lower() or "codec can't decode" in str(e).lower():
-                import openai
+        attempt = 0
+        while True:
+            try:
+                return await self._client.chat.completions.create(**params)
+            except openai.RateLimitError as e:
+                if attempt >= self._max_retries:
+                    raise e
+                delay = self._base_delay * (2 ** attempt) + random.uniform(0, self._jitter)
+                await asyncio.sleep(delay)
+                attempt += 1
+            except UnicodeDecodeError as e:
                 raise openai.APIError(
                     message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
                     request=None,
-                    body=None
+                    body=None,
                 ) from e
-            raise
+            except Exception as e:
+                if "utf-8" in str(e).lower() or "codec can't decode" in str(e).lower():
+                    raise openai.APIError(
+                        message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
+                        request=None,
+                        body=None,
+                    ) from e
+                raise
 
     async def _create_chat_completion_aiohttp(self, **params: Any) -> Any:
         """Create a chat completion using aiohttp backend."""

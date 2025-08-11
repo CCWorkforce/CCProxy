@@ -179,6 +179,20 @@ async def log_and_return_error_response(
         log_data["provider_name"] = provider_details.provider_name
         log_data["provider_raw_error"] = provider_details.raw_error
 
+    retry_after_val = None
+    if caught_exception is not None and hasattr(caught_exception, "headers"):
+        try:
+            retry_after_val = getattr(caught_exception, "headers", {}).get("Retry-After")
+        except Exception:
+            retry_after_val = None
+
+    response = _build_anthropic_error_response(
+        anthropic_error_type, error_message, status_code, provider_details
+    )
+    if retry_after_val:
+        response.headers["Retry-After"] = str(retry_after_val)
+        log_data["retry_after"] = retry_after_val
+
     error(
         LogRecord(
             event=LogEvent.REQUEST_FAILURE.value,
@@ -188,6 +202,4 @@ async def log_and_return_error_response(
         ),
         exc=caught_exception,
     )
-    return _build_anthropic_error_response(
-        anthropic_error_type, error_message, status_code, provider_details
-    )
+    return response

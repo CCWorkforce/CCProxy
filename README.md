@@ -50,7 +50,10 @@ Environment variables (with defaults) you can tune:
 Notes:
 - Token count cache hashes request shape; no caching on exceptions
 - Converter caches are small and safe; they only memoize deterministic mappings
-- Streaming de-duplication tees identical streams to multiple clients; keep disabled unless you want fanout
+- Streaming de-duplication enables **fan-out**: the first identical streaming request opens a single upstream connection; subsequent identical requests attach as subscribers and receive the same SSE events.
+    - Back-pressure: each subscriber queue is bounded (1000 lines). Slow subscribers are dropped to protect the primary stream.
+    - All subscribers are finalized on normal completion **or any error path** ensuring no goroutines leak.
+- Provider retries: rate-limit (429) responses are retried with exponential back-off (configurable via `PROVIDER_MAX_RETRIES`, `PROVIDER_RETRY_BASE_DELAY`, `PROVIDER_RETRY_JITTER`). `Retry-After` headers are forwarded to the client and recorded in logs.
 
 Metrics:
 - GET /v1/metrics exposes performance, response_cache, request_validator_cache, and token_count_cache stats

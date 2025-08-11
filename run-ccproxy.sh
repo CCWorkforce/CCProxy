@@ -185,6 +185,11 @@ echo "  CACHE_CONVERTERS_MAX: ${CACHE_CONVERTERS_MAX:-unset}"
 echo "  STREAM_DEDUPE_ENABLED: ${STREAM_DEDUPE_ENABLED:-unset}"
 echo "  METRICS_CACHE_ENABLED: ${METRICS_CACHE_ENABLED:-unset}"
 
+print_info "Provider retry configuration:"
+echo "  PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-unset}"
+echo "  PROVIDER_RETRY_BASE_DELAY: ${PROVIDER_RETRY_BASE_DELAY:-unset}"
+echo "  PROVIDER_RETRY_JITTER: ${PROVIDER_RETRY_JITTER:-unset}"
+
 # Check required files
 if [ ! -f "wsgi.py" ]; then
     print_error "wsgi.py not found in $SCRIPT_DIR"
