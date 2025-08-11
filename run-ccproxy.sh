@@ -176,6 +176,15 @@ echo "  ALLOWED_BASE_URL_HOSTS: ${ALLOWED_BASE_URL_HOSTS:-unset}"
 echo "  REDACT_LOG_FIELDS: ${REDACT_LOG_FIELDS:-unset}"
 echo "  MAX_STREAM_SECONDS: ${MAX_STREAM_SECONDS:-unset}"
 
+print_info "Caching/Performance configuration:"
+echo "  CACHE_TOKEN_COUNTS_ENABLED: ${CACHE_TOKEN_COUNTS_ENABLED:-unset}"
+echo "  CACHE_TOKEN_COUNTS_TTL_S: ${CACHE_TOKEN_COUNTS_TTL_S:-unset}"
+echo "  CACHE_TOKEN_COUNTS_MAX: ${CACHE_TOKEN_COUNTS_MAX:-unset}"
+echo "  CACHE_CONVERTERS_ENABLED: ${CACHE_CONVERTERS_ENABLED:-unset}"
+echo "  CACHE_CONVERTERS_MAX: ${CACHE_CONVERTERS_MAX:-unset}"
+echo "  STREAM_DEDUPE_ENABLED: ${STREAM_DEDUPE_ENABLED:-unset}"
+echo "  METRICS_CACHE_ENABLED: ${METRICS_CACHE_ENABLED:-unset}"
+
 # Check required files
 if [ ! -f "wsgi.py" ]; then
     print_error "wsgi.py not found in $SCRIPT_DIR"

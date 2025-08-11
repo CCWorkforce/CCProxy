@@ -36,6 +36,25 @@ See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
 ## Quickstart (uv + .env + Gunicorn)
 
+### Caching and performance settings
+
+Environment variables (with defaults) you can tune:
+
+- CACHE_TOKEN_COUNTS_ENABLED=true
+- CACHE_TOKEN_COUNTS_TTL_S=300
+- CACHE_TOKEN_COUNTS_MAX=2048
+- CACHE_CONVERTERS_ENABLED=true
+- CACHE_CONVERTERS_MAX=256
+- STREAM_DEDUPE_ENABLED=true
+
+Notes:
+- Token count cache hashes request shape; no caching on exceptions
+- Converter caches are small and safe; they only memoize deterministic mappings
+- Streaming de-duplication tees identical streams to multiple clients; keep disabled unless you want fanout
+
+Metrics:
+- GET /v1/metrics exposes performance, response_cache, request_validator_cache, and token_count_cache stats
+
 1. Create your environment file from the template:
 
 ```bash

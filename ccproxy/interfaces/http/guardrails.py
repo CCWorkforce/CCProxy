@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """Security guardrail middleware for CCProxy."""
+
+from __future__ import annotations
 
 import time
 import asyncio
-from typing import Callable, Awaitable, Dict, List
+from typing import Dict, List
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response

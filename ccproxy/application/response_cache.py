@@ -6,7 +6,7 @@ import json
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import sys
 
 from ..domain.models import MessagesRequest, MessagesResponse
@@ -80,6 +80,9 @@ class ResponseCache:
         # Start cleanup task
         self._cleanup_task = None
 
+        # Streaming de-duplication registry
+        self._stream_subscribers: Dict[str, List[asyncio.Queue]] = {}
+
     async def start_cleanup_task(self):
         """Start the background cleanup task."""
         if self._cleanup_task is None:
@@ -133,9 +136,8 @@ class ResponseCache:
 
     def _generate_cache_key(self, request: MessagesRequest) -> str:
         """Generate a unique cache key for the request."""
-        # Create a deterministic string representation
         request_dict = request.model_dump(exclude_unset=True)
-        request_str = json.dumps(request_dict, sort_keys=True)
+        request_str = json.dumps(request_dict, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(request_str.encode()).hexdigest()
 
     def _is_caching_disabled(self) -> bool:
@@ -519,6 +521,39 @@ class ResponseCache:
             if cache_key in self._pending_requests:
                 event = self._pending_requests.pop(cache_key)
                 event.set()
+
+    async def subscribe_stream(self, request: MessagesRequest) -> tuple[bool, asyncio.Queue, str]:
+        """Register a subscriber for a streaming request; returns (is_primary, queue, key)."""
+        key = self._generate_cache_key(request)
+        async with self._lock:
+            q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+            subs = self._stream_subscribers.get(key)
+            if subs is None:
+                self._stream_subscribers[key] = [q]
+                return True, q, key
+            else:
+                subs.append(q)
+                return False, q, key
+
+    async def publish_stream_line(self, key: str, line: str) -> None:
+        """Publish a line to all subscribers for the given key."""
+        async with self._lock:
+            subs = self._stream_subscribers.get(key, [])
+            for q in subs:
+                try:
+                    q.put_nowait(line)
+                except Exception:
+                    pass
+
+    async def finalize_stream(self, key: str) -> None:
+        """Signal end-of-stream to all subscribers and clear registry for key."""
+        async with self._lock:
+            subs = self._stream_subscribers.pop(key, [])
+        for q in subs:
+            try:
+                await q.put(None)
+            except Exception:
+                pass
 
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics including validation failure metrics."""

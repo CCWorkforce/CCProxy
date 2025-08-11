@@ -4,11 +4,12 @@ import time
 import uuid
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
+from asyncio import create_task
 import openai
 
 from ....application.response_cache import ResponseCache
 
-from ....config import TOP_TIER_MODELS, ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS, MODEL_INPUT_TOKEN_LIMIT
+from ....config import TOP_TIER_MODELS, ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS, MODEL_INPUT_TOKEN_LIMIT_MAP
 from ....logging import debug, info, warning, LogRecord, LogEvent, is_debug_enabled
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
@@ -22,8 +23,8 @@ from ....application.converters import (
 )
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
-from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
-from ...http.http_status import BAD_REQUEST, UNPROCESSABLE_ENTITY, INTERNAL_SERVER_ERROR, REQUEST_TOO_LARGE
+from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
+from ...http.http_status import BAD_REQUEST, UNPROCESSABLE_ENTITY, INTERNAL_SERVER_ERROR, PAYLOAD_TOO_LARGE
 from ....infrastructure.providers.openai_provider import OpenAIProvider
 
 router = APIRouter()
@@ -108,14 +109,14 @@ async def create_message_proxy(request: Request) -> Response:
         model_name=anthropic_request.model,
         tools=anthropic_request.tools,
         request_id=request_id,
+        settings=settings,
     )
 
-    _limits = dict(MODEL_INPUT_TOKEN_LIMIT)
-    _limit = _limits.get(target_model, 200_000)
+    _limit = MODEL_INPUT_TOKEN_LIMIT_MAP.get(target_model, 200_000)
     if estimated_input_tokens > _limit:
         return await log_and_return_error_response(
             request,
-            REQUEST_TOO_LARGE,
+            PAYLOAD_TOO_LARGE,
             AnthropicErrorType.REQUEST_TOO_LARGE,
             f"Input tokens {estimated_input_tokens} exceed limit {_limit} for model {target_model}.",
         )
@@ -140,9 +141,10 @@ async def create_message_proxy(request: Request) -> Response:
             anthropic_request.system,
             request_id=request_id,
             target_model=target_model,
+            settings=settings,
         )
-        openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
-        openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
+        openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools, settings=settings)
+        openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id, settings=settings)
     except Exception as e:
         return await log_and_return_error_response(request, INTERNAL_SERVER_ERROR, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
 
@@ -201,18 +203,52 @@ async def create_message_proxy(request: Request) -> Response:
     try:
         if is_stream:
             debug(LogRecord(LogEvent.STREAMING_REQUEST.value, "Initiating streaming request to OpenAI-compatible API", request_id))
-            openai_stream_response = await provider.create_chat_completion(**openai_params)
-            return StreamingResponse(
-                handle_anthropic_streaming_response_from_openai_stream(
-                    openai_stream_response,
-                    anthropic_request.model,
-                    estimated_input_tokens,
-                    request_id,
-                    request.state.start_time_monotonic,
-                    thinking_enabled=anthropic_request.thinking is not None,
-                ),
-                media_type="text/event-stream",
-            )
+            if settings.stream_dedupe_enabled:
+                is_primary, q, key = await response_cache.subscribe_stream(anthropic_request)
+                if is_primary:
+                    try:
+                        openai_stream_response = await provider.create_chat_completion(**openai_params)
+                    except openai.APIError as e:
+                        err_type, err_msg, _, prov_details = _get_anthropic_error_details_from_exc(e)
+                        await response_cache.publish_stream_line(key, format_anthropic_error_sse_event(err_type, err_msg, prov_details))
+                        await response_cache.finalize_stream(key)
+                        raise
+                    except Exception:
+                        await response_cache.publish_stream_line(key, format_anthropic_error_sse_event(AnthropicErrorType.API_ERROR, "Streaming request failed to start.", None))
+                        await response_cache.finalize_stream(key)
+                        raise
+                    async def fanout():
+                        async for line in handle_anthropic_streaming_response_from_openai_stream(
+                            openai_stream_response,
+                            anthropic_request.model,
+                            estimated_input_tokens,
+                            request_id,
+                            request.state.start_time_monotonic,
+                            thinking_enabled=anthropic_request.thinking is not None,
+                        ):
+                            await response_cache.publish_stream_line(key, line)
+                        await response_cache.finalize_stream(key)
+                    create_task(fanout())
+                async def gen():
+                    while True:
+                        item = await q.get()
+                        if item is None:
+                            break
+                        yield item
+                return StreamingResponse(gen(), media_type="text/event-stream")
+            else:
+                openai_stream_response = await provider.create_chat_completion(**openai_params)
+                return StreamingResponse(
+                    handle_anthropic_streaming_response_from_openai_stream(
+                        openai_stream_response,
+                        anthropic_request.model,
+                        estimated_input_tokens,
+                        request_id,
+                        request.state.start_time_monotonic,
+                        thinking_enabled=anthropic_request.thinking is not None,
+                    ),
+                    media_type="text/event-stream",
+                )
         else:
             debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Sending non-streaming request to OpenAI-compatible API", request_id))
             openai_response_obj = await provider.create_chat_completion(**openai_params)
@@ -294,6 +330,7 @@ async def count_tokens_endpoint(request: Request) -> TokenCountResponse:
         model_name=count_request.model,
         tools=count_request.tools,
         request_id=request_id,
+        settings=request.app.state.settings,
     )
     duration_ms = (time.monotonic() - start_time_mono) * 1000
     info(LogRecord(

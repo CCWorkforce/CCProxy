@@ -76,10 +76,18 @@ def _get_anthropic_error_details_from_exc(
             status_code, AnthropicErrorType.API_ERROR
         )
 
+        raw_err: Optional[Dict[str, Any]] = None
         if hasattr(exc, "body") and isinstance(exc.body, dict):
             actual_error_details = exc.body.get("error", exc.body)
             provider_details = extract_provider_error_details(actual_error_details)
+            raw_err = actual_error_details if isinstance(actual_error_details, dict) else None
 
+        if status_code == 429 and raw_err:
+            code = raw_err.get("code") or (raw_err.get("error") or {}).get("code")
+            if code == "insufficient_quota":
+                error_type = AnthropicErrorType.RATE_LIMIT
+                if provider_details and provider_details.raw_error and isinstance(provider_details.raw_error, dict):
+                    pass
     if isinstance(exc, openai.AuthenticationError):
         error_type = AnthropicErrorType.AUTHENTICATION
     elif isinstance(exc, openai.RateLimitError):

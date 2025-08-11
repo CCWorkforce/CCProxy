@@ -2,7 +2,7 @@ from enum import StrEnum
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AliasChoices, field_validator
-from typing import Optional, FrozenSet, List, Union
+from typing import Optional, FrozenSet, List, Union, Dict
 
 from urllib.parse import urlparse
 
@@ -62,6 +62,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset({
     ("gpt-5-mini-2025-08-07", 272_000),
     ("gpt-5-mini", 272_000),
 })
+MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
 
 
 class MessageRoles(StrEnum):
@@ -118,6 +119,16 @@ class Settings(BaseSettings):
     redact_log_fields: Union[List[str], str] = Field(default_factory=lambda: ["openai_api_key", "authorization"], validation_alias=AliasChoices("REDACT_LOG_FIELDS"))
 
     max_stream_seconds: int = Field(default=600, validation_alias=AliasChoices("MAX_STREAM_SECONDS"))
+
+    cache_token_counts_enabled: bool = Field(default=True, validation_alias=AliasChoices("CACHE_TOKEN_COUNTS_ENABLED"))
+    cache_token_counts_ttl_s: int = Field(default=300, validation_alias=AliasChoices("CACHE_TOKEN_COUNTS_TTL_S"))
+    cache_token_counts_max: int = Field(default=2048, validation_alias=AliasChoices("CACHE_TOKEN_COUNTS_MAX"))
+
+    cache_converters_enabled: bool = Field(default=True, validation_alias=AliasChoices("CACHE_CONVERTERS_ENABLED"))
+    cache_converters_max: int = Field(default=256, validation_alias=AliasChoices("CACHE_CONVERTERS_MAX"))
+
+    stream_dedupe_enabled: bool = Field(default=True, validation_alias=AliasChoices("STREAM_DEDUPE_ENABLED"))
+    metrics_cache_enabled: bool = Field(default=True, validation_alias=AliasChoices("METRICS_CACHE_ENABLED"))
 
     @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
     @classmethod
