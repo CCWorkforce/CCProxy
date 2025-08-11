@@ -8,7 +8,7 @@ PROCESSING = 102
 CHECKPOINT = 103
 
 OK = 200
-CREATED = (201,)
+CREATED = 201
 ACCEPTED = 202
 NON_AUTHORITATIVE_INFORMATION = 203
 NO_CONTENT = 204
@@ -111,7 +111,7 @@ class HTTPStatus(object):
         414: "URI Too Long",
         415: "Unsupported Media Type",
         416: "Requested range not satisfiable",
-        417: "Exception Failed",
+        417: "Expectation Failed",
         418: "I'm a teapot",
         422: "Unprocessable entity",
         423: "Locked",
