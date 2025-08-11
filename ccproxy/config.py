@@ -59,6 +59,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset({
     ("o4-mini-2025-04-16", 200_000),
     ("gpt-5-2025-08-07", 272_000),
     ("gpt-5", 272_000),
+    ("gpt-5-mini-2025-08-07", 272_000),
+    ("gpt-5-mini", 272_000),
 })
 
 
