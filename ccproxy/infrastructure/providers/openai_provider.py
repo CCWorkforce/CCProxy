@@ -8,6 +8,7 @@ from typing import Any, Optional, Literal
 import httpx
 import os
 import logging
+import asyncio
 
 from ...config import Settings
 
@@ -74,6 +75,7 @@ class OpenAIProvider:
         self._client: Optional[AsyncOpenAI] = None
         self._http_client: Optional[httpx.AsyncClient] = None
         self._aiohttp_session: Optional[Any] = None
+        self._aiohttp_init_lock = asyncio.Lock()
 
         # Initialize immediately for backward compatibility
         self._initialize_sync()
@@ -152,13 +154,15 @@ class OpenAIProvider:
         """Initialize aiohttp session for alternative backend."""
         if self._aiohttp_session:
             return
-
-        try:
-            import aiohttp
-        except ImportError:
-            raise ImportError(
-                "aiohttp is not installed. Install it with: pip install aiohttp aiodns"
-            )
+        async with self._aiohttp_init_lock:
+            if self._aiohttp_session:
+                return
+            try:
+                import aiohttp
+            except ImportError:
+                raise ImportError(
+                    "aiohttp is not installed. Install it with: pip install aiohttp aiodns"
+                )
 
         _read_timeout = float(self.settings.max_stream_seconds)
         # Create optimized connector
@@ -199,6 +203,8 @@ class OpenAIProvider:
 
         # Use aiohttp backend if selected
         if self.backend == "aiohttp":
+            if self._aiohttp_session is None:
+                await self._initialize_aiohttp()
             return await self._create_chat_completion_aiohttp(**params)
 
         # Use httpx backend (default)
@@ -228,8 +234,6 @@ class OpenAIProvider:
 
     async def _create_chat_completion_aiohttp(self, **params: Any) -> Any:
         """Create a chat completion using aiohttp backend."""
-        await self._initialize_aiohttp()
-
         import json
 
         url = f"{self.settings.base_url}/chat/completions"
