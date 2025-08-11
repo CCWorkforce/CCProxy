@@ -8,7 +8,7 @@ import openai
 
 from ....application.response_cache import ResponseCache
 
-from ....config import TOP_TIER_MODELS, ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS
+from ....config import TOP_TIER_MODELS, ReasoningEfforts, Settings, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS, MODEL_INPUT_TOKEN_LIMIT
 from ....logging import debug, info, warning, LogRecord, LogEvent, is_debug_enabled
 from ....domain.models import (
     MessagesRequest, TokenCountRequest, TokenCountResponse, AnthropicErrorType
@@ -23,6 +23,7 @@ from ....application.converters import (
 from ....application.model_selection import select_target_model
 from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
 from ...http.errors import log_and_return_error_response, _get_anthropic_error_details_from_exc
+from ...http.http_status import BAD_REQUEST, UNPROCESSABLE_ENTITY, INTERNAL_SERVER_ERROR, REQUEST_TOO_LARGE
 from ....infrastructure.providers.openai_provider import OpenAIProvider
 
 router = APIRouter()
@@ -62,10 +63,10 @@ async def create_message_proxy(request: Request) -> Response:
         debug(LogRecord(LogEvent.ANTHROPIC_REQUEST.value, "Received Anthropic request body", request_id, {"body": raw_body}))
         anthropic_request = MessagesRequest.model_validate(raw_body)
     except json.JSONDecodeError as e:
-        return await log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
+        return await log_and_return_error_response(request, BAD_REQUEST, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON body.", caught_exception=e)
     except Exception as e:
         # Pydantic v2 ValidationError or others
-        return await log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
+        return await log_and_return_error_response(request, UNPROCESSABLE_ENTITY, AnthropicErrorType.INVALID_REQUEST, f"Invalid request body: {str(e)}", caught_exception=e)
 
     if getattr(anthropic_request, "top_k", None) is not None:
         warning(LogRecord(LogEvent.PARAMETER_UNSUPPORTED.value, "Parameter 'top_k' provided but not supported by OpenAI Chat Completions API; it will be omitted.", request_id, {"parameter": "top_k", "value": anthropic_request.top_k}))
@@ -109,6 +110,16 @@ async def create_message_proxy(request: Request) -> Response:
         request_id=request_id,
     )
 
+    _limits = dict(MODEL_INPUT_TOKEN_LIMIT)
+    _limit = _limits.get(target_model, 200_000)
+    if estimated_input_tokens > _limit:
+        return await log_and_return_error_response(
+            request,
+            REQUEST_TOO_LARGE,
+            AnthropicErrorType.REQUEST_TOO_LARGE,
+            f"Input tokens {estimated_input_tokens} exceed limit {_limit} for model {target_model}.",
+        )
+
     info(LogRecord(
         event=LogEvent.REQUEST_START.value,
         message="Processing new message request",
@@ -133,7 +144,7 @@ async def create_message_proxy(request: Request) -> Response:
         openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
         openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
     except Exception as e:
-        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
+        return await log_and_return_error_response(request, INTERNAL_SERVER_ERROR, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
 
     openai_params: Dict[str, Any] = {
         "model": target_model,
@@ -248,7 +259,7 @@ async def create_message_proxy(request: Request) -> Response:
         # Clear pending request on error
         if not is_stream:
             await response_cache.clear_pending_request(anthropic_request)
-        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
+        return await log_and_return_error_response(request, INTERNAL_SERVER_ERROR, AnthropicErrorType.API_ERROR, "An unexpected error occurred while processing the request.", caught_exception=e)
 
 
 @router.post("/v1/messages/count_tokens")

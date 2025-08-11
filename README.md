@@ -34,9 +34,31 @@ CCProxy includes high-performance HTTP client optimizations for faster OpenAI AP
 
 See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
-To set up and run CCProxy, follow the steps in [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md).
+## Quickstart (uv + .env + Gunicorn)
 
-Before starting Claude Code, run:
+1. Create your environment file from the template:
+
+```bash
+cp .env.example .env
+# edit .env to set OPENAI_API_KEY, BIG_MODEL_NAME, SMALL_MODEL_NAME
+```
+
+2. Install Python dependencies into an isolated environment using uv:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv
+. .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+3. Start the server (pure Python with Gunicorn):
+
+```bash
+./run-ccproxy.sh
+```
+
+4. Point your Anthropic client at the proxy:
 
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:8082

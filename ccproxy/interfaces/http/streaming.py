@@ -8,6 +8,7 @@ import openai
 from ...application.tokenizer import get_token_encoder
 from ...logging import warning, debug, error, info, LogRecord, LogEvent
 from .errors import _get_anthropic_error_details_from_exc, format_anthropic_error_sse_event
+from .http_status import OK, INTERNAL_SERVER_ERROR
 
 
 StopReasonType = Optional[
@@ -57,7 +58,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
         None: None,
     }
 
-    stream_status_code = 200
+    stream_status_code = OK
     stream_final_message = "Streaming request completed successfully."
     stream_log_event = LogEvent.REQUEST_COMPLETED.value
 
@@ -292,7 +293,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
         yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
 
     except Exception as e:
-        stream_status_code = 500
+        stream_status_code = INTERNAL_SERVER_ERROR
         stream_log_event = LogEvent.REQUEST_FAILURE.value
         error_type, error_msg_str, _, provider_err_details = (
             _get_anthropic_error_details_from_exc(e)

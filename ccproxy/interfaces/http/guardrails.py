@@ -18,7 +18,7 @@ from ...domain.models import AnthropicErrorType
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     """Rejects requests whose body exceeds *max_bytes*."""
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:  # noqa: D401
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
         """Initialize middleware with maximum request body size.
 
         Parameters
@@ -33,7 +33,7 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:  # noqa: D401
+    ) -> Response:
         """Validate request body size and delegate downstream."""
         # Check content-length header first for efficiency
         content_length = request.headers.get("content-length")
@@ -123,7 +123,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:  # noqa: D401
+    ) -> Response:
         """Apply rate limiting and forward the request if allowed."""
         key = request.headers.get(self._header) or (request.client.host if request.client else "anonymous")
         allowed = await self._limiter.allow(key)
@@ -155,7 +155,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:  # noqa: D401
+    ) -> Response:
         """Inject common security headers into HTTP responses."""
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")

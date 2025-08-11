@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import openai
 from fastapi import Request
+from .http_status import INTERNAL_SERVER_ERROR
 from fastapi.responses import JSONResponse
 
 from ...domain.models import AnthropicErrorType, AnthropicErrorDetail, AnthropicErrorResponse, ProviderErrorMetadata
@@ -65,12 +66,12 @@ def _get_anthropic_error_details_from_exc(
     """Maps caught exceptions to Anthropic error type, message, status code, and provider details."""
     error_type = AnthropicErrorType.API_ERROR
     error_message = str(exc)
-    status_code = 500
+    status_code = INTERNAL_SERVER_ERROR
     provider_details: Optional[ProviderErrorMetadata] = None
 
     if isinstance(exc, openai.APIError):
         error_message = exc.message or str(exc)
-        status_code = getattr(exc, 'status_code', 500)
+        status_code = getattr(exc, 'status_code', INTERNAL_SERVER_ERROR)
         error_type = STATUS_CODE_ERROR_MAP.get(
             status_code, AnthropicErrorType.API_ERROR
         )
