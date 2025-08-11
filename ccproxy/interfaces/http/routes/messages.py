@@ -32,24 +32,17 @@ router = APIRouter()
 
 @router.post("/v1/messages", response_model=None)
 async def create_message_proxy(request: Request) -> Response:
-    """Proxy Anthropic `/v1/messages` requests to the configured
-    OpenAI-compatible provider.
+    """Proxy Anthropic `/v1/messages` requests to configured OpenAI-compatible provider.
 
-    This handler performs request validation, caching, model selection,
-    parameter translation, streaming bridging, structured logging and
-    maps provider errors back to Anthropic-style error responses.
+    Handles request validation, caching, model selection, parameter translation,
+    streaming bridging, and maps provider errors back to Anthropic-style responses.
 
-    Parameters
-    ----------
-    request : fastapi.Request
-        Incoming FastAPI request containing an Anthropic Messages
-        payload.
+    Args:
+        request (Request): Incoming HTTP request with Anthropic Messages payload
 
-    Returns
-    -------
-    fastapi.Response
-        JSONResponse for standard calls or StreamingResponse when
-        `stream=true`, formatted per the Anthropic Messages API.
+    Returns:
+        Response: JSONResponse for non-streaming requests or StreamingResponse
+            for streaming requests (when `stream=true`), formatted per Anthropic API.
     """
     settings: Settings = request.app.state.settings
     provider: OpenAIProvider = request.app.state.provider
@@ -303,22 +296,16 @@ async def create_message_proxy(request: Request) -> Response:
 
 @router.post("/v1/messages/count_tokens")
 async def count_tokens_endpoint(request: Request) -> TokenCountResponse:
-    """Return the number of tokens for an Anthropic Messages request.
+    """Process token count requests per Anthropic's Messages API specification.
 
-    Mirrors Anthropic's `/v1/messages/count_tokens` endpoint by accepting
-    a Messages-like payload and replying with the computed token count
-    using the repository's tokenizer utilities.
+    Accepts Messages-like payloads and returns computed token count using application
+    tokenization utilities. Mirrors Anthropic's `/v1/messages/count_tokens` endpoint.
 
-    Parameters
-    ----------
-    request : fastapi.Request
-        Request object containing a JSON body conforming to
-        `TokenCountRequest`.
+    Args:
+        request: The HTTP request containing TokenCountRequest data
 
-    Returns
-    -------
-    TokenCountResponse
-        Pydantic model with a single `input_tokens` field.
+    Returns:
+        TokenCountResponse: Object containing the calculated input token count
     """
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     setattr(request.state, "request_id", request_id)

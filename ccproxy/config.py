@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     base_url: str = Field(default="https://api.openai.com/v1", validation_alias=AliasChoices("OPENAI_BASE_URL"))
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "CCProxy"
-    app_version: str = "0.3.0"
+    app_version: str = "0.3.1"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     host: str = "127.0.0.1"
@@ -194,6 +194,11 @@ class Settings(BaseSettings):
             sys.exit(1)
 
     def _validate_security(self):
+        """Validates security configurations when RESTRICT_BASE_URL is enabled.
+
+        Checks that OPENAI_BASE_URL uses HTTPS and the host is in ALLOWED_BASE_URL_HOSTS.
+        Exits with error message if validation fails.
+        """
         errors = []
         if self.restrict_base_url:
             try:

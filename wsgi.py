@@ -19,7 +19,12 @@ def create_application():
         # Fail fast on invalid config
         raise SystemExit(f"Configuration error: {e}")
 
-    return create_app(settings)
+    try:
+        return create_app(settings)
+    except Exception as e:
+        print(f"\nFailed to initialize application: {str(e)}")
+        print("Please check your configuration and provider connectivity.")
+        raise SystemExit(1)
 
 # Create the app instance for Gunicorn
 app = create_application()

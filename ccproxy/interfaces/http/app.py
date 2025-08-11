@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from pydantic import ValidationError
@@ -14,26 +15,42 @@ from .errors import log_and_return_error_response, get_anthropic_error_details_f
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
+from fastapi.middleware.cors import CORSMiddleware
 
 
 def create_app(settings: Settings) -> FastAPI:
+    """Creates and configures the FastAPI application instance.
+
+    Initializes logging, sets up middleware, and registers routes with comprehensive
+    startup logging for operational visibility. Returns ready-to-use application.
+
+    Args:
+        settings: Configuration settings object
+
+    Returns:
+        Fully configured FastAPI application instance
+    """
     init_logging(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
         try:
             yield
         finally:
+            logging.info("Initiating application shutdown")
             try:
                 await app.state.response_cache.stop_cleanup_task()
+                logging.info("Response cache cleanup stopped")
             finally:
                 provider = getattr(app.state, "provider", None)
                 if provider and hasattr(provider, "close"):
+                    logging.info("Closing OpenAI provider connection")
                     try:
                         await provider.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logging.error(f"Failed to close provider: {str(e)}")
 
     app = FastAPI(
         title=settings.app_name,
@@ -44,7 +61,12 @@ def create_app(settings: Settings) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
-    app.state.provider = OpenAIProvider(settings)
+    try:
+        app.state.provider = OpenAIProvider(settings)
+        logging.info("OpenAI provider initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize OpenAI provider: {str(e)}")
+        raise
     app.state.response_cache = response_cache
 
     # Core middleware
@@ -53,10 +75,9 @@ def create_app(settings: Settings) -> FastAPI:
     # Guardrail middleware (order: rate-limit → security headers)
     from .guardrails import RateLimitMiddleware, SecurityHeadersMiddleware
 
-    settings = app.state.settings
-
 
     if settings.rate_limit_enabled:
+        logging.info(f"Rate limiting enabled: {settings.rate_limit_per_minute}/minute with {settings.rate_limit_burst} burst")
         app.add_middleware(
             RateLimitMiddleware,
             per_minute=settings.rate_limit_per_minute,
@@ -64,7 +85,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     if settings.enable_cors:
-        from fastapi.middleware.cors import CORSMiddleware
+        logging.info(f"CORS enabled for origins: {settings.cors_allow_origins}, methods: {settings.cors_allow_methods}, headers: {settings.cors_allow_headers}")
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_allow_origins,
@@ -75,6 +96,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     if settings.security_headers_enabled:
+        logging.info(f"Security headers enabled (HSTS: {settings.enable_hsts})")
         app.add_middleware(SecurityHeadersMiddleware, enable_hsts=settings.enable_hsts)
 
     app.include_router(messages_router, tags=["API"])

@@ -19,14 +19,11 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     """Rejects requests whose body exceeds *max_bytes*."""
 
     def __init__(self, app: ASGIApp, max_bytes: int) -> None:
-        """Initialize middleware with maximum request body size.
+        """Initializes body size limiting middleware.
 
-        Parameters
-        ----------
-        app
-            Downstream ASGI application.
-        max_bytes
-            Maximum allowed size of the request body in bytes.
+        Args:
+            app: Downstream ASGI application instance
+            max_bytes: Maximum allowed size of request body in bytes
         """
         super().__init__(app)
         self._max_bytes = max_bytes
@@ -34,7 +31,18 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        """Validate request body size and delegate downstream."""
+        """Processes incoming requests, validating body size before forwarding.
+
+        Checks request body size against configured limit and returns 413 error
+        if limit is exceeded. Otherwise delegates processing to downstream middleware.
+
+        Args:
+            request: Incoming HTTP request
+            call_next: Next middleware in processing chain
+
+        Returns:
+            Response: Processed HTTP response
+        """
         # Check content-length header first for efficiency
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > self._max_bytes:
@@ -64,14 +72,11 @@ class _MemoryRateLimiter:
     """Simple in-memory sliding-window rate limiter."""
 
     def __init__(self, per_minute: int, burst: int):
-        """Create an in-memory sliding-window rate limiter.
+        """Initialize rate limiter with sliding window configuration.
 
-        Parameters
-        ----------
-        per_minute
-            Sustained requests allowed per 60-second window.
-        burst
-            Additional burst capacity permitted beyond *per_minute*.
+        Args:
+            per_minute: Sustained requests allowed per 60-second window
+            burst: Additional burst capacity beyond sustained rate
         """
         self.per_minute = per_minute
         self.burst = burst
@@ -104,18 +109,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         burst: int = 0,
         header_key_name: str = "Authorization",
     ) -> None:
-        """Configure rate-limiting middleware.
+        """Initializes rate limiting middleware with specified parameters.
 
-        Parameters
-        ----------
-        app
-            Downstream ASGI application.
-        per_minute
-            Sustained requests permitted per key.
-        burst
-            Extra burst capacity beyond sustained rate.
-        header_key_name
-            HTTP header containing API key to rate-limit on.
+        Args:
+            app: Downstream ASGI application instance
+            per_minute: Sustained requests permitted per key
+            burst: Extra burst capacity beyond sustained rate
+            header_key_name: HTTP header containing API key used for rate limiting
         """
         super().__init__(app)
         self._limiter = _MemoryRateLimiter(per_minute, burst)
@@ -141,14 +141,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds common security HTTP response headers."""
 
     def __init__(self, app: ASGIApp, enable_hsts: bool = False):
-        """Initialize security headers middleware.
+        """Initialize security headers middleware with configuration options.
 
-        Parameters
-        ----------
-        app
-            Downstream ASGI application.
-        enable_hsts
-            If ``True`` add Strict-Transport-Security on HTTPS responses.
+        Args:
+            app: Downstream ASGI application instance
+            enable_hsts: Whether to add Strict-Transport-Security header on HTTPS responses
         """
         super().__init__(app)
         self.enable_hsts = enable_hsts
