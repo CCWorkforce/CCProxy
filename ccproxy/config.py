@@ -44,7 +44,6 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
-    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that are in the top tier of the OpenAI API
