@@ -186,44 +186,7 @@ class ResponseCache:
         if self._caching_disabled_until > 0 and current_time >= self._caching_disabled_until:
             self._consecutive_validation_failures = 0
 
-            # Redact sensitive data before caching
-            if self._redact_fields:
-                try:
-                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
-                    response = MessagesResponse(**redacted_response_data)
-                except Exception as e:
-                    warning(LogRecord(
-                        LogEvent.CACHE_EVENT.value,
-                        "Failed to redact sensitive data before caching",
-                        request_id,
-                        {"error": str(e)}
-                    ))
 
-            # Redact sensitive data before caching
-            if self._redact_fields:
-                try:
-                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
-                    response = MessagesResponse(**redacted_response_data)
-                except Exception as e:
-                    warning(LogRecord(
-                        LogEvent.CACHE_EVENT.value,
-                        "Failed to redact sensitive data before caching",
-                        request_id,
-                        {"error": str(e)}
-                    ))
-
-            # Redact sensitive data before caching
-            if self._redact_fields:
-                try:
-                    redacted_response_data = self._redact_sensitive_data(response.model_dump())
-                    response = MessagesResponse(**redacted_response_data)
-                except Exception as e:
-                    warning(LogRecord(
-                        LogEvent.CACHE_EVENT.value,
-                        "Failed to redact sensitive data before caching",
-                        request_id,
-                        {"error": str(e)}
-                    ))
             self._caching_disabled_until = 0
 
         return False
@@ -503,6 +466,19 @@ class ResponseCache:
 
         # Reset consecutive failures on successful validation
         self._consecutive_validation_failures = 0
+
+        # Redact sensitive data before caching
+        if self._redact_fields:
+            try:
+                redacted_response_data = self._redact_sensitive_data(response.model_dump())
+                response = MessagesResponse(**redacted_response_data)
+            except Exception as e:
+                warning(LogRecord(
+                    LogEvent.CACHE_EVENT.value,
+                    "Failed to redact sensitive data before caching",
+                    request_id,
+                    {"error": str(e)}
+                ))
 
         async with self._lock:
             # Create cached response

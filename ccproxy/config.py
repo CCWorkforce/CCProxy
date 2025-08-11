@@ -194,6 +194,11 @@ class Settings(BaseSettings):
             sys.exit(1)
 
     def _validate_security(self):
+        """Validates security configurations when RESTRICT_BASE_URL is enabled.
+
+        Checks that OPENAI_BASE_URL uses HTTPS and the host is in ALLOWED_BASE_URL_HOSTS.
+        Exits with error message if validation fails.
+        """
         errors = []
         if self.restrict_base_url:
             try:
