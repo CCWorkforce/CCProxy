@@ -318,6 +318,21 @@ def convert_anthropic_tools_to_openai(
     anthropic_tools: Optional[List[Tool]],
     settings: Optional[object] = None,
 ) -> Optional[List[Dict[str, Any]]]:
+    if settings is not None and not getattr(settings, "cache_converters_enabled", True):
+        # Bypass cache when disabled
+        if not anthropic_tools:
+            return None
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description or "",
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in anthropic_tools
+        ]
     """Convert a list of Anthropic Tool objects into the JSON schema
     expected by OpenAI as the ``tools`` parameter.
 
@@ -359,6 +374,24 @@ def convert_anthropic_tool_choice_to_openai(
     request_id: Optional[str] = None,
     settings: Optional[object] = None,
 ) -> Optional[Union[str, Dict[str, Any]]]:
+    if settings is not None and not getattr(settings, "cache_converters_enabled", True):
+        # Compute without cache
+        if not anthropic_choice:
+            return None
+        if anthropic_choice.type == "auto":
+            return "auto"
+        if anthropic_choice.type == "any":
+            warning(
+                LogRecord(
+                    event=LogEvent.TOOL_CHOICE_UNSUPPORTED.value,
+                    message="Anthropic tool_choice 'any' mapped to 'auto' (cache bypass).",
+                    request_id=request_id,
+                )
+            )
+            return "auto"
+        if anthropic_choice.type == "tool" and anthropic_choice.name:
+            return {"type": "function", "function": {"name": anthropic_choice.name}}
+        return "auto"
     """Translate an Anthropic ``tool_choice`` object into the value
     accepted by OpenAI Chat Completions.
 

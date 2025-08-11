@@ -2,6 +2,7 @@ import json
 import tiktoken
 import time
 import hashlib
+import threading
 from typing import Dict, List, Optional, Union, Tuple
 
 from ..domain.models import Message, SystemContent, Tool, ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult, ContentBlockThinking, ContentBlockRedactedThinking
@@ -14,6 +15,7 @@ _token_count_cache: Dict[str, Tuple[int, float]] = {}
 _token_count_lru_order: List[str] = []
 _token_count_hits = 0
 _token_count_misses = 0
+_token_lock = threading.Lock()
 
 
 def get_token_encoder(
@@ -84,25 +86,27 @@ def count_tokens_for_anthropic_request(
     if use_cache:
         key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        if key in _token_count_cache:
-            count, ts = _token_count_cache[key]
-            if now - ts <= ttl_s:
-                global _token_count_hits
-                _token_count_hits += 1
-                debug(LogRecord(LogEvent.TOKEN_COUNT.value, "Token count cache hit", request_id, {"key": key[:8], "age_s": round(now - ts, 3)}))
-                if key in _token_count_lru_order:
-                    _token_count_lru_order.remove(key)
-                _token_count_lru_order.append(key)
-                return count
-            else:
-                _token_count_cache.pop(key, None)
-                try:
-                    _token_count_lru_order.remove(key)
-                except ValueError:
-                    pass
-        else:
-            global _token_count_misses
-            _token_count_misses += 1
+        with _token_lock:
+            if key in _token_count_cache:
+                count, ts = _token_count_cache[key]
+                if now - ts <= ttl_s:
+                    global _token_count_hits
+                    _token_count_hits += 1
+                    debug(LogRecord(LogEvent.TOKEN_COUNT.value, "Token count cache hit", request_id, {"key": key[:8], "age_s": round(now - ts, 3)}))
+                    if key in _token_count_lru_order:
+                        _token_count_lru_order.remove(key)
+                    _token_count_lru_order.append(key)
+                    return count
+                else:
+                    # expired; evict
+                    _token_count_cache.pop(key, None)
+                    try:
+                        _token_count_lru_order.remove(key)
+                    except ValueError:
+                        pass
+            # miss path after lock
+        global _token_count_misses
+        _token_count_misses += 1
 
     enc = get_token_encoder(model_name, request_id)
     total_tokens = 0
@@ -203,12 +207,13 @@ def count_tokens_for_anthropic_request(
     if use_cache:
         key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        _token_count_cache[key] = (total_tokens, now)
-        if key in _token_count_lru_order:
-            _token_count_lru_order.remove(key)
-        _token_count_lru_order.append(key)
-        while len(_token_count_lru_order) > max_entries:
-            evict_key = _token_count_lru_order.pop(0)
-            _token_count_cache.pop(evict_key, None)
+        with _token_lock:
+            _token_count_cache[key] = (total_tokens, now)
+            if key in _token_count_lru_order:
+                _token_count_lru_order.remove(key)
+            _token_count_lru_order.append(key)
+            while len(_token_count_lru_order) > max_entries:
+                evict_key = _token_count_lru_order.pop(0)
+                _token_count_cache.pop(evict_key, None)
 
     return total_tokens
