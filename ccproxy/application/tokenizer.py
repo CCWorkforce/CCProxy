@@ -21,7 +21,15 @@ _token_lock = threading.Lock()
 def get_token_encoder(
     model_name: str = "gpt-4", request_id: Optional[str] = None
 ) -> tiktoken.Encoding:
-    """Gets a tiktoken encoder, caching it for performance."""
+    """Retrieves or caches a tiktoken encoder for the specified model.
+
+    Args:
+        model_name: The name of the model for which to get the encoder. Defaults to 'gpt-4'.
+        request_id: Optional request identifier for logging. Defaults to None.
+
+    Returns:
+        tiktoken.Encoding: The encoder instance for the specified model.
+    """
 
     cache_key = model_name
     if cache_key not in _token_encoder_cache:
@@ -56,7 +64,26 @@ def get_token_encoder(
     return _token_encoder_cache[cache_key]
 
 
-def _stable_hash_for_token_inputs(messages: List[Message], system: Optional[Union[str, List[SystemContent]]], model_name: str, tools: Optional[List[Tool]]) -> str:
+def _stable_hash_for_token_inputs(
+    messages: List[Message],
+    system: Optional[Union[str, List[SystemContent]]],
+    model_name: str,
+    tools: Optional[List[Tool]]
+) -> str:
+    """Generates a stable hash key for token count caching.
+
+    Creates a deterministic hash based on the normalized representation of all
+    input parameters to serve as a cache key for token counting results.
+
+    Args:
+        messages: The list of conversation messages.
+        system: Optional system instructions (string or structured content).
+        model_name: The name of the model being used.
+        tools: Optional list of tool definitions.
+
+    Returns:
+        str: SHA-256 hash of the normalized input parameters.
+    """
     payload = {
         "model": model_name,
         "messages": [m.model_dump(exclude_unset=True) for m in messages],
@@ -75,6 +102,23 @@ def count_tokens_for_anthropic_request(
     request_id: Optional[str] = None,
     settings: Optional[Settings] = None,
 ) -> int:
+    """Calculate the total number of tokens required for an Anthropic API request.
+
+    This function counts tokens across messages, system content, and tool definitions,
+    using the appropriate tokenizer for the specified model. Token counts are cached
+    when enabled via settings for performance.
+
+    Args:
+        messages: List of conversation messages to process.
+        system: Optional system instructions (string or structured content).
+        model_name: Name of the model to determine tokenizer.
+        tools: Optional list of tool definitions to include in count.
+        request_id: Optional request identifier for logging purposes.
+        settings: Optional application settings to control caching behavior.
+
+    Returns:
+        int: Total estimated token count for the input request.
+    """
     use_cache = True
     ttl_s = 300
     max_entries = 2048

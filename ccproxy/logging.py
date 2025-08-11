@@ -240,6 +240,16 @@ def init_logging(settings: Settings) -> logging.Logger:
 
 
 def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None:
+    """Internal helper to log structured messages with exception handling.
+
+    Processes the exception (if provided) into the LogRecord's error field
+    and emits the log entry at the specified level.
+
+    Args:
+        level: The logging level (e.g., logging.DEBUG, logging.ERROR)
+        record: The structured log record containing event details
+        exc: Optional exception to include in error details
+    """
     if exc:
         include_stack = False
         try:

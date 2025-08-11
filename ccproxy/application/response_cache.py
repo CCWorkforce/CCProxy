@@ -524,7 +524,18 @@ class ResponseCache:
                 event.set()
 
     async def subscribe_stream(self, request: MessagesRequest) -> tuple[bool, asyncio.Queue, str]:
-        """Register a subscriber for a streaming request; returns (is_primary, queue, key)."""
+        """
+        Register a subscriber for a streaming request.
+
+        Args:
+            request: The MessagesRequest to subscribe to
+
+        Returns:
+            A tuple containing:
+                - is_primary: True if this is the first subscriber (primary stream)
+                - queue: An asyncio.Queue for receiving stream lines
+                - key: The cache key for this request
+        """
         key = self._generate_cache_key(request)
         async with self._lock:
             q: asyncio.Queue = asyncio.Queue(maxsize=1000)
@@ -537,7 +548,13 @@ class ResponseCache:
                 return False, q, key
 
     async def publish_stream_line(self, key: str, line: str) -> None:
-        """Publish a line to all subscribers for the given key."""
+        """
+        Publish a line to all subscribers for the given key.
+
+        Args:
+            key: The cache key identifying the stream
+            line: The line of streaming response to publish to subscribers
+        """
         async with self._lock:
             subs = list(self._stream_subscribers.get(key, []))
             for q in subs:
@@ -550,7 +567,12 @@ class ResponseCache:
                     pass
 
     async def finalize_stream(self, key: str) -> None:
-        """Signal end-of-stream to all subscribers and clear registry for key."""
+        """
+        Signal end-of-stream to all subscribers and clear registry for key.
+
+        Args:
+            key: The cache key identifying the stream to finalize
+        """
         async with self._lock:
             subs = self._stream_subscribers.pop(key, [])
         for q in subs:

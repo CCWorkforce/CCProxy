@@ -18,6 +18,7 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that do not support temperature (e.g., temperature)
@@ -30,6 +31,7 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that support developer messages (e.g., developer_message)
@@ -42,6 +44,7 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that are in the top tier of the OpenAI API
@@ -61,6 +64,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset({
     ("gpt-5", 272_000),
     ("gpt-5-mini-2025-08-07", 272_000),
     ("gpt-5-mini", 272_000),
+    ("qwen/qwen3-coder", 262_144),
+    ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
 })
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
 
@@ -137,6 +142,17 @@ class Settings(BaseSettings):
     @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
     @classmethod
     def parse_comma_separated(cls, v):
+        """Parse comma-separated string values into lists for configuration fields.
+
+        Handles both string inputs (splitting by commas) and already-list inputs.
+        Empty strings are converted to empty lists.
+
+        Args:
+            v: Input value which can be a string or list
+
+        Returns:
+            List of stripped, non-empty items
+        """
         if isinstance(v, str):
             if v.strip() == "":
                 return []
@@ -144,6 +160,17 @@ class Settings(BaseSettings):
         return v
 
     def __init__(self, **kwargs):
+        """Initialize settings object and perform validation.
+
+        Calls parent constructor with provided keyword arguments, then validates
+        required model settings and security configurations.
+
+        Args:
+            **kwargs: Keyword arguments for settings initialization
+
+        Raises:
+            SystemExit: If required settings are missing or security validation fails
+        """
         super().__init__(**kwargs)
         self._validate_required_models()
         self._validate_security()

@@ -19,6 +19,17 @@ StopReasonType = Optional[
 
 @lru_cache(maxsize=512)
 def _serialize_tool_result_content_for_openai_cached(key: Tuple[str, str]) -> str:
+    """Cached helper function to serialize Anthropic tool result content into OpenAI format.
+
+    Takes a tuple key containing serialized JSON content and returns a string suitable
+    for OpenAI's tool response format. Handles both text and structured content.
+
+    Args:
+        key: Tuple containing (content_json, version_identifier)
+
+    Returns:
+        String representation of the tool result content
+    """
     content_json, _ = key
     items = json.loads(content_json)
     parts = []
@@ -301,6 +312,17 @@ def convert_anthropic_to_openai_messages(
 
 @lru_cache(maxsize=256)
 def _tools_cache(key: Tuple[Tuple[str, str, str], ...]) -> List[Dict[str, Any]]:
+    """Cached helper function to convert Anthropic tools to OpenAI format.
+
+    Takes a tuple of tool information and returns a list of OpenAI tool definitions.
+    This is used to avoid repeated serialization of the same tool definitions.
+
+    Args:
+        key: Tuple of (name, description, schema_json) tuples for each tool
+
+    Returns:
+        List of OpenAI tool definitions
+    """
     tools = []
     for name, desc, schema_json in key:
         tools.append({
@@ -318,6 +340,11 @@ def convert_anthropic_tools_to_openai(
     anthropic_tools: Optional[List[Tool]],
     settings: Optional[object] = None,
 ) -> Optional[List[Dict[str, Any]]]:
+    """Convert a list of Anthropic Tool objects into the JSON schema
+    expected by OpenAI as the ``tools`` parameter.
+
+    Each Anthropic tool is mapped to an OpenAI function tool definition.
+    """
     if settings is not None and not getattr(settings, "cache_converters_enabled", True):
         # Bypass cache when disabled
         if not anthropic_tools:
@@ -333,11 +360,6 @@ def convert_anthropic_tools_to_openai(
             }
             for t in anthropic_tools
         ]
-    """Convert a list of Anthropic Tool objects into the JSON schema
-    expected by OpenAI as the ``tools`` parameter.
-
-    Each Anthropic tool is mapped to an OpenAI function tool definition.
-    """
     if not anthropic_tools:
         return None
     try:
@@ -359,6 +381,17 @@ def convert_anthropic_tools_to_openai(
 
 @lru_cache(maxsize=256)
 def _tool_choice_cache(key: Tuple[str, Optional[str]]) -> Optional[Union[str, Dict[str, Any]]]:
+    """Cached helper function to convert Anthropic tool choice to OpenAI format.
+
+    Takes a tuple of tool choice information and returns the equivalent OpenAI format.
+    Handles 'auto', 'any', and specific tool choices.
+
+    Args:
+        key: Tuple containing (tool_choice_type, tool_name)
+
+    Returns:
+        OpenAI equivalent of the tool choice, either as a string or dict
+    """
     typ, name = key
     if typ == "auto":
         return "auto"
@@ -374,6 +407,12 @@ def convert_anthropic_tool_choice_to_openai(
     request_id: Optional[str] = None,
     settings: Optional[object] = None,
 ) -> Optional[Union[str, Dict[str, Any]]]:
+    """Translate an Anthropic ``tool_choice`` object into the value
+    accepted by OpenAI Chat Completions.
+
+    Returns either ``"auto"`` or a ``{"type": "function", "function": {…}}``
+    mapping, falling back to ``"auto"`` for unsupported cases.
+    """
     if settings is not None and not getattr(settings, "cache_converters_enabled", True):
         # Compute without cache
         if not anthropic_choice:
@@ -392,12 +431,6 @@ def convert_anthropic_tool_choice_to_openai(
         if anthropic_choice.type == "tool" and anthropic_choice.name:
             return {"type": "function", "function": {"name": anthropic_choice.name}}
         return "auto"
-    """Translate an Anthropic ``tool_choice`` object into the value
-    accepted by OpenAI Chat Completions.
-
-    Returns either ``"auto"`` or a ``{"type": "function", "function": {…}}``
-    mapping, falling back to ``"auto"`` for unsupported cases.
-    """
     if not anthropic_choice:
         return None
     if anthropic_choice.type == "any":
