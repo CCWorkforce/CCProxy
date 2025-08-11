@@ -2,7 +2,17 @@ from ..logging import warning, debug, LogRecord, LogEvent
 
 
 def select_target_model(client_model_name: str, request_id: str, big_model_name: str, small_model_name: str) -> str:
-    """Map Anthropic model names to appropriate OpenAI target models."""
+    """Map Anthropic model names to appropriate OpenAI target models.
+
+    Args:
+        client_model_name (str): The name of the client model to map.
+        request_id (str): The unique identifier for the request.
+        big_model_name (str): The name of the big model to use.
+        small_model_name (str): The name of the small model to use.
+
+    Returns:
+        str: The name of the target model to use.
+    """
 
     client_model_lower = client_model_name.lower()
 
