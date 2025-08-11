@@ -30,6 +30,25 @@ router = APIRouter()
 
 @router.post("/v1/messages", response_model=None)
 async def create_message_proxy(request: Request) -> Response:
+    """Proxy Anthropic `/v1/messages` requests to the configured
+    OpenAI-compatible provider.
+
+    This handler performs request validation, caching, model selection,
+    parameter translation, streaming bridging, structured logging and
+    maps provider errors back to Anthropic-style error responses.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Incoming FastAPI request containing an Anthropic Messages
+        payload.
+
+    Returns
+    -------
+    fastapi.Response
+        JSONResponse for standard calls or StreamingResponse when
+        `stream=true`, formatted per the Anthropic Messages API.
+    """
     settings: Settings = request.app.state.settings
     provider: OpenAIProvider = request.app.state.provider
     response_cache: ResponseCache = request.app.state.response_cache
@@ -80,7 +99,7 @@ async def create_message_proxy(request: Request) -> Response:
         # Mark request as pending to prevent duplicate processing
         await response_cache.mark_request_pending(anthropic_request)
 
-    target_model_name = select_target_model(anthropic_request.model, request_id, settings.big_model_name, settings.small_model_name)
+    target_model = select_target_model(anthropic_request.model, request_id, settings.big_model_name, settings.small_model_name)
 
     estimated_input_tokens = count_tokens_for_anthropic_request(
         messages=anthropic_request.messages,
@@ -96,7 +115,7 @@ async def create_message_proxy(request: Request) -> Response:
         request_id=request_id,
         data={
             "client_model": anthropic_request.model,
-            "target_model": target_model_name,
+            "target_model": target_model,
             "stream": is_stream,
             "estimated_input_tokens": estimated_input_tokens,
             "client_ip": request.client.host if request.client else "unknown",
@@ -109,7 +128,7 @@ async def create_message_proxy(request: Request) -> Response:
             anthropic_request.messages,
             anthropic_request.system,
             request_id=request_id,
-            target_model_name=target_model_name,
+            target_model=target_model,
         )
         openai_tools = convert_anthropic_tools_to_openai(anthropic_request.tools)
         openai_tool_choice = convert_anthropic_tool_choice_to_openai(anthropic_request.tool_choice, request_id=request_id)
@@ -117,36 +136,36 @@ async def create_message_proxy(request: Request) -> Response:
         return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "Error during request conversion.", caught_exception=e)
 
     openai_params: Dict[str, Any] = {
-        "model": target_model_name,
+        "model": target_model,
         "messages": cast(List[Dict[str, Any]], openai_messages),
         "stream": is_stream,
     }
-    if target_model_name not in SUPPORT_REASONING_EFFORT_MODELS:
+    if target_model not in SUPPORT_REASONING_EFFORT_MODELS:
         openai_params["max_tokens"] = anthropic_request.max_tokens
     else:
         warning(
             LogRecord(
                 LogEvent.PARAMETER_UNSUPPORTED.value,
-                "Model supports reasoning; 'max_tokens' will be omitted.",
+                f"Model supports reasoning; 'max_tokens' will be omitted for model {target_model}.",
                 request_id,
                 {
                     "parameter": "max_tokens",
                     "value": anthropic_request.max_tokens,
-                    "target_model": target_model_name,
+                    "target_model": target_model,
                 },
             )
         )
     if anthropic_request.temperature is not None:
-        if target_model_name in NO_SUPPORT_TEMPERATURE_MODELS:
+        if target_model in NO_SUPPORT_TEMPERATURE_MODELS:
             warning(
                 LogRecord(
                     LogEvent.PARAMETER_UNSUPPORTED.value,
-                    "Model does not support 'temperature'; it will be omitted.",
+                    f"Model does not support 'temperature'; it will be omitted for model {target_model}.",
                     request_id,
                     {
                         "parameter": "temperature",
                         "value": anthropic_request.temperature,
-                        "target_model": target_model_name,
+                        "target_model": target_model,
                     },
                 )
             )
@@ -163,8 +182,8 @@ async def create_message_proxy(request: Request) -> Response:
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
-    if target_model_name in SUPPORT_REASONING_EFFORT_MODELS:
-        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else (ReasoningEfforts.Low.value if target_model_name in TOP_TIER_MODELS else ReasoningEfforts.Medium.value)
+    if target_model in SUPPORT_REASONING_EFFORT_MODELS:
+        openai_params["reasoning_effort"] = ReasoningEfforts.High.value if is_stream else (ReasoningEfforts.Low.value if target_model in TOP_TIER_MODELS else ReasoningEfforts.Medium.value)
 
     debug(LogRecord(LogEvent.OPENAI_REQUEST.value, "Prepared OpenAI request parameters", request_id, {"params": openai_params}))
 
@@ -234,6 +253,23 @@ async def create_message_proxy(request: Request) -> Response:
 
 @router.post("/v1/messages/count_tokens")
 async def count_tokens_endpoint(request: Request) -> TokenCountResponse:
+    """Return the number of tokens for an Anthropic Messages request.
+
+    Mirrors Anthropic's `/v1/messages/count_tokens` endpoint by accepting
+    a Messages-like payload and replying with the computed token count
+    using the repository's tokenizer utilities.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Request object containing a JSON body conforming to
+        `TokenCountRequest`.
+
+    Returns
+    -------
+    TokenCountResponse
+        Pydantic model with a single `input_tokens` field.
+    """
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     setattr(request.state, "request_id", request_id)
     start_time_mono = time.monotonic()

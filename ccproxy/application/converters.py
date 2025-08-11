@@ -74,8 +74,22 @@ def convert_anthropic_to_openai_messages(
     anthropic_messages: List[Message],
     anthropic_system: Optional[Union[str, List[SystemContent]]] = None,
     request_id: Optional[str] = None,
-    target_model_name: Optional[str] = None,
+    target_model: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """Convert Anthropic messages and optional system prompt into the
+    OpenAI Chat Completions message format.
+
+    Parameters
+    ----------
+    anthropic_messages
+        Sequence of Message objects provided by the Anthropic client.
+    anthropic_system
+        Optional system prompt content (text or blocks).
+    request_id
+        Correlator for structured logging.
+    target_model
+        Resolved OpenAI model name; affects role mapping.
+    """
     openai_messages: List[Dict[str, Any]] = []
 
     system_text_content = ""
@@ -99,12 +113,12 @@ def convert_anthropic_to_openai_messages(
 
     if system_text_content:
         role_value = MessageRoles.System.value
-        if target_model_name and target_model_name in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+        if target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS:
             role_value = MessageRoles.Developer.value
         openai_messages.append({"role": role_value, "content": system_text_content})
 
     # Add developer message to enforce UTF-8 encoding compliance
-    if target_model_name and target_model_name in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+    if target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS:
         utf8_enforcement_message = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
         openai_messages.append({"role": MessageRoles.Developer.value, "content": utf8_enforcement_message})
 
@@ -285,6 +299,11 @@ def convert_anthropic_to_openai_messages(
 def convert_anthropic_tools_to_openai(
     anthropic_tools: Optional[List[Tool]],
 ) -> Optional[List[Dict[str, Any]]]:
+    """Convert a list of Anthropic Tool objects into the JSON schema
+    expected by OpenAI as the ``tools`` parameter.
+
+    Each Anthropic tool is mapped to an OpenAI function tool definition.
+    """
     if not anthropic_tools:
         return None
     return [
@@ -304,6 +323,12 @@ def convert_anthropic_tool_choice_to_openai(
     anthropic_choice: Optional[ToolChoice],
     request_id: Optional[str] = None,
 ) -> Optional[Union[str, Dict[str, Any]]]:
+    """Translate an Anthropic ``tool_choice`` object into the value
+    accepted by OpenAI Chat Completions.
+
+    Returns either ``"auto"`` or a ``{"type": "function", "function": {…}}``
+    mapping, falling back to ``"auto"`` for unsupported cases.
+    """
     if not anthropic_choice:
         return None
     if anthropic_choice.type == "auto":
@@ -337,6 +362,18 @@ def convert_openai_to_anthropic_response(
     original_anthropic_model_name: str,
     request_id: Optional[str] = None,
 ) -> MessagesResponse:
+    """Convert an OpenAI ChatCompletion response into an Anthropic
+    ``MessagesResponse`` instance.
+
+    Parameters
+    ----------
+    openai_response
+        The response object returned from ``create_chat_completion``.
+    original_anthropic_model_name
+        The model name originally requested by the Anthropic client.
+    request_id
+        Correlator for structured logging.
+    """
     anthropic_content: List[ContentBlock] = []
     anthropic_stop_reason: StopReasonType = None
 
