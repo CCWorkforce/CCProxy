@@ -85,6 +85,7 @@ class OpenAIProvider:
             return
 
         # High-performance HTTP/2 configuration (default)
+        _read_timeout = float(self.settings.max_stream_seconds)
         if self.backend == "httpx-http2":
             self._http_client = httpx.AsyncClient(
                 limits=httpx.Limits(
@@ -96,7 +97,7 @@ class OpenAIProvider:
                 timeout=httpx.Timeout(
                     # Timeout settings
                     connect=10.0,  # Connection timeout
-                    read=180.0,    # Read timeout
+                    read=_read_timeout,    # Read timeout
                     write=30.0,    # Write timeout
                     pool=10.0,     # Connection pool timeout
                 ),
@@ -123,7 +124,7 @@ class OpenAIProvider:
                 ),
                 timeout=httpx.Timeout(
                     connect=10.0,
-                    read=180.0,
+                    read=_read_timeout,
                     write=30.0,
                     pool=10.0,
                 ),
@@ -141,7 +142,7 @@ class OpenAIProvider:
                 "X-Title": self.settings.app_name,
                 "Accept-Charset": "utf-8",  # Explicitly request UTF-8 responses
             },
-            timeout=180.0,
+            timeout=_read_timeout,
             http_client=self._http_client,
             # Retry configuration
             max_retries=3,
@@ -159,6 +160,7 @@ class OpenAIProvider:
                 "aiohttp is not installed. Install it with: pip install aiohttp aiodns"
             )
 
+        _read_timeout = float(self.settings.max_stream_seconds)
         # Create optimized connector
         connector = aiohttp.TCPConnector(
             limit=500,  # Total connection pool limit
@@ -172,10 +174,10 @@ class OpenAIProvider:
 
         # Create session with optimized settings
         timeout = aiohttp.ClientTimeout(
-            total=180,
+            total=_read_timeout,
             connect=10,
             sock_connect=10,
-            sock_read=180,
+            sock_read=_read_timeout,
         )
 
         self._aiohttp_session = aiohttp.ClientSession(

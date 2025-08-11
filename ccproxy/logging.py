@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional, Tuple
 
 from .config import Settings
 
+_REDACT_KEYS: list[str] = []
+
 def _sanitize_for_json(obj):
     if isinstance(obj, bytes):
         try:
@@ -22,7 +24,13 @@ def _sanitize_for_json(obj):
     if dataclasses.is_dataclass(obj):
         return _sanitize_for_json(dataclasses.asdict(obj))
     if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+        redacted = {}
+        for k, v in obj.items():
+            if isinstance(k, str) and k.lower() in _REDACT_KEYS:
+                redacted[k] = "***REDACTED***"
+            else:
+                redacted[k] = _sanitize_for_json(v)
+        return redacted
     if isinstance(obj, (list, tuple, set)):
         return [_sanitize_for_json(x) for x in obj]
     try:
@@ -33,6 +41,13 @@ def _sanitize_for_json(obj):
 
 
 class LogEvent(enum.Enum):
+    """Enumeration of structured log events emitted throughout CCProxy.
+
+    Each value marks a distinct milestone or error category during request
+    processing, model selection, streaming, tool handling, or health checks.
+    These constants are used in ``LogRecord.event`` for consistent analytics
+    and monitoring.
+    """
     MODEL_SELECTION = "model_selection"
     REQUEST_START = "request_start"
     REQUEST_COMPLETED = "request_completed"
@@ -64,6 +79,14 @@ class LogEvent(enum.Enum):
 
 @dataclasses.dataclass
 class LogError:
+    """Structured representation of an exception attached to a log entry.
+
+    Attributes:
+        name: Exception class name.
+        message: Human-readable description.
+        stack_trace: Full traceback string (may be ``None`` when suppressed).
+        args: JSON-safe serialization of ``Exception.args``.
+    """
     name: str
     message: str
     stack_trace: Optional[str] = None
@@ -72,6 +95,15 @@ class LogError:
 
 @dataclasses.dataclass
 class LogRecord:
+    """Primary payload transported via the logging system.
+
+    Attributes:
+        event: Identifier from :class:`LogEvent` or custom tag.
+        message: Short human-readable summary.
+        request_id: Correlator generated per HTTP request.
+        data: Arbitrary contextual dictionary (sanitized/truncated).
+        error: Optional :class:`LogError` with exception details.
+    """
     event: str
     message: str
     request_id: Optional[str] = None
@@ -80,6 +112,12 @@ class LogRecord:
 
 
 class JSONFormatter(logging.Formatter):
+    """Formatter that outputs log records as compact JSON lines.
+
+    Used for file logging or machine-ingestible stdout. It injects timestamp,
+    level and logger name, serializes attached :class:`LogRecord`, truncates
+    oversized strings, and redacts configured sensitive fields.
+    """
     def format(self, record: logging.LogRecord) -> str:
         header = {
             "timestamp": datetime.fromtimestamp(
@@ -113,6 +151,11 @@ class JSONFormatter(logging.Formatter):
 
 
 class ConsoleJSONFormatter(JSONFormatter):
+    """Variant of :class:`JSONFormatter` tuned for interactive consoles.
+
+    Removes stack traces for brevity and supports pretty-print when
+    ``settings.log_pretty_console`` is true while preserving JSON structure.
+    """
     def format(self, record: logging.LogRecord) -> str:
         header = {
             "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
@@ -179,6 +222,8 @@ def init_logging(settings: Settings) -> logging.Logger:
         }
     )
     _logger = logging.getLogger(settings.app_name)
+    global _REDACT_KEYS
+    _REDACT_KEYS = [k.lower() for k in settings.redact_log_fields]
     if settings.log_file_path:
         try:
             log_dir = os.path.dirname(settings.log_file_path)

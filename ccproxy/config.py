@@ -1,9 +1,10 @@
 from enum import StrEnum
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AliasChoices
-from typing import Optional, FrozenSet
+from pydantic import Field, AliasChoices, field_validator
+from typing import Optional, FrozenSet, List, Union
 
+from urllib.parse import urlparse
 
 # Base model names for faster prefix matching
 
@@ -86,9 +87,42 @@ class Settings(BaseSettings):
     port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
     reload: bool = True
 
+    # Approx 200k tokens * ~4 bytes/token ≈ 800k; use 1 MB safety margin
+    max_request_bytes: int = Field(default=1_000_000, validation_alias=AliasChoices("MAX_REQUEST_BYTES"))
+    rate_limit_enabled: bool = Field(default=True, validation_alias=AliasChoices("RATE_LIMIT_ENABLED"))
+    rate_limit_per_minute: int = Field(default=60, validation_alias=AliasChoices("RATE_LIMIT_PER_MINUTE"))
+    rate_limit_burst: int = Field(default=30, validation_alias=AliasChoices("RATE_LIMIT_BURST"))
+
+    security_headers_enabled: bool = Field(default=True, validation_alias=AliasChoices("SECURITY_HEADERS_ENABLED"))
+    enable_hsts: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_HSTS"))
+
+    enable_cors: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_CORS"))
+    cors_allow_origins: Union[List[str], str] = Field(default_factory=list, validation_alias=AliasChoices("CORS_ALLOW_ORIGINS"))
+    cors_allow_methods: Union[List[str], str] = Field(default_factory=lambda: ["POST", "OPTIONS"], validation_alias=AliasChoices("CORS_ALLOW_METHODS"))
+    cors_allow_headers: Union[List[str], str] = Field(default_factory=lambda: ["Authorization", "Content-Type", "X-Requested-With"], validation_alias=AliasChoices("CORS_ALLOW_HEADERS"))
+
+    allowed_hosts: Union[List[str], str] = Field(default_factory=list, validation_alias=AliasChoices("ALLOWED_HOSTS"))
+
+    restrict_base_url: bool = Field(default=True, validation_alias=AliasChoices("RESTRICT_BASE_URL"))
+    allowed_base_url_hosts: Union[List[str], str] = Field(default_factory=lambda: ["api.openai.com"], validation_alias=AliasChoices("ALLOWED_BASE_URL_HOSTS"))
+
+    redact_log_fields: Union[List[str], str] = Field(default_factory=lambda: ["openai_api_key", "authorization"], validation_alias=AliasChoices("REDACT_LOG_FIELDS"))
+
+    max_stream_seconds: int = Field(default=600, validation_alias=AliasChoices("MAX_STREAM_SECONDS"))
+
+    @field_validator('cors_allow_origins', 'cors_allow_methods', 'cors_allow_headers', 'allowed_hosts', 'allowed_base_url_hosts', 'redact_log_fields')
+    @classmethod
+    def parse_comma_separated(cls, v):
+        if isinstance(v, str):
+            if v.strip() == "":
+                return []
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._validate_required_models()
+        self._validate_security()
 
     def _validate_required_models(self):
         """Validate that required model settings are configured."""
@@ -106,4 +140,21 @@ class Settings(BaseSettings):
         if errors:
             error_message = "\n".join(errors)
             print(f"\nConfiguration Error:\n{error_message}\n")
+            sys.exit(1)
+
+    def _validate_security(self):
+        errors = []
+        if self.restrict_base_url:
+            try:
+                parsed = urlparse(self.base_url)
+                if parsed.scheme.lower() != "https":
+                    errors.append("OPENAI_BASE_URL must use https when RESTRICT_BASE_URL is enabled.")
+                host = parsed.hostname or ""
+                if host not in set(self.allowed_base_url_hosts or []):
+                    errors.append("OPENAI_BASE_URL host is not in ALLOWED_BASE_URL_HOSTS.")
+            except Exception:
+                errors.append("OPENAI_BASE_URL is invalid.")
+        if errors:
+            error_message = "\n".join(errors)
+            print(f"\nSecurity Configuration Error:\n{error_message}\n")
             sys.exit(1)
