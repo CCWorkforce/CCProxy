@@ -255,15 +255,7 @@ async def create_message_proxy(request: Request) -> Response:
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
     if anthropic_request.thinking is not None and target_model in SUPPORT_REASONING_EFFORT_MODELS:
-        info(
-            LogRecord(
-                LogEvent.STREAM_EVENT.value,
-                f"Model supports reasoning; 'reasoning_effort' will be added for model {target_model}.",
-                request_id,
-                {"parameter": "reasoning_effort", "value": anthropic_request.thinking},
-            )
-        )
-        openai_params["reasoning_effort"] = (
+        reasoning_effort = (
             ReasoningEfforts.High.value
             if is_stream
             else (
@@ -272,6 +264,15 @@ async def create_message_proxy(request: Request) -> Response:
                 else ReasoningEfforts.Medium.value
             )
         )
+        info(
+            LogRecord(
+                LogEvent.STREAM_EVENT.value,
+                f"Model supports reasoning; 'reasoning_effort' will be added for model {target_model}.",
+                request_id,
+                {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
+            )
+        )
+        openai_params["reasoning_effort"] = reasoning_effort
 
     debug(
         LogRecord(
