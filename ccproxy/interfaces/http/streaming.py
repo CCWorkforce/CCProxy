@@ -38,7 +38,7 @@ class StreamProcessor:
         self.output_token_count = 0
         self.next_anthropic_block_idx = 0
 
-    async def process_thinking_content(self, content: str, yield_fn):
+    async def process_thinking_content(self, content: str) -> list:
         # Process thinking content
         self.thinking.buffer += content
         tokens = self.enc.encode(self.thinking.buffer)
@@ -50,10 +50,10 @@ class StreamProcessor:
                 'index': self.next_anthropic_block_idx,
                 'content': {'type': 'thinking', 'text': self.thinking.buffer}
             }
-            yield_fn(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
+            events.append(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
             self.thinking.buffer = ''
             self.thinking.started = False
-            self.next_anthropic_block_idx += 1
+        return events
 
     async def process_text_content(self, content: str):
         # Process text content
@@ -63,7 +63,6 @@ class StreamProcessor:
         events = []
         if not self.text.idx:
             self.text.idx = self.next_anthropic_block_idx
-            self.next_anthropic_block_idx += 1
             events.append(f"event: content_block_start\ndata: {json.dumps({
                 'type': 'content_block_start',
                 'index': self.text.idx,
@@ -88,7 +87,6 @@ class StreamProcessor:
                 'arguments': '',
                 'index': self.next_anthropic_block_idx
             }
-            self.next_anthropic_block_idx += 1
             event_data = {
                 'type': 'content_block_start',
                 'index': self.tools[tool_id]['index'],
