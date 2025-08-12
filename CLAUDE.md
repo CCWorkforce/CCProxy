@@ -28,6 +28,7 @@ Optional
 - PORT (default 8082)
 - LOG_LEVEL (default INFO)
 - LOG_FILE_PATH (default log.jsonl)
+- ERROR_LOG_FILE_PATH (default error.jsonl)
 - WEB_CONCURRENCY (for Gunicorn)
 Scripts create .env.example and validate env where helpful.
 
@@ -51,7 +52,7 @@ Big-picture architecture
 - Provider abstraction
   - ccproxy/infrastructure/providers/base.py defines ChatProvider protocol
   - ccproxy/infrastructure/providers/openai_provider.py implements OpenAIProvider using openai.AsyncOpenAI
-    - Optimized httpx AsyncClient (HTTP/2, connection pooling, timeouts) or optional aiohttp backend
+    - Optimized httpx AsyncClient (HTTP/2, connection pooling, timeouts)
     - Converts UnicodeDecodeError/JSON issues into openai.APIError; ensures UTF‑8 handling
 - Request conversion and streaming bridge
   - ccproxy/application/converters.py maps Anthropic Messages + tools to OpenAI Chat Completions schema and back; enforces developer/system role rules and UTF‑8 developer hint for supported models
@@ -75,10 +76,12 @@ Development notes for Claude Code
 - Follow existing logging events (LogEvent) and avoid logging secrets; Settings controls log file path
 
 Testing
-- Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live at repo root (test_*.py here)
+- Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
 - For async tests, use pytest-asyncio; respx is available for httpx mocking
 
 CI/CD and tooling
 - Ruff and mypy configured in pyproject.toml
 - Dockerfile includes production (Debian) and Alpine targets; docker-compose.yml wires healthcheck and volumes
 - start-lint.sh provides lint workflow; docker-compose-run.sh wraps common compose actions
+
+- to memorize
