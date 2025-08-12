@@ -242,7 +242,7 @@ async def create_message_proxy(request: Request) -> Response:
                 )
             )
         else:
-            openai_params["temperature"] = anthropic_request.temperature
+            openai_params["temperature"] = anthropic_request.temperature or 0
     if anthropic_request.top_p is not None:
         openai_params["top_p"] = anthropic_request.top_p
     if anthropic_request.stop_sequences:
