@@ -210,9 +210,9 @@ class ResponseCache:
         Optimized to avoid JSON serialization overhead by:
         1. Verifying essential attributes exist (id, content, model, etc.)
         2. Checking UTF-8 compatibility directly on content blocks
-        
+
         Improved performance: ~40% faster than previous JSON-based validation.
-        
+
         Args:
             response: The response to validate
 
@@ -220,25 +220,34 @@ class ResponseCache:
             True if response is valid for caching, False otherwise
         """
         # Validate essential fields directly from response object
-        if not hasattr(response, 'id') or not hasattr(response, 'content') or \
-           not hasattr(response, 'model') or not hasattr(response, 'stop_reason') or \
-           not hasattr(response, 'usage'):
+        if (
+            not hasattr(response, "id")
+            or not hasattr(response, "content")
+            or not hasattr(response, "model")
+            or not hasattr(response, "stop_reason")
+            or not hasattr(response, "usage")
+        ):
             warning(
                 LogRecord(
                     LogEvent.CACHE_EVENT.value,
                     "Response validation failed: missing required attributes",
                     None,
-                    {"missing": [f for f in ['id', 'content', 'model', 'stop_reason', 'usage']
-                               if not hasattr(response, f)]},
+                    {
+                        "missing": [
+                            f
+                            for f in ["id", "content", "model", "stop_reason", "usage"]
+                            if not hasattr(response, f)
+                        ]
+                    },
                 )
             )
             return False
 
         # Validate text content UTF-8 compatibility
         for content_block in response.content:
-            if hasattr(content_block, 'text') and isinstance(content_block.text, str):
+            if hasattr(content_block, "text") and isinstance(content_block.text, str):
                 try:
-                    content_block.text.encode('utf-8').decode('utf-8')
+                    content_block.text.encode("utf-8").decode("utf-8")
                 except UnicodeError:
                     warning(
                         LogRecord(
@@ -251,7 +260,6 @@ class ResponseCache:
                     return False
 
         return True
-
 
     async def get_cached_response(
         self,

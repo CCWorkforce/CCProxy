@@ -1,7 +1,6 @@
 """Request validation utilities for performance optimization."""
 
 from typing import Dict, Any, Optional
-from functools import lru_cache
 from collections import OrderedDict
 import hashlib
 import json

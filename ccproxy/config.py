@@ -121,7 +121,9 @@ class Settings(BaseSettings):
     app_version: str = "0.3.3"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
-    error_log_file_path: Optional[str] = Field(default="error.jsonl", validation_alias=AliasChoices("ERROR_LOG_FILE_PATH"))
+    error_log_file_path: Optional[str] = Field(
+        default="error.jsonl", validation_alias=AliasChoices("ERROR_LOG_FILE_PATH")
+    )
     host: str = "127.0.0.1"
     port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
     reload: bool = True

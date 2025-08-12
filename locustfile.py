@@ -1,5 +1,4 @@
 from locust import HttpUser, task, between
-import json
 
 
 class APIUser(HttpUser):
@@ -11,13 +10,8 @@ class APIUser(HttpUser):
         payload = {
             "model": "claude-3-opus",
             "max_tokens": 100,
-            "messages": [{
-                "role": "user",
-                "content": "Hello, world!"
-            }]
+            "messages": [{"role": "user", "content": "Hello, world!"}],
         }
         self.client.post(
-            "/v1/messages",
-            json=payload,
-            headers={"Content-Type": "application/json"}
+            "/v1/messages", json=payload, headers={"Content-Type": "application/json"}
         )

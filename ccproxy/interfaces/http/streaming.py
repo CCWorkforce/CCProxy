@@ -1,12 +1,12 @@
 import json
 import time
 import uuid
-from typing import AsyncGenerator, Dict, Optional, Literal, Any
+from typing import AsyncGenerator, Dict, Optional, Literal
 
 import openai
 
 from ...application.tokenizer import get_token_encoder
-from ...logging import warning, debug, error, info, LogRecord, LogEvent
+from ...logging import error, info, LogRecord, LogEvent
 from .errors import (
     get_anthropic_error_details_from_execution,
     format_anthropic_error_sse_event,
@@ -18,14 +18,14 @@ class StreamProcessor:
     class ThinkingState:
         def __init__(self):
             self.idx = None
-            self.buffer = ''
-            self.signature = ''
+            self.buffer = ""
+            self.signature = ""
             self.started = False
 
     class TextState:
         def __init__(self):
             self.idx = None
-            self.content = ''
+            self.content = ""
 
     def __init__(self, enc, request_id, thinking_enabled):
         self.enc = enc
@@ -44,14 +44,16 @@ class StreamProcessor:
         tokens = self.enc.encode(self.thinking.buffer)
         self.output_token_count += len(tokens)
         events = []
-        if 'END_THINKING' in self.thinking.buffer:
+        if "END_THINKING" in self.thinking.buffer:
             event_data = {
-                'type': 'content_block_start',
-                'index': self.next_anthropic_block_idx,
-                'content': {'type': 'thinking', 'text': self.thinking.buffer}
+                "type": "content_block_start",
+                "index": self.next_anthropic_block_idx,
+                "content": {"type": "thinking", "text": self.thinking.buffer},
             }
-            events.append(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
-            self.thinking.buffer = ''
+            events.append(
+                f"event: content_block_start\ndata: {json.dumps(event_data)}\n\n"
+            )
+            self.thinking.buffer = ""
             self.thinking.started = False
         return events
 
@@ -61,23 +63,27 @@ class StreamProcessor:
         tokens = self.enc.encode(content)
         self.output_token_count += len(tokens)
         events = []
-        
+
         if not self.text.idx:
             self.text.idx = self.next_anthropic_block_idx
             event_data = {
-                'type': 'content_block_start',
-                'index': self.text.idx,
-                'content': {'type': 'text', 'text': self.text.content}
+                "type": "content_block_start",
+                "index": self.text.idx,
+                "content": {"type": "text", "text": self.text.content},
             }
-            events.append(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
+            events.append(
+                f"event: content_block_start\ndata: {json.dumps(event_data)}\n\n"
+            )
             self.next_anthropic_block_idx += 1
         else:
             event_data = {
-                'type': 'content_block_delta',
-                'index': self.text.idx,
-                'delta': {'text': content}
+                "type": "content_block_delta",
+                "index": self.text.idx,
+                "delta": {"text": content},
             }
-            events.append(f'event: content_block_delta\ndata: {json.dumps(event_data)}\n\n')
+            events.append(
+                f"event: content_block_delta\ndata: {json.dumps(event_data)}\n\n"
+            )
         return events
 
     async def process_tool_call(self, tool_delta):
@@ -87,36 +93,40 @@ class StreamProcessor:
 
         if tool_id not in self.tools:
             self.tools[tool_id] = {
-                'name': tool_delta.function.name,
-                'arguments': '',
-                'index': self.next_anthropic_block_idx
+                "name": tool_delta.function.name,
+                "arguments": "",
+                "index": self.next_anthropic_block_idx,
             }
             # Pre-allocate start event format
-            if 'start_event' not in self.tools[tool_id]:
+            if "start_event" not in self.tools[tool_id]:
                 event_data = {
-                'type': 'content_block_start',
-                'index': self.tools[tool_id]['index'],
-                'content': {
-                    'type': 'tool_use',
-                    'id': tool_id,
-                    'name': tool_delta.function.name,
-                    'input': {}
+                    "type": "content_block_start",
+                    "index": self.tools[tool_id]["index"],
+                    "content": {
+                        "type": "tool_use",
+                        "id": tool_id,
+                        "name": tool_delta.function.name,
+                        "input": {},
+                    },
                 }
-            }
             json_str = json.dumps(event_data)
-            self.tools[tool_id]['start_event'] = f'event: content_block_start\ndata: {json_str}\n\n'
-            events.append(self.tools[tool_id]['start_event'])
+            self.tools[tool_id]["start_event"] = (
+                f"event: content_block_start\ndata: {json_str}\n\n"
+            )
+            events.append(self.tools[tool_id]["start_event"])
 
         if tool_delta.function.arguments:
-            self.tools[tool_id]['arguments'] += tool_delta.function.arguments
+            self.tools[tool_id]["arguments"] += tool_delta.function.arguments
             tokens = self.enc.encode(tool_delta.function.arguments)
             self.output_token_count += len(tokens)
             event_data = {
-                'type': 'content_block_delta',
-                'index': self.tools[tool_id]['index'],
-                'delta': {'arguments': tool_delta.function.arguments}
+                "type": "content_block_delta",
+                "index": self.tools[tool_id]["index"],
+                "delta": {"arguments": tool_delta.function.arguments},
             }
-            events.append(f'event: content_block_delta\ndata: {json.dumps(event_data)}\n\n')
+            events.append(
+                f"event: content_block_delta\ndata: {json.dumps(event_data)}\n\n"
+            )
 
         return events
 
@@ -126,30 +136,31 @@ class StreamProcessor:
         # Finalize thinking block if exists
         if self.thinking.buffer and thinking_enabled:
             event_data = {
-                'type': 'content_block_stop',
-                'index': self.thinking.idx or self.next_anthropic_block_idx - 1
+                "type": "content_block_stop",
+                "index": self.thinking.idx or self.next_anthropic_block_idx - 1,
             }
-            events.append(f'event: content_block_stop\ndata: {json.dumps(event_data)}\n\n')
-            self.thinking.buffer = ''
+            events.append(
+                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
+            )
+            self.thinking.buffer = ""
 
         # Finalize text block if exists
         if self.text.idx is not None and self.text.content:
-            event_data = {
-                'type': 'content_block_stop',
-                'index': self.text.idx
-            }
-            events.append(f'event: content_block_stop\ndata: {json.dumps(event_data)}\n\n')
+            event_data = {"type": "content_block_stop", "index": self.text.idx}
+            events.append(
+                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
+            )
             self.text.idx = None
 
         # Finalize tool blocks
         for tool_id, tool in self.tools.items():
-            if 'arguments' in tool and tool['arguments']:
-                event_data = {
-                    'type': 'content_block_stop',
-                    'index': tool['index']
-                }
-            events.append(f'event: content_block_stop\ndata: {json.dumps(event_data)}\n\n')
+            if "arguments" in tool and tool["arguments"]:
+                event_data = {"type": "content_block_stop", "index": tool["index"]}
+            events.append(
+                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
+            )
         return events
+
 
 StopReasonType = Optional[
     Literal["end_turn", "max_tokens", "stop_sequence", "tool_use", "error"]
@@ -171,12 +182,11 @@ async def handle_anthropic_streaming_response_from_openai_stream(
 
     anthropic_message_id = f"msg_stream_{request_id}_{uuid.uuid4().hex[:8]}"
 
-    next_anthropic_block_idx = 0
     # Consolidated state tracking
     processor = StreamProcessor(
         enc=get_token_encoder(original_anthropic_model_name, request_id),
         request_id=request_id,
-        thinking_enabled=thinking_enabled
+        thinking_enabled=thinking_enabled,
     )
     final_anthropic_stop_reason: StopReasonType = None
 
@@ -238,8 +248,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             # Map finish reason with simplified logic
             if openai_finish_reason:
                 final_anthropic_stop_reason = openai_to_anthropic_stop_reason_map.get(
-                    openai_finish_reason,
-                    "end_turn"
+                    openai_finish_reason, "end_turn"
                 )
                 break
 

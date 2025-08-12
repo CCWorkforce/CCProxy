@@ -264,11 +264,26 @@ def init_logging(settings: Settings) -> logging.Logger:
             log_dir = os.path.dirname(settings.log_file_path)
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
-            file_handler = logging.FileHandler(settings.log_file_path, mode="a")
+            file_handler = logging.FileHandler(
+                settings.log_file_path, mode="a", encoding="utf-8"
+            )
             file_handler.setFormatter(JSONFormatter())
             _logger.addHandler(file_handler)
         except Exception as e:
             _logger.warning("Failed to configure file logging: %s", e)
+    if getattr(settings, "error_log_file_path", None):
+        try:
+            err_dir = os.path.dirname(settings.error_log_file_path)
+            if err_dir:
+                os.makedirs(err_dir, exist_ok=True)
+            err_handler = logging.FileHandler(
+                settings.error_log_file_path, mode="a", encoding="utf-8"
+            )
+            err_handler.setLevel(logging.ERROR)
+            err_handler.setFormatter(JSONFormatter())
+            _logger.addHandler(err_handler)
+        except Exception as e:
+            _logger.warning("Failed to configure error file logging: %s", e)
     return _logger
 
 

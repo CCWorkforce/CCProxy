@@ -7,7 +7,10 @@ ModelName: TypeAlias = str
 
 
 def select_target_model(
-    client_model_name: ModelName, request_id: str, big_model_name: ModelName, small_model_name: ModelName
+    client_model_name: ModelName,
+    request_id: str,
+    big_model_name: ModelName,
+    small_model_name: ModelName,
 ) -> ModelName:
     """Map Anthropic model names to appropriate OpenAI target models.
 
