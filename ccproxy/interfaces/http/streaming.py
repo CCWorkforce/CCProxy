@@ -61,19 +61,23 @@ class StreamProcessor:
         tokens = self.enc.encode(content)
         self.output_token_count += len(tokens)
         events = []
+        
         if not self.text.idx:
             self.text.idx = self.next_anthropic_block_idx
-            events.append(f"event: content_block_start\ndata: {json.dumps({
+            event_data = {
                 'type': 'content_block_start',
                 'index': self.text.idx,
                 'content': {'type': 'text', 'text': self.text.content}
-            })}\n\n")
+            }
+            events.append(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
+            self.next_anthropic_block_idx += 1
         else:
-            events.append(f"event: content_block_delta\ndata: {json.dumps({
+            event_data = {
                 'type': 'content_block_delta',
                 'index': self.text.idx,
                 'delta': {'text': content}
-            })}\n\n")
+            }
+            events.append(f'event: content_block_delta\ndata: {json.dumps(event_data)}\n\n')
         return events
 
     async def process_tool_call(self, tool_delta):
@@ -87,7 +91,9 @@ class StreamProcessor:
                 'arguments': '',
                 'index': self.next_anthropic_block_idx
             }
-            event_data = {
+            # Pre-allocate start event format
+            if 'start_event' not in self.tools[tool_id]:
+                event_data = {
                 'type': 'content_block_start',
                 'index': self.tools[tool_id]['index'],
                 'content': {
@@ -97,7 +103,9 @@ class StreamProcessor:
                     'input': {}
                 }
             }
-            events.append(f'event: content_block_start\ndata: {json.dumps(event_data)}\n\n')
+            json_str = json.dumps(event_data)
+            self.tools[tool_id]['start_event'] = f'event: content_block_start\ndata: {json_str}\n\n'
+            events.append(self.tools[tool_id]['start_event'])
 
         if tool_delta.function.arguments:
             self.tools[tool_id]['arguments'] += tool_delta.function.arguments

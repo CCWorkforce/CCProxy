@@ -36,3 +36,4 @@ python-dotenv==1.1.1
 
 # Production server (optional, for better performance)
 gunicorn==23.0.0
+locust
