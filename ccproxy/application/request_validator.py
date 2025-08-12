@@ -29,7 +29,6 @@ class RequestValidator:
         self._cache_hits = 0
         self._cache_misses = 0
 
-    @lru_cache(maxsize=10000)
     def _get_request_hash(self, request_json: str) -> str:
         """Generate a hash for request caching."""
         return hashlib.md5(request_json.encode()).hexdigest()

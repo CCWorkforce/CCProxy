@@ -215,81 +215,39 @@ class ResponseCache:
         Returns:
             True if response is valid for caching, False otherwise
         """
-        try:
-            # Test JSON serialization - this will catch malformed responses
-            response_json = response.model_dump_json()
-
-            # Try to parse it back to ensure it's valid JSON
-            parsed = json.loads(response_json)
-
-            # Basic structure validation
-            if not isinstance(parsed, dict):
-                warning(
-                    LogRecord(
-                        LogEvent.CACHE_EVENT.value,
-                        "Response validation failed: not a dictionary",
-                        None,
-                        {"response_type": type(parsed).__name__},
-                    )
-                )
-                return False
-
-            # Check for essential fields
-            required_fields = ["id", "content", "model", "stop_reason", "usage"]
-            missing_fields = [field for field in required_fields if field not in parsed]
-            if missing_fields:
-                warning(
-                    LogRecord(
-                        LogEvent.CACHE_EVENT.value,
-                        "Response validation failed: missing required fields",
-                        None,
-                        {"missing_fields": missing_fields},
-                    )
-                )
-                return False
-
-            # Validate text content can be properly encoded/decoded
-            if parsed.get("content") and isinstance(parsed["content"], list):
-                for content_block in parsed["content"]:
-                    if isinstance(content_block, dict) and "text" in content_block:
-                        text_content = content_block["text"]
-                        if isinstance(text_content, str):
-                            # Test UTF-8 encoding/decoding
-                            try:
-                                text_content.encode("utf-8").decode("utf-8")
-                            except UnicodeDecodeError:
-                                warning(
-                                    LogRecord(
-                                        LogEvent.CACHE_EVENT.value,
-                                        "Response validation failed: invalid UTF-8 content",
-                                        None,
-                                        {"content_type": "text"},
-                                    )
-                                )
-                                return False
-
-            return True
-
-        except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as e:
+        # Validate essential fields directly from response object
+        if not hasattr(response, 'id') or not hasattr(response, 'content') or \
+           not hasattr(response, 'model') or not hasattr(response, 'stop_reason') or \
+           not hasattr(response, 'usage'):
             warning(
                 LogRecord(
                     LogEvent.CACHE_EVENT.value,
-                    "Response validation failed: JSON/encoding error",
+                    "Response validation failed: missing required attributes",
                     None,
-                    {"error": str(e), "error_type": type(e).__name__},
+                    {"missing": [f for f in ['id', 'content', 'model', 'stop_reason', 'usage']
+                               if not hasattr(response, f)]},
                 )
             )
             return False
-        except Exception as e:
-            warning(
-                LogRecord(
-                    LogEvent.CACHE_EVENT.value,
-                    "Response validation failed: unexpected error",
-                    None,
-                    {"error": str(e), "error_type": type(e).__name__},
-                )
-            )
-            return False
+
+        # Validate text content UTF-8 compatibility
+        for content_block in response.content:
+            if hasattr(content_block, 'text') and isinstance(content_block.text, str):
+                try:
+                    content_block.text.encode('utf-8').decode('utf-8')
+                except UnicodeError:
+                    warning(
+                        LogRecord(
+                            LogEvent.CACHE_EVENT.value,
+                            "Response validation failed: invalid UTF-8 content",
+                            None,
+                            {"content_type": "text"},
+                        )
+                    )
+                    return False
+
+        return True
+
 
     async def get_cached_response(
         self,
