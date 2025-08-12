@@ -114,6 +114,13 @@ async def create_message_proxy(request: Request) -> Response:
 
     is_stream = bool(anthropic_request.stream)
 
+    target_model = select_target_model(
+        anthropic_request.model,
+        request_id,
+        settings.big_model_name,
+        settings.small_model_name,
+    )
+
     # Check cache for non-streaming requests
     if not is_stream:
         cached_response = await response_cache.get_cached_response(
@@ -142,13 +149,6 @@ async def create_message_proxy(request: Request) -> Response:
 
         # Mark request as pending to prevent duplicate processing
         await response_cache.mark_request_pending(anthropic_request)
-
-    target_model = select_target_model(
-        anthropic_request.model,
-        request_id,
-        settings.big_model_name,
-        settings.small_model_name,
-    )
 
     estimated_input_tokens = count_tokens_for_anthropic_request(
         messages=anthropic_request.messages,
