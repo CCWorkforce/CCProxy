@@ -114,6 +114,13 @@ async def create_message_proxy(request: Request) -> Response:
 
     is_stream = bool(anthropic_request.stream)
 
+    target_model = select_target_model(
+        anthropic_request.model,
+        request_id,
+        settings.big_model_name,
+        settings.small_model_name,
+    )
+
     # Check cache for non-streaming requests
     if not is_stream:
         cached_response = await response_cache.get_cached_response(
@@ -127,12 +134,14 @@ async def create_message_proxy(request: Request) -> Response:
             info(
                 LogRecord(
                     event=LogEvent.REQUEST_COMPLETED.value,
-                    message="Returned cached response",
+                    message=f"Returned cached response for {target_model}",
                     request_id=request_id,
                     data={
                         "status_code": 200,
                         "duration_ms": duration_ms,
                         "from_cache": True,
+                        "client_model": anthropic_request.model,
+                        "target_model": target_model,
                         "input_tokens": cached_response.usage.input_tokens,
                         "output_tokens": cached_response.usage.output_tokens,
                     },
@@ -142,13 +151,6 @@ async def create_message_proxy(request: Request) -> Response:
 
         # Mark request as pending to prevent duplicate processing
         await response_cache.mark_request_pending(anthropic_request)
-
-    target_model = select_target_model(
-        anthropic_request.model,
-        request_id,
-        settings.big_model_name,
-        settings.small_model_name,
-    )
 
     estimated_input_tokens = count_tokens_for_anthropic_request(
         messages=anthropic_request.messages,
@@ -171,7 +173,7 @@ async def create_message_proxy(request: Request) -> Response:
     info(
         LogRecord(
             event=LogEvent.REQUEST_START.value,
-            message="Processing new message request",
+            message=f"Processing request for {anthropic_request.model} (target: {target_model})",
             request_id=request_id,
             data={
                 "client_model": anthropic_request.model,
@@ -277,7 +279,7 @@ async def create_message_proxy(request: Request) -> Response:
     debug(
         LogRecord(
             LogEvent.OPENAI_REQUEST.value,
-            "Prepared OpenAI request parameters",
+            f"Prepared OpenAI request parameters for {target_model}",
             request_id,
             {"params": openai_params},
         )
@@ -288,7 +290,7 @@ async def create_message_proxy(request: Request) -> Response:
             debug(
                 LogRecord(
                     LogEvent.STREAMING_REQUEST.value,
-                    "Initiating streaming request to OpenAI-compatible API",
+                    f"Initiating streaming request to OpenAI-compatible API for {target_model}",
                     request_id,
                 )
             )
@@ -371,7 +373,7 @@ async def create_message_proxy(request: Request) -> Response:
             debug(
                 LogRecord(
                     LogEvent.OPENAI_REQUEST.value,
-                    "Sending non-streaming request to OpenAI-compatible API",
+                    f"Sending non-streaming request to OpenAI-compatible API for {target_model}",
                     request_id,
                 )
             )
@@ -390,7 +392,7 @@ async def create_message_proxy(request: Request) -> Response:
                 debug(
                     LogRecord(
                         LogEvent.OPENAI_RESPONSE.value,
-                        "Received OpenAI response",
+                        f"Received OpenAI-compatible response from {target_model}",
                         request_id,
                         {"response": response_data},
                     )
@@ -408,7 +410,7 @@ async def create_message_proxy(request: Request) -> Response:
             info(
                 LogRecord(
                     event=LogEvent.REQUEST_COMPLETED.value,
-                    message="Non-streaming request completed successfully",
+                    message=f"Non-streaming request completed successfully for {target_model}",
                     request_id=request_id,
                     data={
                         "status_code": 200,
