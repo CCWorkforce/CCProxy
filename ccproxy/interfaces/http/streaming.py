@@ -14,6 +14,21 @@ from .errors import (
 from .http_status import OK, INTERNAL_SERVER_ERROR
 
 
+# Content block type constants
+CONTENT_TYPE_THINKING = "thinking"
+CONTENT_TYPE_TEXT = "text"
+CONTENT_TYPE_TOOL_USE = "tool_use"
+
+# Event type constants
+EVENT_TYPE_CONTENT_BLOCK_START = "content_block_start"
+EVENT_TYPE_CONTENT_BLOCK_DELTA = "content_block_delta"
+EVENT_TYPE_CONTENT_BLOCK_STOP = "content_block_stop"
+EVENT_TYPE_MESSAGE_START = "message_start"
+EVENT_TYPE_MESSAGE_DELTA = "message_delta"
+EVENT_TYPE_MESSAGE_STOP = "message_stop"
+EVENT_TYPE_PING = "ping"
+
+
 class StreamProcessor:
     class ThinkingState:
         def __init__(self):
@@ -39,22 +54,33 @@ class StreamProcessor:
         self.next_anthropic_block_idx = 0
 
     async def process_thinking_content(self, content: str) -> list:
-        # Process thinking content
-        self.thinking.buffer += content
-        tokens = self.enc.encode(self.thinking.buffer)
-        self.output_token_count += len(tokens)
+        # Process thinking content with state tracking
         events = []
-        if "END_THINKING" in self.thinking.buffer:
+        if not self.thinking.started:
+            self.thinking.idx = self.next_anthropic_block_idx
+            self.next_anthropic_block_idx += 1
+            self.thinking.started = True
             event_data = {
-                "type": "content_block_start",
-                "index": self.next_anthropic_block_idx,
-                "content": {"type": "thinking", "text": self.thinking.buffer},
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
+                "index": self.thinking.idx,
+                "content": {"type": CONTENT_TYPE_THINKING, "text": content},
             }
             events.append(
-                f"event: content_block_start\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
             )
-            self.thinking.buffer = ""
-            self.thinking.started = False
+            self.thinking.buffer = content
+        else:
+            self.thinking.buffer += content
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
+                "index": self.thinking.idx,
+                "delta": {"text": content},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+            )
+        tokens = self.enc.encode(content)
+        self.output_token_count += len(tokens)
         return events
 
     async def process_text_content(self, content: str):
@@ -67,22 +93,22 @@ class StreamProcessor:
         if not self.text.idx:
             self.text.idx = self.next_anthropic_block_idx
             event_data = {
-                "type": "content_block_start",
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
                 "index": self.text.idx,
-                "content": {"type": "text", "text": self.text.content},
+                "content": {"type": CONTENT_TYPE_TEXT, "text": self.text.content},
             }
             events.append(
-                f"event: content_block_start\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
             )
             self.next_anthropic_block_idx += 1
         else:
             event_data = {
-                "type": "content_block_delta",
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
                 "index": self.text.idx,
                 "delta": {"text": content},
             }
             events.append(
-                f"event: content_block_delta\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
             )
         return events
 
@@ -97,21 +123,21 @@ class StreamProcessor:
                 "arguments": "",
                 "index": self.next_anthropic_block_idx,
             }
+            self.next_anthropic_block_idx += 1
             # Pre-allocate start event format
-            if "start_event" not in self.tools[tool_id]:
-                event_data = {
-                    "type": "content_block_start",
-                    "index": self.tools[tool_id]["index"],
-                    "content": {
-                        "type": "tool_use",
-                        "id": tool_id,
-                        "name": tool_delta.function.name,
-                        "input": {},
-                    },
-                }
-            json_str = json.dumps(event_data)
+            start_event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
+                "index": self.tools[tool_id]["index"],
+                "content": {
+                    "type": CONTENT_TYPE_TOOL_USE,
+                    "id": tool_id,
+                    "name": tool_delta.function.name,
+                    "input": {},
+                },
+            }
+            json_str = json.dumps(start_event_data)
             self.tools[tool_id]["start_event"] = (
-                f"event: content_block_start\ndata: {json_str}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json_str}\n\n"
             )
             events.append(self.tools[tool_id]["start_event"])
 
@@ -120,12 +146,12 @@ class StreamProcessor:
             tokens = self.enc.encode(tool_delta.function.arguments)
             self.output_token_count += len(tokens)
             event_data = {
-                "type": "content_block_delta",
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
                 "index": self.tools[tool_id]["index"],
                 "delta": {"arguments": tool_delta.function.arguments},
             }
             events.append(
-                f"event: content_block_delta\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
             )
 
         return events
@@ -135,30 +161,30 @@ class StreamProcessor:
         events = []
         # Finalize thinking block if exists
         if self.thinking.buffer and thinking_enabled:
-            event_data = {
-                "type": "content_block_stop",
+            thinking_event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_STOP,
                 "index": self.thinking.idx or self.next_anthropic_block_idx - 1,
             }
             events.append(
-                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(thinking_event_data)}\n\n"
             )
             self.thinking.buffer = ""
 
         # Finalize text block if exists
         if self.text.idx is not None and self.text.content:
-            event_data = {"type": "content_block_stop", "index": self.text.idx}
+            text_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": self.text.idx}
             events.append(
-                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(text_event_data)}\n\n"
             )
             self.text.idx = None
 
         # Finalize tool blocks
         for tool_id, tool in self.tools.items():
             if "arguments" in tool and tool["arguments"]:
-                event_data = {"type": "content_block_stop", "index": tool["index"]}
-            events.append(
-                f"event: content_block_stop\ndata: {json.dumps(event_data)}\n\n"
-            )
+                tool_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": tool["index"]}
+                events.append(
+                    f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(tool_event_data)}\n\n"
+                )
         return events
 
 
@@ -205,7 +231,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
 
     try:
         message_start_event_data = {
-            "type": "message_start",
+            "type": EVENT_TYPE_MESSAGE_START,
             "message": {
                 "id": anthropic_message_id,
                 "type": "message",
@@ -217,8 +243,8 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 "usage": {"input_tokens": estimated_input_tokens, "output_tokens": 0},
             },
         }
-        yield f"event: message_start\ndata: {json.dumps(message_start_event_data)}\n\n"
-        yield f"event: ping\ndata: {json.dumps({'type': 'ping'})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_START}\ndata: {json.dumps(message_start_event_data)}\n\n"
+        yield f"event: {EVENT_TYPE_PING}\ndata: {json.dumps({'type': EVENT_TYPE_PING})}\n\n"
 
         async for chunk in openai_stream:
             if not chunk.choices:
@@ -261,15 +287,15 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             final_anthropic_stop_reason = "end_turn"
 
         message_delta_event = {
-            "type": "message_delta",
+            "type": EVENT_TYPE_MESSAGE_DELTA,
             "delta": {
                 "stop_reason": final_anthropic_stop_reason,
                 "stop_sequence": None,
             },
             "usage": {"output_tokens": processor.output_token_count},
         }
-        yield f"event: message_delta\ndata: {json.dumps(message_delta_event)}\n\n"
-        yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_DELTA}\ndata: {json.dumps(message_delta_event)}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_STOP}\ndata: {json.dumps({'type': EVENT_TYPE_MESSAGE_STOP})}\n\n"
 
     except Exception as e:
         stream_status_code = INTERNAL_SERVER_ERROR

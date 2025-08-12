@@ -133,6 +133,15 @@ class OpenAIProvider:
                 )
                 await asyncio.sleep(delay)
                 attempt += 1
+            except (openai.APIConnectionError, httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+                # Handle network-related errors with retry
+                if attempt >= self._max_retries:
+                    raise e
+                delay = self._base_delay * (2**attempt) + random.uniform(
+                    0, self._jitter
+                )
+                await asyncio.sleep(delay)
+                attempt += 1
             except UnicodeDecodeError as e:
                 raise openai.APIError(
                     message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",

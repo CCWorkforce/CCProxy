@@ -144,18 +144,21 @@ def convert_anthropic_to_openai_messages(
             )
         system_text_content = "\n".join(system_texts)
 
-    if system_text_content:
-        role_value = MessageRoles.System.value
-        if target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS:
-            role_value = MessageRoles.Developer.value
-        openai_messages.append({"role": role_value, "content": system_text_content})
-
-    # Add developer message to enforce UTF-8 encoding compliance
-    if target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS:
+    # Handle system content and UTF-8 enforcement together to avoid duplicate developer messages
+    supports_developer_role = target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS
+    
+    if system_text_content and supports_developer_role:
+        # Combine system content with UTF-8 enforcement for models that support developer role
+        utf8_enforcement_message = "\n\nIMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
+        combined_content = system_text_content + utf8_enforcement_message
+        openai_messages.append({"role": MessageRoles.Developer.value, "content": combined_content})
+    elif system_text_content:
+        # Use system role for models that don't support developer role
+        openai_messages.append({"role": MessageRoles.System.value, "content": system_text_content})
+    elif supports_developer_role:
+        # Only UTF-8 enforcement message needed
         utf8_enforcement_message = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
-        openai_messages.append(
-            {"role": MessageRoles.Developer.value, "content": utf8_enforcement_message}
-        )
+        openai_messages.append({"role": MessageRoles.Developer.value, "content": utf8_enforcement_message})
 
     for i, msg in enumerate(anthropic_messages):
         role = msg.role
