@@ -4,7 +4,7 @@ Supports multiple HTTP client backends for maximum performance.
 """
 
 from openai import AsyncOpenAI
-from typing import Any, Optional, Literal
+from typing import Any, Optional
 import httpx
 import os
 import logging
