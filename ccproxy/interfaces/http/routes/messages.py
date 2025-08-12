@@ -264,10 +264,10 @@ async def create_message_proxy(request: Request) -> Response:
                 else ReasoningEfforts.Medium.value
             )
         )
-        info(
+        warning(
             LogRecord(
                 LogEvent.STREAM_EVENT.value,
-                f"Model supports reasoning; 'reasoning_effort' will be added for model {target_model}.",
+                f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",
                 request_id,
                 {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
             )
