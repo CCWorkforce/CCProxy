@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Project: CCProxy – OpenAI-compatible proxy for Anthropic Messages API
 
 Common commands
-- Install deps: pip install -r requirements.txt
+- Install deps: uv pip install -r requirements.txt
 - Run dev (uvicorn): python main.py
 - Run via script (env checks): ./run-ccproxy.sh
 - Docker build/run (compose): ./docker-compose-run.sh up -d

@@ -4,7 +4,12 @@
 
 ### Step 1: Create `.env` File
 
-Create a `.env` file in the project root with your configuration:
+Create a `.env` file by copying the example:
+
+```bash
+cp .env.example .env
+# edit .env to set OPENAI_API_KEY, BIG_MODEL_NAME, SMALL_MODEL_NAME
+```
 
 ```bash
 # Required variables
