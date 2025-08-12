@@ -11,6 +11,7 @@ import statistics
 @dataclass
 class PerformanceMetrics:
     """Stores performance metrics for monitoring."""
+
     request_count: int = 0
     total_duration_ms: float = 0
     avg_duration_ms: float = 0
@@ -47,7 +48,9 @@ class PerformanceMonitor:
             self.metrics.active_requests += 1
         return start_time
 
-    async def end_request(self, request_id: str, success: bool = True) -> Optional[float]:
+    async def end_request(
+        self, request_id: str, success: bool = True
+    ) -> Optional[float]:
         """Mark the end of a request and calculate duration."""
         end_time = time.monotonic()
 
@@ -87,7 +90,8 @@ class PerformanceMonitor:
                 "request_count": self.metrics.request_count,
                 "active_requests": self.metrics.active_requests,
                 "error_count": self.metrics.error_count,
-                "error_rate": self.metrics.error_count / max(1, self.metrics.request_count),
+                "error_rate": self.metrics.error_count
+                / max(1, self.metrics.request_count),
                 "avg_duration_ms": round(self.metrics.avg_duration_ms, 2),
                 "p95_duration_ms": round(self.metrics.p95_duration_ms, 2),
                 "p99_duration_ms": round(self.metrics.p99_duration_ms, 2),

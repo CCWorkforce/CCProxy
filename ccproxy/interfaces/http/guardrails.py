@@ -125,7 +125,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         """Apply rate limiting and forward the request if allowed."""
-        key = request.headers.get(self._header) or (request.client.host if request.client else "anonymous")
+        key = request.headers.get(self._header) or (
+            request.client.host if request.client else "anonymous"
+        )
         allowed = await self._limiter.allow(key)
         if not allowed:
             return await log_and_return_error_response(
@@ -163,5 +165,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'none'; frame-ancestors 'none'; sandbox",
         )
         if self.enable_hsts and request.url.scheme == "https":
-            response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=63072000; includeSubDomains; preload",
+            )
         return response

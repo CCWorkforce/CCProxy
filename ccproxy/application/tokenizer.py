@@ -5,7 +5,17 @@ import hashlib
 import threading
 from typing import Dict, List, Optional, Union, Tuple
 
-from ..domain.models import Message, SystemContent, Tool, ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult, ContentBlockThinking, ContentBlockRedactedThinking
+from ..domain.models import (
+    Message,
+    SystemContent,
+    Tool,
+    ContentBlockText,
+    ContentBlockImage,
+    ContentBlockToolUse,
+    ContentBlockToolResult,
+    ContentBlockThinking,
+    ContentBlockRedactedThinking,
+)
 from ..logging import warning, debug, LogRecord, LogEvent
 from ..config import Settings
 
@@ -68,7 +78,7 @@ def _stable_hash_for_token_inputs(
     messages: List[Message],
     system: Optional[Union[str, List[SystemContent]]],
     model_name: str,
-    tools: Optional[List[Tool]]
+    tools: Optional[List[Tool]],
 ) -> str:
     """Generates a stable hash key for token count caching.
 
@@ -87,7 +97,9 @@ def _stable_hash_for_token_inputs(
     payload = {
         "model": model_name,
         "messages": [m.model_dump(exclude_unset=True) for m in messages],
-        "system": system if isinstance(system, str) else [s.model_dump(exclude_unset=True) for s in (system or [])],
+        "system": system
+        if isinstance(system, str)
+        else [s.model_dump(exclude_unset=True) for s in (system or [])],
         "tools": [t.model_dump(exclude_unset=True) for t in (tools or [])],
     }
     j = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -136,7 +148,14 @@ def count_tokens_for_anthropic_request(
                 if now - ts <= ttl_s:
                     global _token_count_hits
                     _token_count_hits += 1
-                    debug(LogRecord(LogEvent.TOKEN_COUNT.value, "Token count cache hit", request_id, {"key": key[:8], "age_s": round(now - ts, 3)}))
+                    debug(
+                        LogRecord(
+                            LogEvent.TOKEN_COUNT.value,
+                            "Token count cache hit",
+                            request_id,
+                            {"key": key[:8], "age_s": round(now - ts, 3)},
+                        )
+                    )
                     if key in _token_count_lru_order:
                         _token_count_lru_order.remove(key)
                     _token_count_lru_order.append(key)

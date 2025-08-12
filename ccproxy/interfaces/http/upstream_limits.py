@@ -1,4 +1,5 @@
 """Utilities enforcing upstream call duration/host safety."""
+
 from __future__ import annotations
 
 import anyio

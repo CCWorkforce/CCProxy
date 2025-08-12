@@ -1,14 +1,191 @@
 import json
 import time
 import uuid
-from typing import AsyncGenerator, Dict, Optional, Literal, Any
+from typing import AsyncGenerator, Dict, Optional, Literal
 
 import openai
 
 from ...application.tokenizer import get_token_encoder
-from ...logging import warning, debug, error, info, LogRecord, LogEvent
-from .errors import get_anthropic_error_details_from_execution, format_anthropic_error_sse_event
+from ...logging import error, info, LogRecord, LogEvent
+from .errors import (
+    get_anthropic_error_details_from_execution,
+    format_anthropic_error_sse_event,
+)
 from .http_status import OK, INTERNAL_SERVER_ERROR
+
+
+# Content block type constants
+CONTENT_TYPE_THINKING = "thinking"
+CONTENT_TYPE_TEXT = "text"
+CONTENT_TYPE_TOOL_USE = "tool_use"
+
+# Event type constants
+EVENT_TYPE_CONTENT_BLOCK_START = "content_block_start"
+EVENT_TYPE_CONTENT_BLOCK_DELTA = "content_block_delta"
+EVENT_TYPE_CONTENT_BLOCK_STOP = "content_block_stop"
+EVENT_TYPE_MESSAGE_START = "message_start"
+EVENT_TYPE_MESSAGE_DELTA = "message_delta"
+EVENT_TYPE_MESSAGE_STOP = "message_stop"
+EVENT_TYPE_PING = "ping"
+
+
+class StreamProcessor:
+    class ThinkingState:
+        def __init__(self):
+            self.idx = None
+            self.buffer = ""
+            self.signature = ""
+            self.started = False
+
+    class TextState:
+        def __init__(self):
+            self.idx = None
+            self.content = ""
+
+    def __init__(self, enc, request_id, thinking_enabled):
+        self.enc = enc
+        self.request_id = request_id
+        self.thinking_enabled = thinking_enabled
+        self.thinking = self.ThinkingState()
+        self.text = self.TextState()
+        self.tools = {}
+        self.tool_starts = set()
+        self.output_token_count = 0
+        self.next_anthropic_block_idx = 0
+
+    async def process_thinking_content(self, content: str) -> list:
+        # Process thinking content with state tracking
+        events = []
+        if not self.thinking.started:
+            self.thinking.idx = self.next_anthropic_block_idx
+            self.next_anthropic_block_idx += 1
+            self.thinking.started = True
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
+                "index": self.thinking.idx,
+                "content": {"type": CONTENT_TYPE_THINKING, "text": content},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
+            )
+            self.thinking.buffer = content
+        else:
+            self.thinking.buffer += content
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
+                "index": self.thinking.idx,
+                "delta": {"text": content},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+            )
+        tokens = self.enc.encode(content)
+        self.output_token_count += len(tokens)
+        return events
+
+    async def process_text_content(self, content: str):
+        # Process text content
+        self.text.content += content
+        tokens = self.enc.encode(content)
+        self.output_token_count += len(tokens)
+        events = []
+
+        if not self.text.idx:
+            self.text.idx = self.next_anthropic_block_idx
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
+                "index": self.text.idx,
+                "content": {"type": CONTENT_TYPE_TEXT, "text": self.text.content},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
+            )
+            self.next_anthropic_block_idx += 1
+        else:
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
+                "index": self.text.idx,
+                "delta": {"text": content},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+            )
+        return events
+
+    async def process_tool_call(self, tool_delta):
+        # Process tool calls
+        tool_id = tool_delta.id
+        events = []
+
+        if tool_id not in self.tools:
+            self.tools[tool_id] = {
+                "name": tool_delta.function.name,
+                "arguments": "",
+                "index": self.next_anthropic_block_idx,
+            }
+            self.next_anthropic_block_idx += 1
+            # Pre-allocate start event format
+            start_event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_START,
+                "index": self.tools[tool_id]["index"],
+                "content": {
+                    "type": CONTENT_TYPE_TOOL_USE,
+                    "id": tool_id,
+                    "name": tool_delta.function.name,
+                    "input": {},
+                },
+            }
+            json_str = json.dumps(start_event_data)
+            self.tools[tool_id]["start_event"] = (
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json_str}\n\n"
+            )
+            events.append(self.tools[tool_id]["start_event"])
+
+        if tool_delta.function.arguments:
+            self.tools[tool_id]["arguments"] += tool_delta.function.arguments
+            tokens = self.enc.encode(tool_delta.function.arguments)
+            self.output_token_count += len(tokens)
+            event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_DELTA,
+                "index": self.tools[tool_id]["index"],
+                "delta": {"arguments": tool_delta.function.arguments},
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+            )
+
+        return events
+
+    async def finalize_blocks(self, thinking_enabled):
+        # Finalize all blocks
+        events = []
+        # Finalize thinking block if exists
+        if self.thinking.buffer and thinking_enabled:
+            thinking_event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_STOP,
+                "index": self.thinking.idx or self.next_anthropic_block_idx - 1,
+            }
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(thinking_event_data)}\n\n"
+            )
+            self.thinking.buffer = ""
+
+        # Finalize text block if exists
+        if self.text.idx is not None and self.text.content:
+            text_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": self.text.idx}
+            events.append(
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(text_event_data)}\n\n"
+            )
+            self.text.idx = None
+
+        # Finalize tool blocks
+        for tool_id, tool in self.tools.items():
+            if "arguments" in tool and tool["arguments"]:
+                tool_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": tool["index"]}
+                events.append(
+                    f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(tool_event_data)}\n\n"
+                )
+        return events
 
 
 StopReasonType = Optional[
@@ -31,23 +208,13 @@ async def handle_anthropic_streaming_response_from_openai_stream(
 
     anthropic_message_id = f"msg_stream_{request_id}_{uuid.uuid4().hex[:8]}"
 
-    next_anthropic_block_idx = 0
-    thinking_block_anthropic_idx: Optional[int] = None
-    text_block_anthropic_idx: Optional[int] = None
-
-    openai_tool_idx_to_anthropic_block_idx: Dict[int, int] = {}
-
-    tool_states: Dict[int, Dict[str, Any]] = {}
-    thinking_content_buffer = ""
-    thinking_signature_buffer = ""
-
-    sent_tool_block_starts: set[int] = set()
-    sent_thinking_block_start = False
-
-    output_token_count = 0
+    # Consolidated state tracking
+    processor = StreamProcessor(
+        enc=get_token_encoder(original_anthropic_model_name, request_id),
+        request_id=request_id,
+        thinking_enabled=thinking_enabled,
+    )
     final_anthropic_stop_reason: StopReasonType = None
-
-    enc = get_token_encoder(original_anthropic_model_name, request_id)
 
     openai_to_anthropic_stop_reason_map: Dict[Optional[str], StopReasonType] = {
         "stop": "end_turn",
@@ -64,7 +231,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
 
     try:
         message_start_event_data = {
-            "type": "message_start",
+            "type": EVENT_TYPE_MESSAGE_START,
             "message": {
                 "id": anthropic_message_id,
                 "type": "message",
@@ -76,8 +243,8 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 "usage": {"input_tokens": estimated_input_tokens, "output_tokens": 0},
             },
         }
-        yield f"event: message_start\ndata: {json.dumps(message_start_event_data)}\n\n"
-        yield f"event: ping\ndata: {json.dumps({'type': 'ping'})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_START}\ndata: {json.dumps(message_start_event_data)}\n\n"
+        yield f"event: {EVENT_TYPE_PING}\ndata: {json.dumps({'type': EVENT_TYPE_PING})}\n\n"
 
         async for chunk in openai_stream:
             if not chunk.choices:
@@ -86,211 +253,49 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             delta = chunk.choices[0].delta
             openai_finish_reason = chunk.choices[0].finish_reason
 
-            # Handle thinking content first (simulated from OpenAI content with special markers)
+            # Handle thinking content with consolidated state
             if thinking_enabled and delta.content:
-                if delta.content.startswith("<thinking>"):
-                    # Extract thinking content from special OpenAI format
-                    thinking_content = delta.content.replace("<thinking>", "").replace("</thinking>", "")
-                    if thinking_content:
-                        thinking_content_buffer += thinking_content
-                        output_token_count += len(enc.encode(thinking_content))
-
-                        if not sent_thinking_block_start:
-                            thinking_block_anthropic_idx = next_anthropic_block_idx
-                            next_anthropic_block_idx += 1
-                            start_thinking_event = {
-                                "type": "content_block_start",
-                                "index": thinking_block_anthropic_idx,
-                                "content_block": {"type": "thinking", "thinking": ""},
-                            }
-                            yield f"event: content_block_start\ndata: {json.dumps(start_thinking_event)}\n\n"
-                            sent_thinking_block_start = True
-
-                        thinking_delta_event = {
-                            "type": "content_block_delta",
-                            "index": thinking_block_anthropic_idx,
-                            "delta": {"type": "thinking_delta", "thinking": thinking_content},
-                        }
-                        yield f"event: content_block_delta\ndata: {json.dumps(thinking_delta_event)}\n\n"
-                elif delta.content.startswith("<signature>"):
-                    # Handle signature deltas from OpenAI (simulated format)
-                    signature_fragment = delta.content.replace("<signature>", "").replace("</signature>", "")
-                    if signature_fragment and thinking_block_anthropic_idx is not None:
-                        thinking_signature_buffer += signature_fragment
-                        signature_delta_event = {
-                            "type": "content_block_delta",
-                            "index": thinking_block_anthropic_idx,
-                            "delta": {"type": "signature_delta", "signature": signature_fragment},
-                        }
-                        yield f"event: content_block_delta\ndata: {json.dumps(signature_delta_event)}\n\n"
+                events = await processor.process_thinking_content(delta.content)
+                for event in events:
+                    yield event
             elif delta.content:
-                # Cache content for batch encoding (more efficient)
-                content_batch = delta.content
-                output_token_count += len(enc.encode(content_batch))
-                if text_block_anthropic_idx is None:
-                    text_block_anthropic_idx = next_anthropic_block_idx
-                    next_anthropic_block_idx += 1
-                    start_text_event = {
-                        "type": "content_block_start",
-                        "index": text_block_anthropic_idx,
-                        "content_block": {"type": "text", "text": ""},
-                    }
-                    yield f"event: content_block_start\ndata: {json.dumps(start_text_event)}\n\n"
+                # Handle text content with state management
+                events = await processor.process_text_content(delta.content)
+                for event in events:
+                    yield event
 
-                text_delta_event = {
-                    "type": "content_block_delta",
-                    "index": text_block_anthropic_idx,
-                    "delta": {"type": "text_delta", "text": delta.content},
-                }
-                yield f"event: content_block_delta\ndata: {json.dumps(text_delta_event)}\n\n"
-
+            # Process tool calls using state manager
             if delta.tool_calls:
                 for tool_delta in delta.tool_calls:
-                    openai_tc_idx = tool_delta.index
+                    events = await processor.process_tool_call(tool_delta)
+                    for event in events:
+                        yield event
 
-                    if openai_tc_idx not in openai_tool_idx_to_anthropic_block_idx:
-                        current_anthropic_tool_block_idx = next_anthropic_block_idx
-                        next_anthropic_block_idx += 1
-                        openai_tool_idx_to_anthropic_block_idx[openai_tc_idx] = (
-                            current_anthropic_tool_block_idx
-                        )
-
-                        tool_states[current_anthropic_tool_block_idx] = {
-                            "id": tool_delta.id
-                            or f"tool_ph_{request_id}_{current_anthropic_tool_block_idx}",
-                            "name": "",
-                            "arguments_buffer": "",
-                        }
-                        if not tool_delta.id:
-                            warning(
-                                LogRecord(
-                                    LogEvent.TOOL_ID_PLACEHOLDER.value,
-                                    f"Generated placeholder Tool ID for OpenAI tool index {openai_tc_idx} -> Anthropic block {current_anthropic_tool_block_idx}",
-                                    request_id,
-                                )
-                            )
-                    else:
-                        current_anthropic_tool_block_idx = (
-                            openai_tool_idx_to_anthropic_block_idx[openai_tc_idx]
-                        )
-
-                    tool_state = tool_states[current_anthropic_tool_block_idx]
-
-                    if tool_delta.id and tool_state["id"].startswith("tool_ph_"):
-                        debug(
-                            LogRecord(
-                                LogEvent.TOOL_ID_UPDATED.value,
-                                f"Updated placeholder Tool ID for Anthropic block {current_anthropic_tool_block_idx} to {tool_delta.id}",
-                                request_id,
-                            )
-                        )
-                        tool_state["id"] = tool_delta.id
-
-                    if tool_delta.function:
-                        if tool_delta.function.name:
-                            tool_state["name"] = tool_delta.function.name
-                        if tool_delta.function.arguments:
-                            tool_state["arguments_buffer"] += (
-                                tool_delta.function.arguments
-                            )
-                            output_token_count += len(
-                                enc.encode(tool_delta.function.arguments)
-                            )
-
-                    if (
-                        current_anthropic_tool_block_idx not in sent_tool_block_starts
-                        and tool_state["id"]
-                        and not tool_state["id"].startswith("tool_ph_")
-                        and tool_state["name"]
-                    ):
-                        start_tool_event = {
-                            "type": "content_block_start",
-                            "index": current_anthropic_tool_block_idx,
-                            "content_block": {
-                                "type": "tool_use",
-                                "id": tool_state["id"],
-                                "name": tool_state["name"],
-                                "input": {},
-                            },
-                        }
-                        yield f"event: content_block_start\ndata: {json.dumps(start_tool_event)}\n\n"
-                        sent_tool_block_starts.add(current_anthropic_tool_block_idx)
-
-                    if (
-                        tool_delta.function
-                        and tool_delta.function.arguments
-                        and current_anthropic_tool_block_idx in sent_tool_block_starts
-                    ):
-                        args_delta_event = {
-                            "type": "content_block_delta",
-                            "index": current_anthropic_tool_block_idx,
-                            "delta": {
-                                "type": "input_json_delta",
-                                "partial_json": tool_delta.function.arguments,
-                            },
-                        }
-                        yield f"event: content_block_delta\ndata: {json.dumps(args_delta_event)}\n\n"
-
+            # Map finish reason with simplified logic
             if openai_finish_reason:
                 final_anthropic_stop_reason = openai_to_anthropic_stop_reason_map.get(
                     openai_finish_reason, "end_turn"
                 )
-                if openai_finish_reason == "tool_calls":
-                    final_anthropic_stop_reason = "tool_use"
                 break
 
-        # Stop thinking block if present
-        if thinking_block_anthropic_idx is not None and sent_thinking_block_start:
-            # Add final signature delta if no signature was streamed incrementally
-            if thinking_content_buffer and not thinking_signature_buffer:
-                # Generate a mock signature as fallback for OpenAI providers that don't support signatures
-                import hashlib
-                signature_mock = hashlib.sha256(thinking_content_buffer.encode()).hexdigest()[:64]
-                signature_delta_event = {
-                    "type": "content_block_delta",
-                    "index": thinking_block_anthropic_idx,
-                    "delta": {"type": "signature_delta", "signature": signature_mock},
-                }
-                yield f"event: content_block_delta\ndata: {json.dumps(signature_delta_event)}\n\n"
-
-            yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': thinking_block_anthropic_idx})}\n\n"
-
-        if text_block_anthropic_idx is not None:
-            yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': text_block_anthropic_idx})}\n\n"
-
-        for anthropic_tool_idx in sent_tool_block_starts:
-            tool_state_to_finalize = tool_states.get(anthropic_tool_idx)
-            if tool_state_to_finalize:
-                try:
-                    json.loads(tool_state_to_finalize["arguments_buffer"])
-                except json.JSONDecodeError:
-                    warning(
-                        LogRecord(
-                            event=LogEvent.TOOL_ARGS_PARSE_FAILURE.value,
-                            message=f"Buffered arguments for tool '{tool_state_to_finalize.get('name')}' (Anthropic block {anthropic_tool_idx}) did not form valid JSON.",
-                            request_id=request_id,
-                            data={
-                                "buffered_args": tool_state_to_finalize[
-                                    "arguments_buffer"
-                                ][:100]
-                            },
-                        )
-                    )
-            yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': anthropic_tool_idx})}\n\n"
+        # Finalize all blocks with consolidated state
+        events = await processor.finalize_blocks(thinking_enabled)
+        for event in events:
+            yield event
 
         if final_anthropic_stop_reason is None:
             final_anthropic_stop_reason = "end_turn"
 
         message_delta_event = {
-            "type": "message_delta",
+            "type": EVENT_TYPE_MESSAGE_DELTA,
             "delta": {
                 "stop_reason": final_anthropic_stop_reason,
                 "stop_sequence": None,
             },
-            "usage": {"output_tokens": output_token_count},
+            "usage": {"output_tokens": processor.output_token_count},
         }
-        yield f"event: message_delta\ndata: {json.dumps(message_delta_event)}\n\n"
-        yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_DELTA}\ndata: {json.dumps(message_delta_event)}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_STOP}\ndata: {json.dumps({'type': EVENT_TYPE_MESSAGE_STOP})}\n\n"
 
     except Exception as e:
         stream_status_code = INTERNAL_SERVER_ERROR
@@ -325,7 +330,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             "status_code": stream_status_code,
             "duration_ms": duration_ms,
             "input_tokens": estimated_input_tokens,
-            "output_tokens": output_token_count,
+            "output_tokens": processor.output_token_count,
             "stop_reason": final_anthropic_stop_reason,
         }
         if stream_log_event == LogEvent.REQUEST_COMPLETED.value:

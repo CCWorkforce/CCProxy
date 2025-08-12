@@ -12,6 +12,7 @@ from .config import Settings
 
 _REDACT_KEYS: list[str] = []
 
+
 def _sanitize_for_json(obj):
     """Recursively sanitize an object for JSON serialization.
 
@@ -63,6 +64,7 @@ class LogEvent(enum.Enum):
     These constants are used in ``LogRecord.event`` for consistent analytics
     and monitoring.
     """
+
     MODEL_SELECTION = "model_selection"
     REQUEST_START = "request_start"
     REQUEST_COMPLETED = "request_completed"
@@ -104,6 +106,7 @@ class LogError:
         stack_trace: Full traceback string (may be ``None`` when suppressed).
         args: JSON-safe serialization of ``Exception.args``.
     """
+
     name: str
     message: str
     stack_trace: Optional[str] = None
@@ -121,6 +124,7 @@ class LogRecord:
         data: Arbitrary contextual dictionary (sanitized/truncated).
         error: Optional :class:`LogError` with exception details.
     """
+
     event: str
     message: str
     request_id: Optional[str] = None
@@ -135,6 +139,7 @@ class JSONFormatter(logging.Formatter):
     level and logger name, serializes attached :class:`LogRecord`, truncates
     oversized strings, and redacts configured sensitive fields.
     """
+
     def format(self, record: logging.LogRecord) -> str:
         header = {
             "timestamp": datetime.fromtimestamp(
@@ -156,15 +161,19 @@ class JSONFormatter(logging.Formatter):
             header["message"] = record.getMessage()
             if record.exc_info:
                 exc_type, exc_value, exc_tb = record.exc_info
-                header["error"] = _sanitize_for_json({
-                    "name": exc_type.__name__ if exc_type else "UnknownError",
-                    "message": str(exc_value),
-                    "stack_trace": "".join(
-                        traceback.format_exception(exc_type, exc_value, exc_tb)
-                    ),
-                    "args": exc_value.args if hasattr(exc_value, "args") else [],
-                })
-        return json.dumps(_sanitize_for_json(header), ensure_ascii=False, separators=(",", ":"))
+                header["error"] = _sanitize_for_json(
+                    {
+                        "name": exc_type.__name__ if exc_type else "UnknownError",
+                        "message": str(exc_value),
+                        "stack_trace": "".join(
+                            traceback.format_exception(exc_type, exc_value, exc_tb)
+                        ),
+                        "args": exc_value.args if hasattr(exc_value, "args") else [],
+                    }
+                )
+        return json.dumps(
+            _sanitize_for_json(header), ensure_ascii=False, separators=(",", ":")
+        )
 
 
 class ConsoleJSONFormatter(JSONFormatter):
@@ -173,9 +182,12 @@ class ConsoleJSONFormatter(JSONFormatter):
     Removes stack traces for brevity and supports pretty-print when
     ``settings.log_pretty_console`` is true while preserving JSON structure.
     """
+
     def format(self, record: logging.LogRecord) -> str:
         header = {
-            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
         }
@@ -189,11 +201,13 @@ class ConsoleJSONFormatter(JSONFormatter):
             header["message"] = record.getMessage()
             if record.exc_info:
                 exc_type, exc_value, _ = record.exc_info
-                header["error"] = _sanitize_for_json({
-                    "name": exc_type.__name__ if exc_type else "UnknownError",
-                    "message": str(exc_value),
-                    "args": exc_value.args if hasattr(exc_value, "args") else [],
-                })
+                header["error"] = _sanitize_for_json(
+                    {
+                        "name": exc_type.__name__ if exc_type else "UnknownError",
+                        "message": str(exc_value),
+                        "args": exc_value.args if hasattr(exc_value, "args") else [],
+                    }
+                )
         return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
 
 
@@ -224,7 +238,11 @@ def init_logging(settings: Settings) -> logging.Logger:
                     "level": settings.log_level.upper(),
                     "propagate": False,
                 },
-                "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+                "uvicorn": {
+                    "handlers": ["default"],
+                    "level": "INFO",
+                    "propagate": False,
+                },
                 "uvicorn.error": {
                     "handlers": ["default"],
                     "level": "INFO",
@@ -246,11 +264,26 @@ def init_logging(settings: Settings) -> logging.Logger:
             log_dir = os.path.dirname(settings.log_file_path)
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
-            file_handler = logging.FileHandler(settings.log_file_path, mode="a")
+            file_handler = logging.FileHandler(
+                settings.log_file_path, mode="a", encoding="utf-8"
+            )
             file_handler.setFormatter(JSONFormatter())
             _logger.addHandler(file_handler)
         except Exception as e:
             _logger.warning("Failed to configure file logging: %s", e)
+    if getattr(settings, "error_log_file_path", None):
+        try:
+            err_dir = os.path.dirname(settings.error_log_file_path)
+            if err_dir:
+                os.makedirs(err_dir, exist_ok=True)
+            err_handler = logging.FileHandler(
+                settings.error_log_file_path, mode="a", encoding="utf-8"
+            )
+            err_handler.setLevel(logging.ERROR)
+            err_handler.setFormatter(JSONFormatter())
+            _logger.addHandler(err_handler)
+        except Exception as e:
+            _logger.warning("Failed to configure error file logging: %s", e)
     return _logger
 
 
@@ -268,12 +301,17 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
     if exc:
         include_stack = False
         try:
-            include_stack = any(isinstance(h, logging.FileHandler) for h in (_logger.handlers if _logger else []))
+            include_stack = any(
+                isinstance(h, logging.FileHandler)
+                for h in (_logger.handlers if _logger else [])
+            )
         except Exception:
             include_stack = False
         stack_str = None
         if include_stack:
-            stack_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+            stack_str = "".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            )
         record.error = LogError(
             name=type(exc).__name__,
             message=str(exc),
@@ -290,6 +328,7 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
 
 def is_debug_enabled() -> bool:
     return _logger is not None and _logger.isEnabledFor(logging.DEBUG)
+
 
 def debug(record: LogRecord):
     _log(logging.DEBUG, record)
