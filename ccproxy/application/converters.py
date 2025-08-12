@@ -4,9 +4,17 @@ from typing import Any, Dict, List, Optional, Union, Literal, Tuple
 import openai
 from functools import lru_cache
 from ..domain.models import (
-    Message, SystemContent, Tool, ToolChoice, ContentBlockText, ContentBlockImage,
-    ContentBlockToolUse, ContentBlockToolResult, ContentBlock, MessagesResponse,
-    Usage
+    Message,
+    SystemContent,
+    Tool,
+    ToolChoice,
+    ContentBlockText,
+    ContentBlockImage,
+    ContentBlockToolUse,
+    ContentBlockToolResult,
+    ContentBlock,
+    MessagesResponse,
+    Usage,
 )
 from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles
 from ..logging import warning, error, LogRecord, LogEvent
@@ -55,18 +63,29 @@ def _serialize_tool_result_content_for_openai(
 
     if isinstance(anthropic_tool_result_content, list):
         try:
-            key = (json.dumps(anthropic_tool_result_content, sort_keys=True, separators=(",", ":")), "1")
+            key = (
+                json.dumps(
+                    anthropic_tool_result_content, sort_keys=True, separators=(",", ":")
+                ),
+                "1",
+            )
             result_str = _serialize_tool_result_content_for_openai_cached(key)
         except TypeError:
             processed_parts = []
             for item in anthropic_tool_result_content:
-                if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
+                if (
+                    isinstance(item, dict)
+                    and item.get("type") == "text"
+                    and "text" in item
+                ):
                     processed_parts.append(str(item["text"]))
                 else:
                     try:
                         processed_parts.append(json.dumps(item))
                     except TypeError:
-                        processed_parts.append(f"<unserializable_item type='{type(item).__name__}'>")
+                        processed_parts.append(
+                            f"<unserializable_item type='{type(item).__name__}'>"
+                        )
             result_str = "\n".join(processed_parts)
         return result_str
 
@@ -134,7 +153,9 @@ def convert_anthropic_to_openai_messages(
     # Add developer message to enforce UTF-8 encoding compliance
     if target_model and target_model in SUPPORT_DEVELOPER_MESSAGE_MODELS:
         utf8_enforcement_message = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
-        openai_messages.append({"role": MessageRoles.Developer.value, "content": utf8_enforcement_message})
+        openai_messages.append(
+            {"role": MessageRoles.Developer.value, "content": utf8_enforcement_message}
+        )
 
     for i, msg in enumerate(anthropic_messages):
         role = msg.role
@@ -325,14 +346,16 @@ def _tools_cache(key: Tuple[Tuple[str, str, str], ...]) -> List[Dict[str, Any]]:
     """
     tools = []
     for name, desc, schema_json in key:
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": desc,
-                "parameters": json.loads(schema_json),
-            },
-        })
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": desc,
+                    "parameters": json.loads(schema_json),
+                },
+            }
+        )
     return tools
 
 
@@ -363,7 +386,14 @@ def convert_anthropic_tools_to_openai(
     if not anthropic_tools:
         return None
     try:
-        key = tuple((t.name, t.description or "", json.dumps(t.input_schema, sort_keys=True, separators=(",", ":"))) for t in anthropic_tools)
+        key = tuple(
+            (
+                t.name,
+                t.description or "",
+                json.dumps(t.input_schema, sort_keys=True, separators=(",", ":")),
+            )
+            for t in anthropic_tools
+        )
         return _tools_cache(key)
     except TypeError:
         return [
@@ -380,7 +410,9 @@ def convert_anthropic_tools_to_openai(
 
 
 @lru_cache(maxsize=256)
-def _tool_choice_cache(key: Tuple[str, Optional[str]]) -> Optional[Union[str, Dict[str, Any]]]:
+def _tool_choice_cache(
+    key: Tuple[str, Optional[str]],
+) -> Optional[Union[str, Dict[str, Any]]]:
     """Cached helper function to convert Anthropic tool choice to OpenAI format.
 
     Takes a tuple of tool choice information and returns the equivalent OpenAI format.

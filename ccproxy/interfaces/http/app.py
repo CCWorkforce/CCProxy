@@ -11,7 +11,10 @@ from ...infrastructure.providers.openai_provider import OpenAIProvider
 from ...domain.models import AnthropicErrorType
 from ...application.response_cache import response_cache
 from .middleware import logging_middleware
-from .errors import log_and_return_error_response, get_anthropic_error_details_from_execution
+from .errors import (
+    log_and_return_error_response,
+    get_anthropic_error_details_from_execution,
+)
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
@@ -75,9 +78,10 @@ def create_app(settings: Settings) -> FastAPI:
     # Guardrail middleware (order: rate-limit → security headers)
     from .guardrails import RateLimitMiddleware, SecurityHeadersMiddleware
 
-
     if settings.rate_limit_enabled:
-        logging.info(f"Rate limiting enabled: {settings.rate_limit_per_minute}/minute with {settings.rate_limit_burst} burst")
+        logging.info(
+            f"Rate limiting enabled: {settings.rate_limit_per_minute}/minute with {settings.rate_limit_burst} burst"
+        )
         app.add_middleware(
             RateLimitMiddleware,
             per_minute=settings.rate_limit_per_minute,
@@ -85,7 +89,9 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     if settings.enable_cors:
-        logging.info(f"CORS enabled for origins: {settings.cors_allow_origins}, methods: {settings.cors_allow_methods}, headers: {settings.cors_allow_headers}")
+        logging.info(
+            f"CORS enabled for origins: {settings.cors_allow_origins}, methods: {settings.cors_allow_methods}, headers: {settings.cors_allow_headers}"
+        )
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_allow_origins,
@@ -103,22 +109,43 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(health_router, tags=["Health"])
     app.include_router(monitoring_router, tags=["Monitoring"])
 
-
     @app.exception_handler(openai.APIError)
     async def openai_api_error_handler(request: Request, exc: openai.APIError):
-        err_type, err_msg, err_status, prov_details = get_anthropic_error_details_from_execution(exc)
-        return await log_and_return_error_response(request, err_status, err_type, err_msg, prov_details, exc)
+        err_type, err_msg, err_status, prov_details = (
+            get_anthropic_error_details_from_execution(exc)
+        )
+        return await log_and_return_error_response(
+            request, err_status, err_type, err_msg, prov_details, exc
+        )
 
     @app.exception_handler(ValidationError)
     async def pydantic_validation_error_handler(request: Request, exc: ValidationError):
-        return await log_and_return_error_response(request, 422, AnthropicErrorType.INVALID_REQUEST, f"Validation error: {exc.errors()}", caught_exception=exc)
+        return await log_and_return_error_response(
+            request,
+            422,
+            AnthropicErrorType.INVALID_REQUEST,
+            f"Validation error: {exc.errors()}",
+            caught_exception=exc,
+        )
 
     @app.exception_handler(json.JSONDecodeError)
     async def json_decode_error_handler(request: Request, exc: json.JSONDecodeError):
-        return await log_and_return_error_response(request, 400, AnthropicErrorType.INVALID_REQUEST, "Invalid JSON format.", caught_exception=exc)
+        return await log_and_return_error_response(
+            request,
+            400,
+            AnthropicErrorType.INVALID_REQUEST,
+            "Invalid JSON format.",
+            caught_exception=exc,
+        )
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
-        return await log_and_return_error_response(request, 500, AnthropicErrorType.API_ERROR, "An unexpected internal server error occurred.", caught_exception=exc)
+        return await log_and_return_error_response(
+            request,
+            500,
+            AnthropicErrorType.API_ERROR,
+            "An unexpected internal server error occurred.",
+            caught_exception=exc,
+        )
 
     return app

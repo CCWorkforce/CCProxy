@@ -60,12 +60,18 @@ class RequestValidator:
             self._cache_hits += 1
             # Move to end (most recently used)
             self._validation_cache.move_to_end(request_hash)
-            debug(LogRecord(
-                LogEvent.ANTHROPIC_REQUEST.value,
-                "Using cached validation result",
-                request_id,
-                {"cache_hit": True, "hit_rate": self._cache_hits / (self._cache_hits + self._cache_misses)}
-            ))
+            debug(
+                LogRecord(
+                    LogEvent.ANTHROPIC_REQUEST.value,
+                    "Using cached validation result",
+                    request_id,
+                    {
+                        "cache_hit": True,
+                        "hit_rate": self._cache_hits
+                        / (self._cache_hits + self._cache_misses),
+                    },
+                )
+            )
             return self._validation_cache[request_hash]
 
         # Validate the request
@@ -90,7 +96,7 @@ class RequestValidator:
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
             "hit_rate": self._cache_hits / max(1, total_requests),
-            "total_requests": total_requests
+            "total_requests": total_requests,
         }
 
 

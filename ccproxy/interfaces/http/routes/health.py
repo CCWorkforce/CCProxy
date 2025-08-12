@@ -14,10 +14,12 @@ async def root_health_check() -> JSONResponse:
     Returns:
         JSONResponse: A response with status 'ok' and current UTC timestamp.
     """
-    return JSONResponse({
-        "status": "ok",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
 
 @router.get("/v1/preflight", include_in_schema=False)

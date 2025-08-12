@@ -1,7 +1,8 @@
 """
-    The most popular HTTP status codes as constants
-    It's improve your code readability to use them instead of integers
+The most popular HTTP status codes as constants
+It's improve your code readability to use them instead of integers
 """
+
 CONTINUE = 100
 SWITCHING_PROTOCOLS = 101
 PROCESSING = 102

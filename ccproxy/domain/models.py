@@ -10,6 +10,7 @@ class ContentBlockText(BaseModel):
         type (Literal["text"]): The content block type, always 'text'.
         text (str): The text content of the block.
     """
+
     type: Literal["text"]
     text: str
 
@@ -22,6 +23,7 @@ class ContentBlockImageSource(BaseModel):
         media_type (str): The MIME type of the image (e.g., 'image/png').
         data (str): The base64-encoded image data.
     """
+
     type: str
     media_type: str
     data: str
@@ -34,6 +36,7 @@ class ContentBlockImage(BaseModel):
         type (Literal["image"]): The content block type, always 'image'.
         source (ContentBlockImageSource): The image source details including media type and data.
     """
+
     type: Literal["image"]
     source: ContentBlockImageSource
 
@@ -47,6 +50,7 @@ class ContentBlockToolUse(BaseModel):
         name (str): The name of the tool being invoked.
         input (Dict[str, Any]): Parameters to pass to the tool.
     """
+
     type: Literal["tool_use"]
     id: str
     name: str
@@ -62,6 +66,7 @@ class ContentBlockToolResult(BaseModel):
         content (Union[str, List[Dict[str, Any]], List[Any]]): The tool's output data.
         is_error (Optional[bool]): Whether this result indicates an error (default: None).
     """
+
     type: Literal["tool_result"]
     tool_use_id: str
     content: Union[str, List[Dict[str, Any]], List[Any]]
@@ -76,6 +81,7 @@ class ContentBlockThinking(BaseModel):
         thinking (str): The model's internal reasoning or thought process text.
         signature (Optional[str]): Optional cryptographic signature for the thinking process (default: None).
     """
+
     type: Literal["thinking"]
     thinking: str
     signature: Optional[str] = None
@@ -88,13 +94,18 @@ class ContentBlockRedactedThinking(BaseModel):
         type (Literal["redacted_thinking"]): The content block type, always 'redacted_thinking'.
         data (str): The redacted or masked reasoning content.
     """
+
     type: Literal["redacted_thinking"]
     data: str
 
 
 ContentBlock = Union[
-    ContentBlockText, ContentBlockImage, ContentBlockToolUse, ContentBlockToolResult,
-    ContentBlockThinking, ContentBlockRedactedThinking
+    ContentBlockText,
+    ContentBlockImage,
+    ContentBlockToolUse,
+    ContentBlockToolResult,
+    ContentBlockThinking,
+    ContentBlockRedactedThinking,
 ]
 
 
@@ -105,6 +116,7 @@ class SystemContent(BaseModel):
         type (Literal["text"]): The content type, always 'text'.
         text (str): The actual system message content.
     """
+
     type: Literal["text"]
     text: str
 
@@ -116,6 +128,7 @@ class Message(BaseModel):
         role (Literal["user", "assistant"]): The speaker's role, either 'user' or 'assistant'.
         content (Union[str, List[ContentBlock]]): The message content, either as a string or structured content blocks.
     """
+
     role: Literal["user", "assistant"]
     content: Union[str, List[ContentBlock]]
 
@@ -128,6 +141,7 @@ class Tool(BaseModel):
         description (Optional[str]): Brief explanation of the tool's purpose (default: None).
         input_schema (Dict[str, Any]): JSON schema defining expected input parameters.
     """
+
     name: str
     description: Optional[str] = None
     input_schema: Dict[str, Any] = Field(..., alias="input_schema")
@@ -143,6 +157,7 @@ class ToolChoice(BaseModel):
             'tool': Model must use the specific tool named in 'name'.
         name (Optional[str]): The name of the tool to use when `type` is 'tool'; required in that case, otherwise ignored.
     """
+
     type: Literal["auto", "any", "tool"]
     name: Optional[str] = None
 
@@ -154,8 +169,11 @@ class ThinkingConfig(BaseModel):
         type (Literal["enabled"]): Configuration type, must be 'enabled' (default: 'enabled').
         budget_tokens (int): Token budget for thinking process; minimum 1024.
     """
+
     type: Literal["enabled"] = "enabled"
-    budget_tokens: int = Field(ge=1024, description="Token budget for thinking, minimum 1024")
+    budget_tokens: int = Field(
+        ge=1024, description="Token budget for thinking, minimum 1024"
+    )
 
 
 class MessagesRequest(BaseModel):
@@ -176,6 +194,7 @@ class MessagesRequest(BaseModel):
         tool_choice (Optional[ToolChoice]): Strategy for tool selection.
         thinking (Optional[ThinkingConfig]): Configuration for model's internal reasoning.
     """
+
     model: str
     max_tokens: int
     messages: List[Message]
@@ -200,6 +219,7 @@ class TokenCountRequest(BaseModel):
         system (Optional[Union[str, List[SystemContent]]]): System instructions to include in count.
         tools (Optional[List[Tool]]): Tools definitions to include in count.
     """
+
     model: str
     messages: List[Message]
     system: Optional[Union[str, List[SystemContent]]] = None
@@ -212,6 +232,7 @@ class TokenCountResponse(BaseModel):
     Attributes:
         input_tokens (int): Total number of tokens in the input messages.
     """
+
     input_tokens: int
 
 
@@ -222,6 +243,7 @@ class Usage(BaseModel):
         input_tokens (int): Number of tokens in the input messages.
         output_tokens (int): Number of tokens in the generated response.
     """
+
     input_tokens: int
     output_tokens: int
 
@@ -233,9 +255,9 @@ class ProviderErrorMetadata(BaseModel):
         provider_name (str): Name of the provider that generated the error.
         raw_error (Optional[Dict[str, Any]]): Original error response from the provider.
     """
+
     provider_name: str
     raw_error: Optional[Dict[str, Any]] = None
-
 
 
 class AnthropicErrorType(StrEnum):
@@ -251,6 +273,7 @@ class AnthropicErrorType(StrEnum):
         OVERLOADED: Service is overloaded
         REQUEST_TOO_LARGE: Request payload too large
     """
+
     INVALID_REQUEST = "invalid_request_error"
     AUTHENTICATION = "authentication_error"
     PERMISSION = "permission_error"
@@ -271,6 +294,7 @@ class AnthropicErrorDetail(BaseModel):
         provider_message (Optional[str]): Error message from the provider
         provider_code (Optional[Union[str, int]]): Provider-specific error code
     """
+
     type: AnthropicErrorType
     message: str
     provider: Optional[str] = None
@@ -285,6 +309,7 @@ class AnthropicErrorResponse(BaseModel):
         type (Literal[\"error\"])): Fixed type indicator for error responses
         error (AnthropicErrorDetail): Detailed error information
     """
+
     type: Literal["error"] = "error"
     error: AnthropicErrorDetail
 
@@ -302,6 +327,7 @@ class MessagesResponse(BaseModel):
         stop_sequence (Optional[str]): Stopping sequence that ended generation
         usage (Usage): Token usage statistics for the request
     """
+
     id: str
     type: Literal["message"] = "message"
     role: Literal["assistant"] = "assistant"

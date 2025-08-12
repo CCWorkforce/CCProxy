@@ -7,7 +7,12 @@ from fastapi import Request
 from .http_status import INTERNAL_SERVER_ERROR
 from fastapi.responses import JSONResponse
 
-from ...domain.models import AnthropicErrorType, AnthropicErrorDetail, AnthropicErrorResponse, ProviderErrorMetadata
+from ...domain.models import (
+    AnthropicErrorType,
+    AnthropicErrorDetail,
+    AnthropicErrorResponse,
+    ProviderErrorMetadata,
+)
 from ...logging import error, warning, LogRecord, LogEvent
 
 
@@ -83,7 +88,7 @@ def get_anthropic_error_details_from_execution(
 
     if isinstance(exc, openai.APIError):
         error_message = exc.message or str(exc)
-        status_code = getattr(exc, 'status_code', INTERNAL_SERVER_ERROR)
+        status_code = getattr(exc, "status_code", INTERNAL_SERVER_ERROR)
         error_type = STATUS_CODE_ERROR_MAP.get(
             status_code, AnthropicErrorType.API_ERROR
         )
@@ -92,13 +97,19 @@ def get_anthropic_error_details_from_execution(
         if hasattr(exc, "body") and isinstance(exc.body, dict):
             actual_error_details = exc.body.get("error", exc.body)
             provider_details = extract_provider_error_details(actual_error_details)
-            raw_err = actual_error_details if isinstance(actual_error_details, dict) else None
+            raw_err = (
+                actual_error_details if isinstance(actual_error_details, dict) else None
+            )
 
         if status_code == 429 and raw_err:
             code = raw_err.get("code") or (raw_err.get("error") or {}).get("code")
             if code == "insufficient_quota":
                 error_type = AnthropicErrorType.RATE_LIMIT
-                if provider_details and provider_details.raw_error and isinstance(provider_details.raw_error, dict):
+                if (
+                    provider_details
+                    and provider_details.raw_error
+                    and isinstance(provider_details.raw_error, dict)
+                ):
                     pass
     if isinstance(exc, openai.AuthenticationError):
         error_type = AnthropicErrorType.AUTHENTICATION
@@ -197,7 +208,9 @@ async def log_and_return_error_response(
     retry_after_val = None
     if caught_exception is not None and hasattr(caught_exception, "headers"):
         try:
-            retry_after_val = getattr(caught_exception, "headers", {}).get("Retry-After")
+            retry_after_val = getattr(caught_exception, "headers", {}).get(
+                "Retry-After"
+            )
         except Exception:
             retry_after_val = None
 

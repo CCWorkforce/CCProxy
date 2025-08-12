@@ -1,7 +1,9 @@
 from ..logging import warning, debug, LogRecord, LogEvent
 
 
-def select_target_model(client_model_name: str, request_id: str, big_model_name: str, small_model_name: str) -> str:
+def select_target_model(
+    client_model_name: str, request_id: str, big_model_name: str, small_model_name: str
+) -> str:
     """Map Anthropic model names to appropriate OpenAI target models.
 
     Args:
