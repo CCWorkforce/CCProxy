@@ -408,7 +408,7 @@ async def create_message_proxy(request: Request) -> Response:
             info(
                 LogRecord(
                     event=LogEvent.REQUEST_COMPLETED.value,
-                    message="Non-streaming request completed successfully",
+                    message=f"Non-streaming request completed successfully for {target_model}",
                     request_id=request_id,
                     data={
                         "status_code": 200,
