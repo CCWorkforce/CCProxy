@@ -390,7 +390,7 @@ async def create_message_proxy(request: Request) -> Response:
                 debug(
                     LogRecord(
                         LogEvent.OPENAI_RESPONSE.value,
-                        "Received OpenAI response",
+                        f"Received OpenAI-compatible response from {target_model}",
                         request_id,
                         {"response": response_data},
                     )
