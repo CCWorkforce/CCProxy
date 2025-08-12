@@ -127,7 +127,7 @@ async def create_message_proxy(request: Request) -> Response:
             info(
                 LogRecord(
                     event=LogEvent.REQUEST_COMPLETED.value,
-                    message="Returned cached response",
+                    message=f"Returned cached response for {target_model}",
                     request_id=request_id,
                     data={
                         "status_code": 200,
@@ -171,7 +171,7 @@ async def create_message_proxy(request: Request) -> Response:
     info(
         LogRecord(
             event=LogEvent.REQUEST_START.value,
-            message="Processing new message request",
+            message=f"Processing request for {anthropic_request.model} (target: {target_model})",
             request_id=request_id,
             data={
                 "client_model": anthropic_request.model,
@@ -277,7 +277,7 @@ async def create_message_proxy(request: Request) -> Response:
     debug(
         LogRecord(
             LogEvent.OPENAI_REQUEST.value,
-            "Prepared OpenAI request parameters",
+            f"Prepared OpenAI request parameters for {target_model}",
             request_id,
             {"params": openai_params},
         )
@@ -288,7 +288,7 @@ async def create_message_proxy(request: Request) -> Response:
             debug(
                 LogRecord(
                     LogEvent.STREAMING_REQUEST.value,
-                    "Initiating streaming request to OpenAI-compatible API",
+                    f"Initiating streaming request to OpenAI-compatible API for {target_model}",
                     request_id,
                 )
             )
@@ -371,7 +371,7 @@ async def create_message_proxy(request: Request) -> Response:
             debug(
                 LogRecord(
                     LogEvent.OPENAI_REQUEST.value,
-                    "Sending non-streaming request to OpenAI-compatible API",
+                    f"Sending non-streaming request to OpenAI-compatible API for {target_model}",
                     request_id,
                 )
             )
