@@ -5,12 +5,14 @@ import logging
 import os
 import traceback
 from datetime import datetime, timezone
-from logging.config import dictConfig
+from logging.handlers import QueueHandler, QueueListener
+import queue
+import sys
 from typing import Any, Dict, Optional, Tuple
 
 from .config import Settings
 
-_REDACT_KEYS: list[str] = []
+_REDACT_KEYS: set[str] = set()
 
 
 def _sanitize_for_json(obj):
@@ -216,49 +218,64 @@ _logger: Optional[logging.Logger] = None
 
 def init_logging(settings: Settings) -> logging.Logger:
     global _logger
-    dictConfig(
-        {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {
-                "json": {"()": JSONFormatter},
-                "console_json": {"()": ConsoleJSONFormatter},
-            },
-            "handlers": {
-                "default": {
-                    "class": "logging.StreamHandler",
-                    "formatter": "console_json",
-                    "stream": "ext://sys.stdout",
-                },
-            },
-            "loggers": {
-                "": {"handlers": ["default"], "level": "WARNING"},
-                settings.app_name: {
-                    "handlers": ["default"],
-                    "level": settings.log_level.upper(),
-                    "propagate": False,
-                },
-                "uvicorn": {
-                    "handlers": ["default"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-                "uvicorn.error": {
-                    "handlers": ["default"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-                "uvicorn.access": {
-                    "handlers": ["default"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-            },
-        }
-    )
+    global _log_listener
+    _log_listener = None
+
+    # Create logging queue and handler
+    log_queue = queue.Queue(-1)
+    queue_handler = QueueHandler(log_queue)
+    
+    # Setup main console handler
+    console_handler = logging.StreamHandler(stream=sys.stdout)
+    console_handler.setFormatter(ConsoleJSONFormatter() if settings.log_pretty_console 
+                                else JSONFormatter())
+
+    handlers = [console_handler]
+
+    # Setup file handlers if configured
+    if settings.log_file_path:
+        try:
+            log_dir = os.path.dirname(settings.log_file_path)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+            file_handler = logging.FileHandler(
+                settings.log_file_path, mode="a", encoding="utf-8"
+            )
+            file_handler.setFormatter(JSONFormatter())
+            handlers.append(file_handler)
+        except Exception as e:
+            _logger.warning("Failed to configure file logging: %s", e)
+
+    if getattr(settings, "error_log_file_path", None):
+        try:
+            err_dir = os.path.dirname(settings.error_log_file_path)
+            if err_dir:
+                os.makedirs(err_dir, exist_ok=True)
+            err_handler = logging.FileHandler(
+                settings.error_log_file_path, mode="a", encoding="utf-8"
+            )
+            err_handler.setLevel(logging.ERROR)
+            err_handler.setFormatter(JSONFormatter())
+            handlers.append(err_handler)
+        except Exception as e:
+            _logger.warning("Failed to configure error file logging: %s", e)
+
+    # Configure QueueListener with all handlers
+    _log_listener = QueueListener(log_queue, *handlers)
+    _log_listener.start()
+
+    # Configure loggers to use queue handler
+    for logger_name in ["", settings.app_name, "uvicorn", "uvicorn.error", "uvicorn.access"]:
+        logger = logging.getLogger(logger_name)
+        logger.handlers = [queue_handler]
+        logger.propagate = False if logger_name != "" else True
+        logger.setLevel(logging.WARNING if logger_name == ""
+                          else settings.log_level.upper()
+                          if logger_name == settings.app_name
+                          else "INFO")
     _logger = logging.getLogger(settings.app_name)
     global _REDACT_KEYS
-    _REDACT_KEYS = [k.lower() for k in settings.redact_log_fields]
+    _REDACT_KEYS = {k.lower() for k in settings.redact_log_fields}
     if settings.log_file_path:
         try:
             log_dir = os.path.dirname(settings.log_file_path)
@@ -285,6 +302,13 @@ def init_logging(settings: Settings) -> logging.Logger:
         except Exception as e:
             _logger.warning("Failed to configure error file logging: %s", e)
     return _logger
+
+def shutdown_logging():
+    """Safely shutdown logging system, flushing all messages."""
+    global _log_listener
+    if _log_listener:
+        _log_listener.stop()
+        _log_listener = None
 
 
 def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None:

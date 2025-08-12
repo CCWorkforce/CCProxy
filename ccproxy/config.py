@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     error_log_file_path: Optional[str] = Field(
         default="error.jsonl", validation_alias=AliasChoices("ERROR_LOG_FILE_PATH")
     )
+    log_pretty_console: bool = Field(
+        default=False, validation_alias=AliasChoices("LOG_PRETTY_CONSOLE")
+    )
     host: str = "127.0.0.1"
     port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
     reload: bool = True

@@ -140,6 +140,8 @@ async def create_message_proxy(request: Request) -> Response:
                         "status_code": 200,
                         "duration_ms": duration_ms,
                         "from_cache": True,
+                        "client_model": anthropic_request.model,
+                        "target_model": target_model,
                         "input_tokens": cached_response.usage.input_tokens,
                         "output_tokens": cached_response.usage.output_tokens,
                     },
