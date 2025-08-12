@@ -32,13 +32,13 @@ from ....application.converters import (
     convert_openai_to_anthropic_response,
 )
 from ....application.model_selection import select_target_model
-from ...http.streaming import handle_anthropic_streaming_response_from_openai_stream
-from ...http.errors import (
+from ..streaming import handle_anthropic_streaming_response_from_openai_stream
+from ..errors import (
     log_and_return_error_response,
     get_anthropic_error_details_from_execution,
     format_anthropic_error_sse_event,
 )
-from ...http.http_status import (
+from ..http_status import (
     BAD_REQUEST,
     UNPROCESSABLE_ENTITY,
     INTERNAL_SERVER_ERROR,
