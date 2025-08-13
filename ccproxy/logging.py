@@ -224,11 +224,12 @@ def init_logging(settings: Settings) -> logging.Logger:
     # Create logging queue and handler
     log_queue = queue.Queue(-1)
     queue_handler = QueueHandler(log_queue)
-    
+
     # Setup main console handler
     console_handler = logging.StreamHandler(stream=sys.stdout)
-    console_handler.setFormatter(ConsoleJSONFormatter() if settings.log_pretty_console 
-                                else JSONFormatter())
+    console_handler.setFormatter(
+        ConsoleJSONFormatter() if settings.log_pretty_console else JSONFormatter()
+    )
 
     handlers = [console_handler]
 
@@ -265,14 +266,23 @@ def init_logging(settings: Settings) -> logging.Logger:
     _log_listener.start()
 
     # Configure loggers to use queue handler
-    for logger_name in ["", settings.app_name, "uvicorn", "uvicorn.error", "uvicorn.access"]:
+    for logger_name in [
+        "",
+        settings.app_name,
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+    ]:
         logger = logging.getLogger(logger_name)
         logger.handlers = [queue_handler]
         logger.propagate = False if logger_name != "" else True
-        logger.setLevel(logging.WARNING if logger_name == ""
-                          else settings.log_level.upper()
-                          if logger_name == settings.app_name
-                          else "INFO")
+        logger.setLevel(
+            logging.WARNING
+            if logger_name == ""
+            else settings.log_level.upper()
+            if logger_name == settings.app_name
+            else "INFO"
+        )
     _logger = logging.getLogger(settings.app_name)
     global _REDACT_KEYS
     _REDACT_KEYS = {k.lower() for k in settings.redact_log_fields}
@@ -302,6 +312,7 @@ def init_logging(settings: Settings) -> logging.Logger:
         except Exception as e:
             _logger.warning("Failed to configure error file logging: %s", e)
     return _logger
+
 
 def shutdown_logging():
     """Safely shutdown logging system, flushing all messages."""

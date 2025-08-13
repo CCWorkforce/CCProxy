@@ -1,10 +1,19 @@
 from enum import StrEnum
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AliasChoices, field_validator
-from typing import Optional, FrozenSet, List, Union, Dict
+from pydantic import BaseModel, Field, AliasChoices, field_validator
+from typing import Optional, FrozenSet, List, Union, Dict, Literal
 
 from urllib.parse import urlparse
+
+TruncationStrategy = Literal["oldest_first", "newest_first", "system_priority"]
+
+
+class TruncationConfig(BaseModel):
+    strategy: TruncationStrategy = "oldest_first"
+    min_tokens: int = 100
+    system_message_priority: bool = True
+
 
 # Base model names for faster prefix matching
 
@@ -74,6 +83,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("gpt-5-mini", 272_000),
         ("qwen/qwen3-coder", 262_144),
         ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
+        ("z-ai/glm-4.5", 131_072),
     }
 )
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -203,6 +213,13 @@ class Settings(BaseSettings):
 
     stream_dedupe_enabled: bool = Field(
         default=True, validation_alias=AliasChoices("STREAM_DEDUPE_ENABLED")
+    )
+    truncate_long_requests: bool = Field(
+        default=True, validation_alias=AliasChoices("TRUNCATE_LONG_REQUESTS")
+    )
+    truncation_config: TruncationConfig = Field(
+        default_factory=TruncationConfig,
+        validation_alias=AliasChoices("TRUNCATION_CONFIG"),
     )
     metrics_cache_enabled: bool = Field(
         default=True, validation_alias=AliasChoices("METRICS_CACHE_ENABLED")

@@ -172,7 +172,10 @@ class StreamProcessor:
 
         # Finalize text block if exists
         if self.text.idx is not None and self.text.content:
-            text_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": self.text.idx}
+            text_event_data = {
+                "type": EVENT_TYPE_CONTENT_BLOCK_STOP,
+                "index": self.text.idx,
+            }
             events.append(
                 f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(text_event_data)}\n\n"
             )
@@ -181,7 +184,10 @@ class StreamProcessor:
         # Finalize tool blocks
         for tool_id, tool in self.tools.items():
             if "arguments" in tool and tool["arguments"]:
-                tool_event_data = {"type": EVENT_TYPE_CONTENT_BLOCK_STOP, "index": tool["index"]}
+                tool_event_data = {
+                    "type": EVENT_TYPE_CONTENT_BLOCK_STOP,
+                    "index": tool["index"],
+                }
                 events.append(
                     f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(tool_event_data)}\n\n"
                 )

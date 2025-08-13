@@ -18,7 +18,9 @@ def test_stream_processor_memory():
             return [1]
 
     enc_mock = MockEncoder()
-    processor = StreamProcessor(enc=enc_mock, request_id="bench", thinking_enabled=False)
+    processor = StreamProcessor(
+        enc=enc_mock, request_id="bench", thinking_enabled=False
+    )
     for _ in range(100):
         asyncio.run(processor.process_text_content("chunk"))
 

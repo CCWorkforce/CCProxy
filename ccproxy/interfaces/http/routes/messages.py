@@ -24,7 +24,10 @@ from ....domain.models import (
     TokenCountResponse,
     AnthropicErrorType,
 )
-from ....application.tokenizer import count_tokens_for_anthropic_request
+from ....application.tokenizer import (
+    count_tokens_for_anthropic_request,
+    truncate_request,
+)
 from ....application.converters import (
     convert_anthropic_to_openai_messages,
     convert_anthropic_tools_to_openai,
@@ -163,12 +166,29 @@ async def create_message_proxy(request: Request) -> Response:
 
     _limit = MODEL_INPUT_TOKEN_LIMIT_MAP.get(target_model, 200_000)
     if estimated_input_tokens > _limit:
-        return await log_and_return_error_response(
-            request,
-            PAYLOAD_TOO_LARGE,
-            AnthropicErrorType.REQUEST_TOO_LARGE,
-            f"Input tokens {estimated_input_tokens} exceed limit {_limit} for model {target_model}.",
-        )
+        if settings.truncate_long_requests:
+            anthropic_request.messages, anthropic_request.system = truncate_request(
+                anthropic_request.messages,
+                anthropic_request.system,
+                anthropic_request.model,
+                _limit,
+                settings.truncation_config,
+            )
+            estimated_input_tokens = count_tokens_for_anthropic_request(
+                messages=anthropic_request.messages,
+                system=anthropic_request.system,
+                model_name=anthropic_request.model,
+                tools=anthropic_request.tools,
+                request_id=request_id,
+                settings=settings,
+            )
+        else:
+            return await log_and_return_error_response(
+                request,
+                PAYLOAD_TOO_LARGE,
+                AnthropicErrorType.REQUEST_TOO_LARGE,
+                f"Input tokens {estimated_input_tokens} exceed limit {_limit} for model {target_model}.",
+            )
 
     info(
         LogRecord(
@@ -256,7 +276,10 @@ async def create_message_proxy(request: Request) -> Response:
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
-    if anthropic_request.thinking is not None and target_model in SUPPORT_REASONING_EFFORT_MODELS:
+    if (
+        anthropic_request.thinking is not None
+        and target_model in SUPPORT_REASONING_EFFORT_MODELS
+    ):
         reasoning_effort = (
             ReasoningEfforts.High.value
             if is_stream

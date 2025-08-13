@@ -133,7 +133,12 @@ class OpenAIProvider:
                 )
                 await asyncio.sleep(delay)
                 attempt += 1
-            except (openai.APIConnectionError, httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            except (
+                openai.APIConnectionError,
+                httpx.ConnectError,
+                httpx.TimeoutException,
+                httpx.NetworkError,
+            ) as e:
                 # Handle network-related errors with retry
                 if attempt >= self._max_retries:
                     raise e
