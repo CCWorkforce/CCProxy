@@ -299,7 +299,10 @@ class Settings(BaseSettings):
 
         if errors:
             error_message = "\n".join(errors)
-            print(f"\nConfiguration Error:\n{error_message}\n")
+            # Use logging instead of print to ensure proper error handling
+            import logging
+
+            logging.error(f"Configuration Error:\n{error_message}\n")
             sys.exit(1)
 
     def _validate_security(self):
@@ -325,5 +328,8 @@ class Settings(BaseSettings):
                 errors.append("OPENAI_BASE_URL is invalid.")
         if errors:
             error_message = "\n".join(errors)
-            print(f"\nSecurity Configuration Error:\n{error_message}\n")
+            # Use logging instead of print to ensure proper error handling
+            import logging
+
+            logging.error(f"Security Configuration Error:\n{error_message}\n")
             sys.exit(1)
