@@ -17,7 +17,7 @@ from ..domain.models import (
     ContentBlockRedactedThinking,
 )
 from ..logging import warning, debug, LogRecord, LogEvent
-from ..config import Settings
+from ccproxy.config import Settings, TruncationConfig
 
 
 _token_encoder_cache: Dict[str, tiktoken.Encoding] = {}
@@ -104,6 +104,62 @@ def _stable_hash_for_token_inputs(
     }
     j = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(j.encode("utf-8")).hexdigest()
+
+
+def _truncate_text(
+    text: str,
+    config: TruncationConfig,
+    model_name: str,
+    request_id: Optional[str] = None,
+) -> str:
+    """Truncate text chunks while preserving semantic meaning where possible."""
+    if len(text) <= config.min_tokens:
+        return text
+
+    # Preserve beginning for context
+    return text[: config.min_tokens]
+
+
+def truncate_request(
+    messages: List[Message],
+    system: Optional[Union[str, List[SystemContent]]],
+    model_name: str,
+    limit: int,
+    config: TruncationConfig,
+    request_id: Optional[str] = None,
+) -> Tuple[List[Message], Optional[Union[str, List[SystemContent]]]]:
+    """Truncate request content to fit within token limit."""
+
+    # Clone to avoid modifying originals
+    truncated_messages = messages.copy()
+    truncated_system = system
+
+    while (
+        count_tokens_for_anthropic_request(
+            truncated_messages, truncated_system, model_name, None, request_id
+        )
+        > limit
+    ):
+        if not truncated_messages:
+            break
+
+        if config.strategy == "oldest_first":
+            # Remove oldest non-system message
+            for i, msg in enumerate(truncated_messages):
+                if msg.role != "system":
+                    truncated_messages.pop(i)
+                    break
+        elif config.strategy == "newest_first":
+            # Remove newest message
+            truncated_messages.pop()
+        elif config.strategy == "system_priority" and truncated_system:
+            # Keep system message, truncate messages
+            truncated_messages.pop(0)
+        else:
+            # Fallback to oldest first
+            truncated_messages.pop(0)
+
+    return truncated_messages, truncated_system
 
 
 def count_tokens_for_anthropic_request(

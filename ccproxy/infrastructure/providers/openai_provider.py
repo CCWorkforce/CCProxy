@@ -116,7 +116,17 @@ class OpenAIProvider:
         )
 
     async def create_chat_completion(self, **params: Any) -> Any:
-        """Create a chat completion with the optimized client."""
+        """Create a chat completion with retry logic and UTF-8 error handling.
+
+        Args:
+            **params: Parameters to pass to the OpenAI chat completion API
+
+        Returns:
+            The API response from OpenAI
+
+        Raises:
+            openai.APIError: If there are issues with the API call after retries
+        """
 
         if not self._client:
             self._initialize_sync()
@@ -133,7 +143,12 @@ class OpenAIProvider:
                 )
                 await asyncio.sleep(delay)
                 attempt += 1
-            except (openai.APIConnectionError, httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            except (
+                openai.APIConnectionError,
+                httpx.ConnectError,
+                httpx.TimeoutException,
+                httpx.NetworkError,
+            ) as e:
                 # Handle network-related errors with retry
                 if attempt >= self._max_retries:
                     raise e

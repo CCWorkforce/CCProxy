@@ -607,7 +607,8 @@ class ResponseCache:
         """
         key = self._generate_cache_key(request)
         async with self._lock:
-            q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+            # Limit queue size to prevent memory exhaustion from slow subscribers
+            q: asyncio.Queue = asyncio.Queue(maxsize=100)
             subs = self._stream_subscribers.get(key)
             if subs is None:
                 self._stream_subscribers[key] = [q]
