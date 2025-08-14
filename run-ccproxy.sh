@@ -225,12 +225,22 @@ if command_exists pip3; then
     fi
 fi
 
+# Function to extract version from pyproject.toml
+get_version() {
+    if [ -f "pyproject.toml" ]; then
+        grep -E '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/' | tr -d ' '
+    else
+        echo "unknown"
+    fi
+}
+
 # Display startup information
 echo ""
 print_success "Environment validation complete!"
 print_info "Starting CCProxy..."
 echo "=================================================="
 echo "  CCProxy - Anthropic to OpenAI-compatible Bridge"
+echo "  Version: $(get_version)"
 echo "  Host: ${HOST:-127.0.0.1}"
 echo "  Port: ${PORT:-8082}"
 echo "  API URL: http://${HOST:-127.0.0.1}:${PORT:-8082}"
