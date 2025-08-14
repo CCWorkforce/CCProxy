@@ -17,6 +17,9 @@ class TruncationConfig(BaseModel):
 
 # Base model names for faster prefix matching
 
+# UTF-8 enforcement message for models that support developer role
+UTF8_ENFORCEMENT_MESSAGE = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
+
 # Models that support reasoning features (e.g., reasoning_effort)
 SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
     {
@@ -128,7 +131,7 @@ class Settings(BaseSettings):
     )
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "CCProxy"
-    app_version: str = "1.0.2"
+    app_version: str = "1.0.3"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     error_log_file_path: Optional[str] = Field(

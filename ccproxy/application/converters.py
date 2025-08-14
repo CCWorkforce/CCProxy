@@ -16,7 +16,7 @@ from ..domain.models import (
     MessagesResponse,
     Usage,
 )
-from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles
+from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles, Settings
 from ..logging import warning, error, LogRecord, LogEvent
 
 
@@ -107,7 +107,7 @@ def convert_anthropic_to_openai_messages(
     anthropic_system: Optional[Union[str, List[SystemContent]]] = None,
     request_id: Optional[str] = None,
     target_model: Optional[str] = None,
-    settings: Optional[object] = None,
+    settings: Optional[Settings] = None,
 ) -> List[Dict[str, Any]]:
     """Convert Anthropic messages and optional system prompt into the
     OpenAI Chat Completions message format.
@@ -151,7 +151,7 @@ def convert_anthropic_to_openai_messages(
 
     if system_text_content and supports_developer_role:
         # Combine system content with UTF-8 enforcement for models that support developer role
-        utf8_enforcement_message = "\n\nIMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
+        utf8_enforcement_message = "\n\n" + settings.UTF8_ENFORCEMENT_MESSAGE
         combined_content = system_text_content + utf8_enforcement_message
         openai_messages.append(
             {"role": MessageRoles.Developer.value, "content": combined_content}
@@ -163,9 +163,8 @@ def convert_anthropic_to_openai_messages(
         )
     elif supports_developer_role:
         # Only UTF-8 enforcement message needed
-        utf8_enforcement_message = "IMPORTANT: All responses must use proper UTF-8 encoding. Ensure all characters, including special characters and non-ASCII text, are properly encoded in UTF-8 format."
         openai_messages.append(
-            {"role": MessageRoles.Developer.value, "content": utf8_enforcement_message}
+            {"role": MessageRoles.Developer.value, "content": settings.UTF8_ENFORCEMENT_MESSAGE}
         )
 
     for i, msg in enumerate(anthropic_messages):
