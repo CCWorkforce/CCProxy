@@ -134,7 +134,13 @@ class OpenAIProvider:
         attempt = 0
         while True:
             try:
-                return await self._client.chat.completions.create(**params)
+                response = await self._client.chat.completions.create(**params)
+                # If response has a .content attribute that's bytes, decode it safely
+                if hasattr(response, 'choices') and response.choices:
+                    for choice in response.choices:
+                        if hasattr(choice, 'message') and hasattr(choice.message, 'content') and isinstance(choice.message.content, bytes):
+                            choice.message.content = _safe_decode_response(choice.message.content, "chat completion response")
+                return response
             except openai.RateLimitError as e:
                 if attempt >= self._max_retries:
                     raise e
