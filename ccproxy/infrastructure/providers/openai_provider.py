@@ -129,7 +129,7 @@ class OpenAIProvider:
         """
 
         if not self._client:
-            self._initialize_sync()
+            raise ValueError("OpenAI client not properly initialized")
 
         attempt = 0
         while True:
@@ -164,17 +164,13 @@ class OpenAIProvider:
                 await asyncio.sleep(delay)
                 attempt += 1
             except UnicodeDecodeError as e:
-                raise openai.APIError(
-                    message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
-                    request=None,
-                    body=None,
+                raise ValueError(
+                    f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}"
                 ) from e
             except Exception as e:
                 if "utf-8" in str(e).lower() or "codec can't decode" in str(e).lower():
-                    raise openai.APIError(
-                        message=f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}",
-                        request=None,
-                        body=None,
+                    raise ValueError(
+                        f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}"
                     ) from e
                 raise
 

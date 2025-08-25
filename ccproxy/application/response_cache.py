@@ -244,17 +244,30 @@ class ResponseCache:
             return False
 
         # Validate text content UTF-8 compatibility
+        from ..domain.models import ContentBlockText, ContentBlockThinking, ContentBlockRedactedThinking
+
         for content_block in response.content:
-            if hasattr(content_block, "text") and isinstance(content_block.text, str):
+            # Handle different content block types that contain text-like content
+            text_to_validate = None
+            content_type = getattr(content_block, 'type', 'unknown')
+
+            if isinstance(content_block, ContentBlockText):
+                text_to_validate = content_block.text
+            elif isinstance(content_block, ContentBlockThinking):
+                text_to_validate = content_block.thinking
+            elif isinstance(content_block, ContentBlockRedactedThinking):
+                text_to_validate = content_block.data
+
+            if text_to_validate:
                 try:
-                    content_block.text.encode("utf-8").decode("utf-8")
+                    text_to_validate.encode("utf-8").decode("utf-8")
                 except UnicodeError:
                     warning(
                         LogRecord(
                             LogEvent.CACHE_EVENT.value,
                             "Response validation failed: invalid UTF-8 content",
                             None,
-                            {"content_type": "text"},
+                            {"content_type": content_type},
                         )
                     )
                     return False

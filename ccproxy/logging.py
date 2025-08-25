@@ -15,7 +15,7 @@ from .config import Settings
 _REDACT_KEYS: set[str] = set()
 
 
-def _sanitize_for_json(obj):
+def _sanitize_for_json(obj) -> Any:
     """Recursively sanitize an object for JSON serialization.
 
     Converts non-serializable types (bytes, dataclasses, etc.) into JSON-compatible structures while redacting sensitive fields. Handles:
@@ -39,7 +39,7 @@ def _sanitize_for_json(obj):
                 return obj.decode("latin-1", "replace")
             except Exception:
                 return repr(obj)
-    if dataclasses.is_dataclass(obj):
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return _sanitize_for_json(dataclasses.asdict(obj))
     if isinstance(obj, dict):
         redacted = {}
@@ -143,7 +143,7 @@ class JSONFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        header = {
+        header: Dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(
                 record.created, timezone.utc
             ).isoformat(),
@@ -154,7 +154,7 @@ class JSONFormatter(logging.Formatter):
         if isinstance(log_payload, LogRecord):
             detail = _sanitize_for_json(dataclasses.asdict(log_payload))
             # Limit data field size for performance
-            if detail.get("data") and isinstance(detail["data"], dict):
+            if isinstance(detail, dict) and detail.get("data") and isinstance(detail["data"], dict):
                 for key, value in detail["data"].items():
                     if isinstance(value, str) and len(value) > 5000:
                         detail["data"][key] = value[:5000] + "...[truncated]"
@@ -170,7 +170,7 @@ class JSONFormatter(logging.Formatter):
                         "stack_trace": "".join(
                             traceback.format_exception(exc_type, exc_value, exc_tb)
                         ),
-                        "args": exc_value.args if hasattr(exc_value, "args") else [],
+                        "args": exc_value.args if exc_value and hasattr(exc_value, "args") else [],
                     }
                 )
         return json.dumps(
@@ -186,7 +186,7 @@ class ConsoleJSONFormatter(JSONFormatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        header = {
+        header: Dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(
                 record.created, timezone.utc
             ).isoformat(),
@@ -196,7 +196,7 @@ class ConsoleJSONFormatter(JSONFormatter):
         log_payload = getattr(record, "log_record", None)
         if isinstance(log_payload, LogRecord):
             detail = _sanitize_for_json(dataclasses.asdict(log_payload))
-            if detail.get("error") and detail["error"].get("stack_trace"):
+            if isinstance(detail, dict) and detail.get("error") and detail["error"].get("stack_trace"):
                 detail["error"]["stack_trace"] = None
             header["detail"] = detail
         else:
@@ -207,7 +207,7 @@ class ConsoleJSONFormatter(JSONFormatter):
                     {
                         "name": exc_type.__name__ if exc_type else "UnknownError",
                         "message": str(exc_value),
-                        "args": exc_value.args if hasattr(exc_value, "args") else [],
+                        "args": exc_value.args if exc_value and hasattr(exc_value, "args") else [],
                     }
                 )
         return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
@@ -245,21 +245,24 @@ def init_logging(settings: Settings) -> logging.Logger:
             file_handler.setFormatter(JSONFormatter())
             handlers.append(file_handler)
         except Exception as e:
-            _logger.warning("Failed to configure file logging: %s", e)
+            if _logger:
+                _logger.warning("Failed to configure file logging: %s", e)
 
-    if getattr(settings, "error_log_file_path", None):
+    error_log_path = getattr(settings, "error_log_file_path", None)
+    if error_log_path:
         try:
-            err_dir = os.path.dirname(settings.error_log_file_path)
+            err_dir = os.path.dirname(error_log_path)
             if err_dir:
                 os.makedirs(err_dir, exist_ok=True)
             err_handler = logging.FileHandler(
-                settings.error_log_file_path, mode="a", encoding="utf-8"
+                error_log_path, mode="a", encoding="utf-8"
             )
             err_handler.setLevel(logging.ERROR)
             err_handler.setFormatter(JSONFormatter())
             handlers.append(err_handler)
         except Exception as e:
-            _logger.warning("Failed to configure error file logging: %s", e)
+            if _logger:
+                _logger.warning("Failed to configure error file logging: %s", e)
 
     # Configure QueueListener with all handlers
     _log_listener = QueueListener(log_queue, *handlers)
@@ -286,31 +289,6 @@ def init_logging(settings: Settings) -> logging.Logger:
     _logger = logging.getLogger(settings.app_name)
     global _REDACT_KEYS
     _REDACT_KEYS = {k.lower() for k in settings.redact_log_fields}
-    if settings.log_file_path:
-        try:
-            log_dir = os.path.dirname(settings.log_file_path)
-            if log_dir:
-                os.makedirs(log_dir, exist_ok=True)
-            file_handler = logging.FileHandler(
-                settings.log_file_path, mode="a", encoding="utf-8"
-            )
-            file_handler.setFormatter(JSONFormatter())
-            _logger.addHandler(file_handler)
-        except Exception as e:
-            _logger.warning("Failed to configure file logging: %s", e)
-    if getattr(settings, "error_log_file_path", None):
-        try:
-            err_dir = os.path.dirname(settings.error_log_file_path)
-            if err_dir:
-                os.makedirs(err_dir, exist_ok=True)
-            err_handler = logging.FileHandler(
-                settings.error_log_file_path, mode="a", encoding="utf-8"
-            )
-            err_handler.setLevel(logging.ERROR)
-            err_handler.setFormatter(JSONFormatter())
-            _logger.addHandler(err_handler)
-        except Exception as e:
-            _logger.warning("Failed to configure error file logging: %s", e)
     return _logger
 
 
@@ -347,18 +325,24 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
             stack_str = "".join(
                 traceback.format_exception(type(exc), exc, exc.__traceback__)
             )
+        sanitized_args = None
+        if hasattr(exc, "args"):
+            sanitized = _sanitize_for_json(exc.args)
+            sanitized_args = tuple(sanitized) if isinstance(sanitized, (list, tuple)) else (sanitized,)
+
         record.error = LogError(
             name=type(exc).__name__,
             message=str(exc),
             stack_trace=stack_str,
-            args=_sanitize_for_json(exc.args) if hasattr(exc, "args") else tuple(),
+            args=sanitized_args,
         )
         if not record.message and str(exc):
             record.message = str(exc)
         elif not record.message:
             record.message = "An unspecified error occurred"
 
-    _logger.log(level=level, msg=record.message, extra={"log_record": record})
+    if _logger:
+        _logger.log(level=level, msg=record.message, extra={"log_record": record})
 
 
 def is_debug_enabled() -> bool:
