@@ -94,7 +94,6 @@ SMALL_MODEL_NAME=gpt-3.5-turbo
 OPENAI_BASE_URL=https://api.openai.com/v1
 PORT=8082
 LOG_LEVEL=INFO
-WEB_CONCURRENCY=4
 
 # Docker configuration
 CONTAINER_NAME=ccproxy

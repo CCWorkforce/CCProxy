@@ -80,8 +80,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Gunicorn settings
-    WEB_CONCURRENCY=${WEB_CONCURRENCY:-4} \
+    # Gunicorn settings (CPU-based concurrency)
+    WEB_CONCURRENCY=${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} \
     WORKER_CLASS=uvicorn.workers.UvicornWorker \
     WORKER_CONNECTIONS=1000 \
     MAX_REQUESTS=1000 \
@@ -147,8 +147,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Gunicorn settings
-    WEB_CONCURRENCY=${WEB_CONCURRENCY:-4} \
+    # Gunicorn settings (CPU-based concurrency)
+    WEB_CONCURRENCY=${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} \
     WORKER_CLASS=uvicorn.workers.UvicornWorker \
     WORKER_CONNECTIONS=1000 \
     MAX_REQUESTS=1000 \

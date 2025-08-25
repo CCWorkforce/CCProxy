@@ -58,6 +58,7 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "  HOST=127.0.0.1"
     echo "  PORT=8082"
     echo "  LOG_LEVEL=INFO"
+    echo "  IS_LOCAL_DEPLOYMENT=False (use True for single worker local deployment)"
     exit 1
     fi
 fi
@@ -160,7 +161,7 @@ echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO (default)}"
 echo "  LOG_FILE_PATH: ${LOG_FILE_PATH:-log.jsonl (default)}"
 echo "  ERROR_LOG_FILE_PATH: ${ERROR_LOG_FILE_PATH:-error.jsonl (default)}"
 echo "  LOG_PRETTY_CONSOLE: ${LOG_PRETTY_CONSOLE:-True (default)}"
-echo "  WEB_CONCURRENCY: ${WEB_CONCURRENCY:-unset}"
+echo "  IS_LOCAL_DEPLOYMENT: ${IS_LOCAL_DEPLOYMENT:-False (default)}"
 echo ""
 print_info "Security/Guardrail configuration:"
 echo "  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-unset}"
@@ -249,4 +250,11 @@ echo ""
 
 # Run the application
 print_info "Launching Gunicorn server..."
-exec gunicorn --config gunicorn.conf.py wsgi:app
+
+# Check if this is a local deployment (single worker)
+if [ "${IS_LOCAL_DEPLOYMENT}" = "True" ] || [ "${IS_LOCAL_DEPLOYMENT}" = "true" ]; then
+    print_info "Local deployment detected - using single worker process"
+    exec gunicorn --config gunicorn.conf.py --workers 1 wsgi:app
+else
+    exec gunicorn --config gunicorn.conf.py wsgi:app
+fi

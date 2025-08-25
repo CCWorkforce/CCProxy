@@ -13,8 +13,26 @@ Recent analytics show a large cost gap between major models: OpenAI GPT‑5 is f
 | **OpenAI GPT‑5**    | \$1.25               | \$10.00               |
 | **Claude Opus 4.1** | \$15.00              | \$75.00               |
 
-* **GPT‑5** input and output rates are confirmed via Wired, OpenAI’s own API pricing page, and TechCrunch
-* **Claude Opus 4.1** pricing is stated directly on Anthropic’s API pricing page.
+* **GPT‑5** input and output rates are confirmed via Wired, OpenAI's own API pricing page, and TechCrunch
+* **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page.
+
+### Model Token Limits
+
+CCProxy enforces maximum output token limits for supported models:
+
+| Model | Max Output Tokens |
+|-------|------------------|
+| **o3** | 200,000 |
+| **o3-2025-04-16** | 200,000 |
+| **o4-mini** | 200,000 |
+| **gpt-5-2025-08-07** | 128,000 |
+| **gpt-5** | 128,000 |
+| **gpt-5-mini-2025-08-07** | 128,000 |
+| **gpt-5-mini** | 128,000 |
+| **deepseek-reasoner** | 65,536 |
+| **deepseek-chat** | 8,192 |
+
+*Note: Models not listed in this table use their default maximum output token limits.*
 
 ## ⚡ Performance Optimizations
 
@@ -58,6 +76,8 @@ uv pip install -r requirements.txt
 ./run-ccproxy.sh
 ```
 
+For local development, you can set `IS_LOCAL_DEPLOYMENT=True` in your `.env` file to use a single worker process for reduced resource usage.
+
 4. Point your Anthropic client at the proxy:
 
 ```bash
@@ -69,3 +89,21 @@ Then start your coding session with Claude Code:
 ```bash
 claude
 ```
+
+## Environment Variables
+
+### Required Variables
+
+* `OPENAI_API_KEY`: Your OpenAI API key (or use `OPENROUTER_API_KEY`)
+
+* `BIG_MODEL_NAME`: The OpenAI model to use for large Anthropic models (e.g., `gpt-5-2025-08-07`)
+* `SMALL_MODEL_NAME`: The OpenAI model to use for small Anthropic models (e.g., `gpt-5-mini-2025-08-07`)
+
+### Optional Variables
+
+* `IS_LOCAL_DEPLOYMENT`: Set to `True` to use a single worker process for local development (default: `False`)
+
+* `HOST`: Server host (default: `127.0.0.1`)
+* `PORT`: Server port (default: `8082`)
+* `LOG_LEVEL`: Logging level (default: `INFO`)
+* `OPENAI_BASE_URL`: OpenAI API base URL (default: `https://api.openai.com/v1`)
