@@ -21,7 +21,6 @@ SMALL_MODEL_NAME=gpt-3.5-turbo
 OPENAI_BASE_URL=https://api.openai.com/v1
 PORT=8082
 LOG_LEVEL=INFO
-WEB_CONCURRENCY=4
 ```
 
 ### Step 2: Start the Service
@@ -55,7 +54,7 @@ That's it! The service is now running at `http://localhost:8082`
 | `OPENAI_BASE_URL` | OpenAI-compatible API endpoint | `https://api.openai.com/v1` |
 | `PORT` | Server port | `8082` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-| `WEB_CONCURRENCY` | Number of Gunicorn workers | `4` |
+| `WEB_CONCURRENCY` | Number of Gunicorn workers (CPU-based by default) | `(CPU cores × 2 + 1)` |
 
 ## Common Commands
 
@@ -170,7 +169,7 @@ services:
 ```
 
 ### Adjust Workers
-Set in `.env`:
+Set in `.env` (overrides CPU-based default):
 ```bash
 WEB_CONCURRENCY=8  # Increase workers for higher load
 ```

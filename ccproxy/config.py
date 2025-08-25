@@ -32,7 +32,6 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
         "gpt-5-2025-08-07",
         "gpt-5",
         "qwen/qwen3-235b-a22b-thinking-2507",
-        "deepseek-reasoner",
     }
 )
 
