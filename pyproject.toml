@@ -1,6 +1,6 @@
 [project]
 name = "CCProxy"
-version = "1.0.6"
+version = "1.0.7"
 description = "Proxy server enabling Claude Code to work with OpenAI and its compatible API providers"
 readme = "README.md"
 requires-python = ">=3.13"
