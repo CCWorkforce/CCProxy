@@ -10,6 +10,7 @@ authors = [
 dependencies = [
     "fastapi[standard]>=0.116.1",
     "uvicorn>=0.35.0",
+    "gunicorn==23.0.0",
     "httpx[http2]>=0.28.1",
     "pydantic>=2.11.7",
     "python-dotenv>=1.1.1",
@@ -36,7 +37,7 @@ dev = [
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
-    "pytest-sugar>=1.1.0",
+    "pytest-sugar>=1.1.1",
     "respx>=0.22.0",
     "ruff>=0.12.10",
     "mypy>=1.17.1",
