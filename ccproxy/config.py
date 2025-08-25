@@ -105,8 +105,12 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("o3", 200_000),
         ("o3-2025-04-16", 200_000),
         ("o4-mini", 200_000),
-        ("deepseek-reasoner", 8192),
-        ("deepseek-chat", 64000),
+        ("gpt-5-2025-08-07", 128_000),
+        ("gpt-5", 128_000),
+        ("gpt-5-mini-2025-08-07", 128_000),
+        ("gpt-5-mini", 128_000),
+        ("deepseek-reasoner", 65_536),
+        ("deepseek-chat", 8_192),
     }
 )
 
