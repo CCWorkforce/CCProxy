@@ -152,7 +152,7 @@ class Settings(BaseSettings):
     )
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "CCProxy"
-    app_version: str = "1.0.5"
+    app_version: str = "1.0.6"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     error_log_file_path: Optional[str] = Field(
