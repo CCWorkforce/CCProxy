@@ -4,6 +4,7 @@ import uuid
 from typing import AsyncGenerator, Dict, Optional, Literal
 
 import openai
+from openai.types.chat import ChatCompletionChunk
 
 from ...application.tokenizer import get_token_encoder
 from ...logging import error, info, LogRecord, LogEvent
@@ -32,14 +33,14 @@ EVENT_TYPE_PING = "ping"
 class StreamProcessor:
     class ThinkingState:
         def __init__(self):
-            self.idx = None
+            self.idx: Optional[int] = None
             self.buffer = ""
             self.signature = ""
             self.started = False
 
     class TextState:
         def __init__(self):
-            self.idx = None
+            self.idx: Optional[int] = None
             self.content = ""
 
     def __init__(self, enc, request_id, thinking_enabled):
@@ -200,7 +201,7 @@ StopReasonType = Optional[
 
 
 async def handle_anthropic_streaming_response_from_openai_stream(
-    openai_stream: openai.AsyncStream[openai.types.chat.ChatCompletionChunk],
+    openai_stream: openai.AsyncStream[ChatCompletionChunk],
     original_anthropic_model_name: str,
     estimated_input_tokens: int,
     request_id: str,
