@@ -10,6 +10,7 @@ import openai
 from ....application.response_cache import ResponseCache
 
 from ....config import (
+    MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP,
     TOP_TIER_MODELS,
     ReasoningEfforts,
     Settings,
@@ -235,7 +236,20 @@ async def create_message_proxy(request: Request) -> Response:
         "stream": is_stream,
     }
     if target_model not in SUPPORT_REASONING_EFFORT_MODELS:
-        openai_params["max_tokens"] = anthropic_request.max_tokens
+        max_tokens = MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP.get(target_model, anthropic_request.max_tokens)
+        warning(
+            LogRecord(
+                LogEvent.STREAM_EVENT.value,
+                f"Model does not support reasoning; 'max_tokens' will be set to {max_tokens} for model {target_model}.",
+                request_id,
+                {
+                    "parameter": "max_tokens",
+                    "value": max_tokens,
+                    "target_model": target_model,
+                },
+            )
+        )
+        openai_params["max_tokens"] = max_tokens
     else:
         warning(
             LogRecord(
