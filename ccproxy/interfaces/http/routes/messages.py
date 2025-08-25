@@ -11,7 +11,8 @@ from ....application.response_cache import ResponseCache
 
 from ....config import (
     MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP,
-    TOP_TIER_MODELS,
+    TOP_TIER_ANTHROPIC_MODELS,
+    TOP_TIER_OPENAI_MODELS,
     ReasoningEfforts,
     Settings,
     NO_SUPPORT_TEMPERATURE_MODELS,
@@ -117,9 +118,10 @@ async def create_message_proxy(request: Request) -> Response:
         )
 
     is_stream = bool(anthropic_request.stream)
+    request_model = anthropic_request.model
 
     target_model = select_target_model(
-        anthropic_request.model,
+        request_model,
         request_id,
         settings.big_model_name,
         settings.small_model_name,
@@ -295,11 +297,11 @@ async def create_message_proxy(request: Request) -> Response:
         and target_model in SUPPORT_REASONING_EFFORT_MODELS
     ):
         reasoning_effort = (
-            ReasoningEfforts.High.value
+            (ReasoningEfforts.High.value if request_model in TOP_TIER_ANTHROPIC_MODELS else ReasoningEfforts.Medium.value)
             if is_stream
             else (
                 ReasoningEfforts.Low.value
-                if target_model in TOP_TIER_MODELS
+                if target_model in TOP_TIER_OPENAI_MODELS
                 else ReasoningEfforts.Medium.value
             )
         )

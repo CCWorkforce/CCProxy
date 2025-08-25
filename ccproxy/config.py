@@ -67,12 +67,18 @@ SUPPORT_DEVELOPER_MESSAGE_MODELS: FrozenSet[str] = frozenset(
 )
 
 # Models that are in the top tier of the OpenAI API
-TOP_TIER_MODELS: FrozenSet[str] = frozenset(
+TOP_TIER_OPENAI_MODELS: FrozenSet[str] = frozenset(
     {
         "o3",
         "o3-2025-04-16",
         "gpt-5-2025-08-07",
         "gpt-5",
+    }
+)
+
+TOP_TIER_ANTHROPIC_MODELS: FrozenSet[str] = frozenset(
+    {
+        "claude-opus-4-1-20250805",
     }
 )
 
