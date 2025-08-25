@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional, Union, Literal, Tuple
 
-import openai
+from openai.types.chat.chat_completion import ChatCompletion
 from functools import lru_cache
 from ..domain.models import (
     Message,
@@ -16,7 +16,7 @@ from ..domain.models import (
     MessagesResponse,
     Usage,
 )
-from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, MessageRoles, Settings
+from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, UTF8_ENFORCEMENT_MESSAGE, MessageRoles, Settings
 from ..logging import warning, error, LogRecord, LogEvent
 
 
@@ -151,7 +151,7 @@ def convert_anthropic_to_openai_messages(
 
     if system_text_content and supports_developer_role:
         # Combine system content with UTF-8 enforcement for models that support developer role
-        utf8_enforcement_message = "\n\n" + settings.UTF8_ENFORCEMENT_MESSAGE
+        utf8_enforcement_message = "\n\n" + UTF8_ENFORCEMENT_MESSAGE
         combined_content = system_text_content + utf8_enforcement_message
         openai_messages.append(
             {"role": MessageRoles.Developer.value, "content": combined_content}
@@ -164,7 +164,7 @@ def convert_anthropic_to_openai_messages(
     elif supports_developer_role:
         # Only UTF-8 enforcement message needed
         openai_messages.append(
-            {"role": MessageRoles.Developer.value, "content": settings.UTF8_ENFORCEMENT_MESSAGE}
+            {"role": MessageRoles.Developer.value, "content": UTF8_ENFORCEMENT_MESSAGE}
         )
 
     for i, msg in enumerate(anthropic_messages):
@@ -488,7 +488,7 @@ def convert_anthropic_tool_choice_to_openai(
 
 
 def convert_openai_to_anthropic_response(
-    openai_response: openai.types.chat.ChatCompletion,
+    openai_response: ChatCompletion,
     original_anthropic_model_name: str,
     request_id: Optional[str] = None,
 ) -> MessagesResponse:
