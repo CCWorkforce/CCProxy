@@ -58,6 +58,8 @@ uv pip install -r requirements.txt
 ./run-ccproxy.sh
 ```
 
+For local development, you can set `IS_LOCAL_DEPLOYMENT=True` in your `.env` file to use a single worker process for reduced resource usage.
+
 4. Point your Anthropic client at the proxy:
 
 ```bash
@@ -69,3 +71,21 @@ Then start your coding session with Claude Code:
 ```bash
 claude
 ```
+
+## Environment Variables
+
+### Required Variables
+
+* `OPENAI_API_KEY`: Your OpenAI API key (or use `OPENROUTER_API_KEY`)
+
+* `BIG_MODEL_NAME`: The OpenAI model to use for large Anthropic models (e.g., `gpt-5-2025-08-07`)
+* `SMALL_MODEL_NAME`: The OpenAI model to use for small Anthropic models (e.g., `gpt-5-mini-2025-08-07`)
+
+### Optional Variables
+
+* `IS_LOCAL_DEPLOYMENT`: Set to `True` to use a single worker process for local development (default: `False`)
+
+* `HOST`: Server host (default: `127.0.0.1`)
+* `PORT`: Server port (default: `8082`)
+* `LOG_LEVEL`: Logging level (default: `INFO`)
+* `OPENAI_BASE_URL`: OpenAI API base URL (default: `https://api.openai.com/v1`)

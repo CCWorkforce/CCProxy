@@ -11,7 +11,11 @@ bind = f"{os.getenv('HOST', '0.0.0.0')}:{os.getenv('PORT', '8082')}"
 backlog = 2048
 
 # Worker processes
-workers = int(os.getenv("WEB_CONCURRENCY", multiprocessing.cpu_count() * 2 + 1))
+# Use single worker for local deployment, otherwise use CPU-based default
+if os.getenv("IS_LOCAL_DEPLOYMENT", "False").lower() == "true":
+    workers = 1
+else:
+    workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = "uvicorn.workers.UvicornWorker"  # Required for FastAPI
 worker_connections = 1000
 max_requests = 1000  # Restart workers after this many requests
