@@ -26,9 +26,9 @@ def select_target_model(
 
     client_model_lower = client_model_name.lower()
 
-    if "opus" in client_model_lower:
+    if "opus" in client_model_lower or "sonnet" in client_model_lower:
         target_model = big_model_name
-    elif "haiku" in client_model_lower or "sonnet" in client_model_lower:
+    elif "haiku" in client_model_lower:
         target_model = small_model_name
     else:
         target_model = small_model_name
