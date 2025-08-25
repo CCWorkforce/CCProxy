@@ -3,7 +3,7 @@ import tiktoken
 import time
 import hashlib
 import threading
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List, Optional, Union, Tuple, Protocol
 
 from ..domain.models import (
     Message,
@@ -20,7 +20,13 @@ from ..logging import warning, debug, LogRecord, LogEvent
 from ccproxy.config import Settings, TruncationConfig
 
 
-_token_encoder_cache: Dict[str, tiktoken.Encoding] = {}
+class TokenEncoder(Protocol):
+    """Protocol for token encoders that can encode text into tokens."""
+    def encode(self, text: str) -> List[int]:
+        ...
+
+
+_token_encoder_cache: Dict[str, TokenEncoder] = {}
 _token_count_cache: Dict[str, Tuple[int, float]] = {}
 _token_count_lru_order: List[str] = []
 _token_count_hits = 0
@@ -30,7 +36,7 @@ _token_lock = threading.Lock()
 
 def get_token_encoder(
     model_name: str = "gpt-4", request_id: Optional[str] = None
-) -> tiktoken.Encoding:
+) -> TokenEncoder:
     """Retrieves or caches a tiktoken encoder for the specified model.
 
     Args:
@@ -38,7 +44,7 @@ def get_token_encoder(
         request_id: Optional request identifier for logging. Defaults to None.
 
     Returns:
-        tiktoken.Encoding: The encoder instance for the specified model.
+        TokenEncoder: The encoder instance for the specified model.
     """
 
     cache_key = model_name
