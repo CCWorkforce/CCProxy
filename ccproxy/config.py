@@ -32,6 +32,7 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
         "gpt-5-2025-08-07",
         "gpt-5",
         "qwen/qwen3-235b-a22b-thinking-2507",
+        "deepseek-reasoner",
     }
 )
 
@@ -47,6 +48,7 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset(
         "gpt-5-2025-08-07",
         "gpt-5",
         "qwen/qwen3-235b-a22b-thinking-2507",
+        "deepseek-reasoner",
     }
 )
 
@@ -87,10 +89,23 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("qwen/qwen3-coder", 262_144),
         ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
         ("z-ai/glm-4.5", 131_072),
+        ("deepseek-reasoner", 131_072),
+        ("deepseek-chat", 131_072),
     }
 )
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
 
+MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
+    {
+        ("o3", 200_000),
+        ("o3-2025-04-16", 200_000),
+        ("o4-mini", 200_000),
+        ("deepseek-reasoner", 8192),
+        ("deepseek-chat", 64000),
+    }
+)
+
+MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_MAX_OUTPUT_TOKEN_LIMIT)
 
 class MessageRoles(StrEnum):
     Developer = "developer"
