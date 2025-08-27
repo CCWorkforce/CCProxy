@@ -21,7 +21,7 @@ def _sanitize_for_json(obj) -> Any:
     Converts non-serializable types (bytes, dataclasses, etc.) into JSON-compatible structures while redacting sensitive fields. Handles:
     - Bytes: Decoded as UTF-8 (with 'replace' on error), falling back to Latin-1
     - Dataclasses: Converted to dictionaries
-    - Dictionaries: Redacts keys listed in _REDACT_KEYS
+    - Dictionaries: Redacts keys listed in _REDACT_KEYS and removes null values
     - Lists/sets/tuples: Recursively sanitizes each element
     - Non-serializable objects: Converted via repr()
 
@@ -29,7 +29,7 @@ def _sanitize_for_json(obj) -> Any:
         obj (Any): Input object to sanitize.
 
     Returns:
-        Any: JSON-serializable structure with sensitive data redacted.
+        Any: JSON-serializable structure with sensitive data redacted and null values removed.
     """
     if isinstance(obj, bytes):
         try:
@@ -47,10 +47,15 @@ def _sanitize_for_json(obj) -> Any:
             if isinstance(k, str) and k.lower() in _REDACT_KEYS:
                 redacted[k] = "***REDACTED***"
             else:
-                redacted[k] = _sanitize_for_json(v)
+                sanitized_value = _sanitize_for_json(v)
+                # Only include non-null values
+                if sanitized_value is not None:
+                    redacted[k] = sanitized_value
         return redacted
     if isinstance(obj, (list, tuple, set)):
-        return [_sanitize_for_json(x) for x in obj]
+        sanitized_list = [_sanitize_for_json(x) for x in obj]
+        # Filter out None values from lists
+        return [x for x in sanitized_list if x is not None]
     try:
         json.dumps(obj)
         return obj
