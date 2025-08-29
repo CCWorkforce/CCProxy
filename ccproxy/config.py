@@ -96,6 +96,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("z-ai/glm-4.5", 131_072),
         ("deepseek-reasoner", 131_072),
         ("deepseek-chat", 131_072),
+        ("qwen/qwen3-coder", 262_144),
+        ("deepseek/deepseek-chat-v3.1", 163_840),
     }
 )
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -111,6 +113,8 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("gpt-5-mini", 128_000),
         ("deepseek-reasoner", 65_536),
         ("deepseek-chat", 8_192),
+        ("qwen/qwen3-coder", 262_144),
+        ("deepseek/deepseek-chat-v3.1", 1341_44),
     }
 )
 
