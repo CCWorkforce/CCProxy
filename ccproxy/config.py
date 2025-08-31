@@ -96,6 +96,9 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("z-ai/glm-4.5", 131_072),
         ("deepseek-reasoner", 131_072),
         ("deepseek-chat", 131_072),
+        ("qwen/qwen3-coder", 262_144),
+        ("deepseek/deepseek-chat-v3.1", 163_840),
+        ("x-ai/grok-code-fast-1", 262_144),
     }
 )
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -111,6 +114,9 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("gpt-5-mini", 128_000),
         ("deepseek-reasoner", 65_536),
         ("deepseek-chat", 8_192),
+        ("qwen/qwen3-coder", 66_560),
+        ("deepseek/deepseek-chat-v3.1", 134_144),
+        ("x-ai/grok-code-fast-1", 10_240),
     }
 )
 
@@ -155,7 +161,7 @@ class Settings(BaseSettings):
     )
     referer_url: str = "http://localhost:8082/claude_proxy"
     app_name: str = "CCProxy"
-    app_version: str = "1.0.7"
+    app_version: str = "1.0.8"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
     log_file_path: Optional[str] = "log.jsonl"
     error_log_file_path: Optional[str] = Field(
