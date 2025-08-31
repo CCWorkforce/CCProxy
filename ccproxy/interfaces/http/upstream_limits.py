@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import anyio
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Union
+from typing import AsyncGenerator
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
-from ..http.errors import log_and_return_error_response
-from ...domain.models import AnthropicErrorType
 
 
 class UpstreamTimeoutError(Exception):

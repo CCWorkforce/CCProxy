@@ -167,6 +167,9 @@ def convert_anthropic_to_openai_messages(
             {"role": MessageRoles.Developer.value, "content": UTF8_ENFORCEMENT_MESSAGE}
         )
 
+    # Temporary storage for tool results to ensure proper ordering
+    tool_results = []
+    
     for i, msg in enumerate(anthropic_messages):
         role = msg.role
         content = msg.content
@@ -253,7 +256,7 @@ def convert_anthropic_to_openai_messages(
                     serialized_content = _serialize_tool_result_content_for_openai(
                         block.content, request_id, block_log_ctx
                     )
-                    openai_messages.append(
+                    tool_results.append(
                         {
                             "role": "tool",
                             "tool_call_id": block.tool_use_id,
@@ -319,6 +322,9 @@ def convert_anthropic_to_openai_messages(
                                 "tool_calls": assistant_tool_calls,
                             }
                         )
+
+    # Add tool results to the message sequence
+    openai_messages.extend(tool_results)
 
     final_openai_messages = []
     for msg_dict in openai_messages:
