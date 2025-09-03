@@ -93,12 +93,13 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("gpt-5-mini", 272_000),
         ("qwen/qwen3-coder", 262_144),
         ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
+        ("qwen/qwen3-coder-480b-a35b-07-25", 262_144),
         ("z-ai/glm-4.5", 131_072),
         ("deepseek-reasoner", 131_072),
         ("deepseek-chat", 131_072),
         ("qwen/qwen3-coder", 262_144),
         ("deepseek/deepseek-chat-v3.1", 163_840),
-        ("x-ai/grok-code-fast-1", 262_144),
+        ("x-ai/grok-code-fast-1", 256_000),
     }
 )
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -115,8 +116,9 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[tuple[str, int]] = frozenset(
         ("deepseek-reasoner", 65_536),
         ("deepseek-chat", 8_192),
         ("qwen/qwen3-coder", 66_560),
+        ("qwen/qwen3-coder-480b-a35b-07-25", 66_560),
         ("deepseek/deepseek-chat-v3.1", 134_144),
-        ("x-ai/grok-code-fast-1", 10_240),
+        ("x-ai/grok-code-fast-1", 10_000),
     }
 )
 
