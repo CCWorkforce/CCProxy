@@ -2,7 +2,7 @@ from locust import HttpUser, task, between
 
 
 class APIUser(HttpUser):
-    host = "http://127.0.0.1:8082"
+    host = "http://127.0.0.1:11434"
     wait_time = between(0.5, 1.5)
 
     @task

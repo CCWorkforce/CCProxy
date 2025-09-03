@@ -92,7 +92,7 @@ SMALL_MODEL_NAME=gpt-3.5-turbo
 
 # Optional configuration
 OPENAI_BASE_URL=https://api.openai.com/v1
-PORT=8082
+PORT=11434
 LOG_LEVEL=INFO
 
 # Docker configuration
@@ -141,9 +141,9 @@ case "$ACTION" in
             print_success "Service started successfully!"
             echo ""
             print_info "Service Information:"
-            echo "  URL: http://localhost:${PORT:-8082}"
-            echo "  Health: http://localhost:${PORT:-8082}/health"
-            echo "  Metrics: http://localhost:${PORT:-8082}/v1/metrics"
+            echo "  URL: http://localhost:${PORT:-11434}"
+            echo "  Health: http://localhost:${PORT:-11434}/health"
+            echo "  Metrics: http://localhost:${PORT:-11434}/v1/metrics"
             echo ""
             print_info "View logs with: $0 logs -f"
         else
@@ -182,7 +182,7 @@ case "$ACTION" in
         $COMPOSE_CMD ps
         echo ""
         # Check health endpoint
-        if curl -f -s "http://localhost:${PORT:-8082}/health" > /dev/null 2>&1; then
+        if curl -f -s "http://localhost:${PORT:-11434}/health" > /dev/null 2>&1; then
             print_success "Health check: API is responding"
         else
             print_warning "Health check: API is not responding"

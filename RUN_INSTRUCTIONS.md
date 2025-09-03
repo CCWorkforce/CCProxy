@@ -19,7 +19,7 @@ SMALL_MODEL_NAME=gpt-3.5-turbo
 
 # Optional variables
 OPENAI_BASE_URL=https://api.openai.com/v1
-PORT=8082
+PORT=11434
 LOG_LEVEL=INFO
 ```
 
@@ -35,7 +35,7 @@ LOG_LEVEL=INFO
 ./docker-compose-run.sh logs -f
 ```
 
-That's it! The service is now running at `http://localhost:8082`
+That's it! The service is now running at `http://localhost:11434`
 
 ## Environment Variables
 
@@ -52,7 +52,7 @@ That's it! The service is now running at `http://localhost:8082`
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENAI_BASE_URL` | OpenAI-compatible API endpoint | `https://api.openai.com/v1` |
-| `PORT` | Server port | `8082` |
+| `PORT` | Server port | `11434` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `WEB_CONCURRENCY` | Number of Gunicorn workers (CPU-based by default) | `(CPU cores × 2 + 1)` |
 
@@ -82,17 +82,17 @@ That's it! The service is now running at `http://localhost:8082`
 
 ### Health Check
 ```bash
-curl http://localhost:8082/health
+curl http://localhost:11434/health
 ```
 
 ### View Metrics
 ```bash
-curl http://localhost:8082/v1/metrics | jq
+curl http://localhost:11434/v1/metrics | jq
 ```
 
 ### Test API
 ```bash
-curl -X POST http://localhost:8082/v1/messages \
+curl -X POST http://localhost:11434/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-key" \
   -H "anthropic-version: 2023-06-01" \
@@ -135,13 +135,13 @@ Check the status and logs:
 ### Real-time Metrics
 ```bash
 # Performance metrics
-curl http://localhost:8082/v1/metrics | jq
+curl http://localhost:11434/v1/metrics | jq
 
 # Cache statistics
-curl http://localhost:8082/v1/cache/stats | jq
+curl http://localhost:11434/v1/cache/stats | jq
 
 # Clear cache if needed
-curl -X POST http://localhost:8082/v1/cache/clear
+curl -X POST http://localhost:11434/v1/cache/clear
 ```
 
 ### Monitor Resources
@@ -188,8 +188,8 @@ All settings can be adjusted in `.env` file. The service will automatically relo
 | View logs | `./docker-compose-run.sh logs -f` |
 | Stop service | `./docker-compose-run.sh down` |
 | Restart | `./docker-compose-run.sh restart` |
-| Check health | `curl http://localhost:8082/health` |
-| View metrics | `curl http://localhost:8082/v1/metrics` |
+| Check health | `curl http://localhost:11434/health` |
+| View metrics | `curl http://localhost:11434/v1/metrics` |
 
 ---
 

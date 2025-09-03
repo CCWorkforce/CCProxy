@@ -25,7 +25,7 @@ Required (via .env or environment)
 Optional
 - OPENAI_BASE_URL (default https://api.openai.com/v1)
 - HOST (default 127.0.0.1)
-- PORT (default 8082)
+- PORT (default 11434)
 - LOG_LEVEL (default INFO)
 - LOG_FILE_PATH (default log.jsonl)
 - ERROR_LOG_FILE_PATH (default error.jsonl)

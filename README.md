@@ -81,7 +81,7 @@ For local development, you can set `IS_LOCAL_DEPLOYMENT=True` in your `.env` fil
 4. Point your Anthropic client at the proxy:
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8082
+export ANTHROPIC_BASE_URL=http://localhost:11434
 ```
 
 Then start your coding session with Claude Code:
@@ -104,6 +104,6 @@ claude
 * `IS_LOCAL_DEPLOYMENT`: Set to `True` to use a single worker process for local development (default: `False`)
 
 * `HOST`: Server host (default: `127.0.0.1`)
-* `PORT`: Server port (default: `8082`)
+* `PORT`: Server port (default: `11434`)
 * `LOG_LEVEL`: Logging level (default: `INFO`)
 * `OPENAI_BASE_URL`: OpenAI API base URL (default: `https://api.openai.com/v1`)

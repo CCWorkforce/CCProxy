@@ -159,7 +159,7 @@ class Settings(BaseSettings):
         default="https://api.openai.com/v1",
         validation_alias=AliasChoices("OPENAI_BASE_URL"),
     )
-    referer_url: str = "http://localhost:8082/claude_proxy"
+    referer_url: str = "http://localhost:11434/claude_proxy"
     app_name: str = "CCProxy"
     app_version: str = "1.0.8"
     log_level: str = Field(default="INFO", validation_alias=AliasChoices("LOG_LEVEL"))
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
         default=False, validation_alias=AliasChoices("LOG_PRETTY_CONSOLE")
     )
     host: str = "127.0.0.1"
-    port: int = Field(default=8082, validation_alias=AliasChoices("PORT"))
+    port: int = Field(default=11434, validation_alias=AliasChoices("PORT"))
     reload: bool = True
 
     rate_limit_enabled: bool = Field(
