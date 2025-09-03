@@ -93,7 +93,7 @@ Monitor the performance improvements:
 
 ```bash
 # View real-time metrics
-curl http://localhost:8082/v1/metrics | jq
+curl http://localhost:11434/v1/metrics | jq
 
 # Check connection pool statistics
 docker logs ccproxy | grep "connection"

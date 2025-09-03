@@ -91,7 +91,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     KEEPALIVE=5 \
     # App settings
     HOST=0.0.0.0 \
-    PORT=8082 \
+    PORT=11434 \
     LOG_LEVEL=INFO
 
 WORKDIR /app
@@ -109,11 +109,11 @@ RUN mkdir -p /app/logs /app/.cache && \
 USER ccproxy
 
 # Expose port
-EXPOSE 8082
+EXPOSE 11434
 
 # Health check with timeout
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/health', timeout=5).read()" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/health', timeout=5).read()" || exit 1
 
 # Production entrypoint with signal handling
 ENTRYPOINT ["gunicorn", "--config", "gunicorn.conf.py"]
@@ -158,7 +158,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     KEEPALIVE=5 \
     # App settings
     HOST=0.0.0.0 \
-    PORT=8082 \
+    PORT=11434 \
     LOG_LEVEL=INFO
 
 WORKDIR /app
@@ -180,11 +180,11 @@ RUN chmod -R 755 /app && \
 USER ccproxy
 
 # Expose port
-EXPOSE 8082
+EXPOSE 11434
 
 # Health check with timeout
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/health', timeout=5).read()" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/health', timeout=5).read()" || exit 1
 
 # Production entrypoint with signal handling
 ENTRYPOINT ["gunicorn", "--config", "gunicorn.conf.py"]

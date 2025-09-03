@@ -11,7 +11,7 @@ services:
     container_name: ${CONTAINER_NAME:-ccproxy}
     restart: unless-stopped
     ports:
-      - "${PORT:-8082}:${PORT:-8082}"
+      - "${PORT:-11434}:${PORT:-11434}"
     env_file:
       - .env  # Automatically loads all variables from .env file
     environment:
@@ -20,7 +20,7 @@ services:
       - ./logs:/app/logs
       - ccproxy_cache:/app/.cache
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
       interval: 30s
       timeout: 10s
       retries: 3
