@@ -239,13 +239,13 @@ get_version() {
 echo ""
 print_success "Environment validation complete!"
 print_info "Starting CCProxy..."
-echo "=================================================="
+echo "==================================================="
 echo "  CCProxy - Anthropic to OpenAI-compatible Bridge"
 echo "  Version: $(get_version)"
 echo "  Host: ${HOST:-127.0.0.1}"
 echo "  Port: ${PORT:-11434}"
 echo "  API URL: http://${HOST:-127.0.0.1}:${PORT:-11434}"
-echo "=================================================="
+echo "==================================================="
 echo ""
 
 # Run the application
