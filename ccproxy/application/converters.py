@@ -3,6 +3,9 @@ from typing import Any, Dict, List, Optional, Union, Literal, Tuple
 
 from openai.types.chat.chat_completion import ChatCompletion
 from functools import lru_cache
+
+from ccproxy.constants import SUPPORT_DEVELOPER_MESSAGE_MODELS, UTF8_ENFORCEMENT_MESSAGE
+from ccproxy.enums import MessageRoles
 from ..domain.models import (
     Message,
     SystemContent,
@@ -16,7 +19,7 @@ from ..domain.models import (
     MessagesResponse,
     Usage,
 )
-from ..config import SUPPORT_DEVELOPER_MESSAGE_MODELS, UTF8_ENFORCEMENT_MESSAGE, MessageRoles, Settings
+from ..config import Settings
 from ..logging import warning, error, LogRecord, LogEvent
 
 
@@ -169,7 +172,7 @@ def convert_anthropic_to_openai_messages(
 
     # Temporary storage for tool results to ensure proper ordering
     tool_results = []
-    
+
     for i, msg in enumerate(anthropic_messages):
         role = msg.role
         content = msg.content
