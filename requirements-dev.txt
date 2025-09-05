@@ -6,7 +6,7 @@ fastapi==0.116.1
 uvicorn[standard]==0.35.0
 
 # OpenAI client
-openai==1.105.0
+openai==1.106.1
 
 # Data validation
 pydantic==2.11.7
@@ -39,7 +39,7 @@ pytest-sugar>=1.1.1
 gunicorn==23.0.0
 six==1.17.0
 
-pytest==8.4.1
+pytest==8.4.2
 pytest-asyncio==1.1.0
-ruff==0.12.10
+ruff==0.12.12
 starlette>=0.47.3
