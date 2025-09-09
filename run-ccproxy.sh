@@ -30,10 +30,18 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Check if Python 3 is installed
-if ! command_exists python3; then
-    print_error "Python 3 is not installed. Please install Python 3.13 or higher."
+# Check if uv is installed
+if ! command_exists uv; then
+    print_error "uv is not installed. Please install uv first:"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
+fi
+
+# Check if Python 3 is available through uv
+print_info "Checking Python availability via uv..."
+if ! uv python list | grep -q "python"; then
+    print_error "No Python installation found via uv. Installing Python..."
+    uv python install
 fi
 
 # Get the directory where this script is located
@@ -208,22 +216,16 @@ if [ ! -f "gunicorn.conf.py" ]; then
     exit 1
 fi
 
-# Check Python dependencies
-print_info "Checking Python dependencies..."
-if command_exists pip3; then
-    # Check if required packages are installed
-    MISSING_PACKAGES=""
-
-    for package in fastapi uvicorn openai pydantic tiktoken httpx gunicorn; do
-        if ! python3 -c "import $package" 2>/dev/null; then
-            MISSING_PACKAGES="$MISSING_PACKAGES $package"
-        fi
-    done
-
-    if [ -n "$MISSING_PACKAGES" ]; then
-        print_info "Missing Python packages detected:$MISSING_PACKAGES"
-        print_info "Consider running: pip3 install -r requirements.txt"
-    fi
+# Check Python dependencies via uv
+print_info "Checking Python dependencies via uv..."
+if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+    print_info "Installing/syncing dependencies via uv..."
+    uv sync --dev
+    print_success "Dependencies synchronized successfully"
+else
+    print_info "No requirements.txt or pyproject.toml found - will install minimal dependencies"
+    # Ensure basic dependencies are available
+    uv add fastapi uvicorn openai pydantic tiktoken httpx gunicorn --dev
 fi
 
 # Function to extract version from pyproject.toml
@@ -254,7 +256,7 @@ print_info "Launching Gunicorn server..."
 # Check if this is a local deployment (single worker)
 if [ "${IS_LOCAL_DEPLOYMENT}" = "True" ] || [ "${IS_LOCAL_DEPLOYMENT}" = "true" ]; then
     print_info "Local deployment detected - using single worker process"
-    exec gunicorn --config gunicorn.conf.py --workers 1 wsgi:app
+    exec uv run gunicorn --config gunicorn.conf.py --workers 1 wsgi:app
 else
-    exec gunicorn --config gunicorn.conf.py wsgi:app
+    exec uv run gunicorn --config gunicorn.conf.py wsgi:app
 fi
