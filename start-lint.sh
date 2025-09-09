@@ -23,34 +23,23 @@ echo -e "${BLUE}🔍 CCProxy - Code Linting${NC}"
 echo -e "${BLUE}=====================================${NC}"
 echo ""
 
-# Function to check if ruff is installed
+# Function to check if uv is installed and install ruff if needed
 check_ruff() {
-    if ! command -v ruff &> /dev/null; then
-        echo -e "${YELLOW}📦 ruff not found, installing...${NC}"
-
-        # Check if we're in a virtual environment
-        if [[ "$VIRTUAL_ENV" != "" ]]; then
-            echo -e "${GREEN}✅ Using active virtual environment${NC}"
-            pip install ruff
-        elif [ -d "$VENV_DIR" ]; then
-            echo -e "${YELLOW}🔧 Activating virtual environment...${NC}"
-            source "$VENV_DIR/bin/activate"
-            pip install ruff
-        else
-            echo -e "${YELLOW}🔧 Installing ruff globally...${NC}"
-            pip install --user ruff
-        fi
-
-        # Verify installation
-        if ! command -v ruff &> /dev/null; then
-            echo -e "${RED}❌ Failed to install ruff${NC}"
-            echo -e "${YELLOW}Please install ruff manually: pip install ruff${NC}"
-            exit 1
-        fi
+    # Check if uv is available
+    if ! command -v uv &> /dev/null; then
+        echo -e "${RED}❌ uv is not installed${NC}"
+        echo -e "${YELLOW}Please install uv first: curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
+        exit 1
     fi
 
-    echo -e "${GREEN}✅ ruff is available${NC}"
-    echo -e "${CYAN}Version: $(ruff --version)${NC}"
+    # Use uv to ensure ruff is available
+    if ! uv run --with ruff ruff --version &> /dev/null; then
+        echo -e "${YELLOW}📦 Installing ruff via uv...${NC}"
+        uv add --dev ruff
+    fi
+
+    echo -e "${GREEN}✅ ruff is available via uv${NC}"
+    echo -e "${CYAN}Version: $(uv run --with ruff ruff --version)${NC}"
 }
 
 # Function to find Python files
@@ -105,7 +94,7 @@ run_check() {
     echo ""
 
     # Run ruff check with detailed output
-    if ruff check . --output-format=full; then
+    if uv run --with ruff ruff check . --output-format=full; then
         echo ""
         echo -e "${GREEN}✅ No linting issues found!${NC}"
         return 0
@@ -123,12 +112,12 @@ run_check_stats() {
 
     # Get statistics by rule
     echo -e "${CYAN}Issues by rule:${NC}"
-    ruff check . --output-format=concise | cut -d: -f4 | cut -d' ' -f2 | sort | uniq -c | sort -nr || true
+    uv run --with ruff ruff check . --output-format=concise | cut -d: -f4 | cut -d' ' -f2 | sort | uniq -c | sort -nr || true
     echo ""
 
     # Get statistics by file
     echo -e "${CYAN}Files with issues:${NC}"
-    ruff check . --output-format=concise | cut -d: -f1 | sort | uniq -c | sort -nr | head -10 || true
+    uv run --with ruff ruff check . --output-format=concise | cut -d: -f1 | sort | uniq -c | sort -nr | head -10 || true
     echo ""
 }
 
@@ -138,7 +127,7 @@ run_fix() {
     echo ""
 
     # Run ruff with --fix flag
-    if ruff check . --fix; then
+    if uv run --with ruff ruff check . --fix; then
         echo ""
         echo -e "${GREEN}✅ Automatic fixes applied successfully${NC}"
     else
@@ -149,7 +138,7 @@ run_fix() {
     # Show remaining issues
     echo ""
     echo -e "${BLUE}🔍 Checking for remaining issues...${NC}"
-    if ruff check . --output-format=concise; then
+    if uv run --with ruff ruff check . --output-format=concise; then
         echo -e "${GREEN}✅ All fixable issues have been resolved${NC}"
     else
         echo -e "${YELLOW}⚠️  Some issues require manual attention${NC}"
@@ -162,7 +151,7 @@ run_format() {
     echo ""
 
     # Run ruff format (ignore failures, whitespace will be stripped anyway)
-    ruff format . || true
+    uv run --with ruff ruff format . || true
 
     # Remove trailing whitespace in all Python files
     find_python_files
@@ -221,22 +210,20 @@ show_help() {
 
 # Function to install/upgrade ruff
 install_ruff() {
-    echo -e "${BLUE}📦 Installing/upgrading ruff...${NC}"
+    echo -e "${BLUE}📦 Installing/upgrading ruff via uv...${NC}"
 
-    if [[ "$VIRTUAL_ENV" != "" ]]; then
-        echo -e "${GREEN}✅ Using active virtual environment${NC}"
-        pip install --upgrade ruff
-    elif [ -d "$VENV_DIR" ]; then
-        echo -e "${YELLOW}🔧 Activating virtual environment...${NC}"
-        source "$VENV_DIR/bin/activate"
-        pip install --upgrade ruff
-    else
-        echo -e "${YELLOW}🔧 Installing ruff globally...${NC}"
-        pip install --user --upgrade ruff
+    # Check if uv is available
+    if ! command -v uv &> /dev/null; then
+        echo -e "${RED}❌ uv is not installed${NC}"
+        echo -e "${YELLOW}Please install uv first: curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
+        exit 1
     fi
 
-    echo -e "${GREEN}✅ ruff installation completed${NC}"
-    echo -e "${CYAN}Version: $(ruff --version)${NC}"
+    # Add or upgrade ruff as a dev dependency
+    uv add --dev ruff
+
+    echo -e "${GREEN}✅ ruff installation completed via uv${NC}"
+    echo -e "${CYAN}Version: $(uv run --with ruff ruff --version)${NC}"
 }
 
 # Function to list files
