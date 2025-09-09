@@ -2,7 +2,7 @@ import json
 import tiktoken
 import time
 import hashlib
-import threading
+import asyncio
 from typing import Dict, List, Optional, Union, Tuple, Protocol
 
 from ..domain.models import (
@@ -31,7 +31,7 @@ _token_count_cache: Dict[str, Tuple[int, float]] = {}
 _token_count_lru_order: List[str] = []
 _token_count_hits = 0
 _token_count_misses = 0
-_token_lock = threading.Lock()
+_token_lock = asyncio.Lock()
 
 
 def get_token_encoder(
@@ -126,7 +126,7 @@ def _truncate_text(
     return text[: config.min_tokens]
 
 
-def truncate_request(
+async def truncate_request(
     messages: List[Message],
     system: Optional[Union[str, List[SystemContent]]],
     model_name: str,
@@ -141,7 +141,7 @@ def truncate_request(
     truncated_system = system
 
     while (
-        count_tokens_for_anthropic_request(
+        await count_tokens_for_anthropic_request(
             truncated_messages, truncated_system, model_name, None, request_id
         )
         > limit
@@ -168,7 +168,7 @@ def truncate_request(
     return truncated_messages, truncated_system
 
 
-def count_tokens_for_anthropic_request(
+async def count_tokens_for_anthropic_request(
     messages: List[Message],
     system: Optional[Union[str, List[SystemContent]]],
     model_name: str,
@@ -204,7 +204,7 @@ def count_tokens_for_anthropic_request(
     if use_cache:
         key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        with _token_lock:
+        async with _token_lock:
             if key in _token_count_cache:
                 count, ts = _token_count_cache[key]
                 if now - ts <= ttl_s:
@@ -332,7 +332,7 @@ def count_tokens_for_anthropic_request(
     if use_cache:
         key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        with _token_lock:
+        async with _token_lock:
             _token_count_cache[key] = (total_tokens, now)
             if key in _token_count_lru_order:
                 _token_count_lru_order.remove(key)

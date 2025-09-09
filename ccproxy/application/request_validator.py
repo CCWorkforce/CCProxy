@@ -37,8 +37,10 @@ class RequestValidator:
         overhead by ~1.2KB per request while maintaining identical functionality.
 
         Benchmark shows identical cache hit rates with 0% performance impact.
+        
+        Uses SHA-256 for cryptographic security to prevent hash collision attacks.
         """
-        return hashlib.md5(request_json.encode()).hexdigest()
+        return hashlib.sha256(request_json.encode()).hexdigest()
 
     def validate_request(
         self, raw_body: Dict[str, Any], request_id: Optional[str] = None
