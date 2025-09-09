@@ -154,7 +154,7 @@ async def create_message_proxy(request: Request) -> Response:
         # Mark request as pending to prevent duplicate processing
         await response_cache.mark_request_pending(anthropic_request)
 
-    estimated_input_tokens = count_tokens_for_anthropic_request(
+    estimated_input_tokens = await count_tokens_for_anthropic_request(
         messages=anthropic_request.messages,
         system=anthropic_request.system,
         model_name=anthropic_request.model,
@@ -166,14 +166,14 @@ async def create_message_proxy(request: Request) -> Response:
     _limit = MODEL_INPUT_TOKEN_LIMIT_MAP.get(target_model, 200_000)
     if estimated_input_tokens > _limit:
         if settings.truncate_long_requests:
-            anthropic_request.messages, anthropic_request.system = truncate_request(
+            anthropic_request.messages, anthropic_request.system = await truncate_request(
                 anthropic_request.messages,
                 anthropic_request.system,
                 anthropic_request.model,
                 _limit,
                 settings.truncation_config,
             )
-            estimated_input_tokens = count_tokens_for_anthropic_request(
+            estimated_input_tokens = await count_tokens_for_anthropic_request(
                 messages=anthropic_request.messages,
                 system=anthropic_request.system,
                 model_name=anthropic_request.model,
@@ -502,7 +502,7 @@ async def count_tokens_endpoint(request: Request) -> TokenCountResponse:
     body = await request.json()
     count_request = TokenCountRequest.model_validate(body)
 
-    token_count = count_tokens_for_anthropic_request(
+    token_count = await count_tokens_for_anthropic_request(
         messages=count_request.messages,
         system=count_request.system,
         model_name=count_request.model,

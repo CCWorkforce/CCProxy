@@ -77,43 +77,63 @@ class OpenAIProvider:
         self._jitter = settings.provider_retry_jitter
         self._http_client: Optional[httpx.AsyncClient] = None
 
-        # High-performance HTTP/2 configuration
-        _read_timeout = float(self.settings.max_stream_seconds)
-        self._http_client = httpx.AsyncClient(
-            limits=httpx.Limits(
-                max_keepalive_connections=50,
-                max_connections=500,
-                keepalive_expiry=120,
-            ),
-            timeout=httpx.Timeout(
-                connect=10.0,
-                read=_read_timeout,
-                write=30.0,
-                pool=10.0,
-            ),
-            http2=True,
-            verify=os.getenv("SSL_CERT_FILE", True),
-            follow_redirects=True,
-            headers={
-                "User-Agent": "CCProxy/1.0 OptimizedClient",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive",
-            },
-        )
+        try:
+            # High-performance HTTP/2 configuration
+            _read_timeout = float(self.settings.max_stream_seconds)
+            self._http_client = httpx.AsyncClient(
+                limits=httpx.Limits(
+                    max_keepalive_connections=50,
+                    max_connections=500,
+                    keepalive_expiry=120,
+                ),
+                timeout=httpx.Timeout(
+                    connect=10.0,
+                    read=_read_timeout,
+                    write=30.0,
+                    pool=10.0,
+                ),
+                http2=True,
+                verify=os.getenv("SSL_CERT_FILE", True),
+                follow_redirects=True,
+                headers={
+                    "User-Agent": "CCProxy/1.0 OptimizedClient",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Connection": "keep-alive",
+                },
+            )
 
-        # Initialize OpenAI client with our custom HTTP client
-        self._client = AsyncOpenAI(
-            api_key=self.settings.openai_api_key,
-            base_url=self.settings.base_url,
-            default_headers={
-                "HTTP-Referer": self.settings.referer_url,
-                "X-Title": self.settings.app_name,
-                "Accept-Charset": "utf-8",
-            },
-            timeout=_read_timeout,
-            http_client=self._http_client,
-            max_retries=self._max_retries,
-        )
+            # Initialize OpenAI client with our custom HTTP client
+            self._client = AsyncOpenAI(
+                api_key=self.settings.openai_api_key,
+                base_url=self.settings.base_url,
+                default_headers={
+                    "HTTP-Referer": self.settings.referer_url,
+                    "X-Title": self.settings.app_name,
+                    "Accept-Charset": "utf-8",
+                },
+                timeout=_read_timeout,
+                http_client=self._http_client,
+                max_retries=self._max_retries,
+            )
+        except Exception:
+            # If initialization fails, clean up HTTP client to prevent resource leak
+            if self._http_client is not None:
+                # Use asyncio to run the cleanup in a sync context
+                try:
+                    import asyncio
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # Schedule cleanup for later if we're in an async context
+                        loop.create_task(self._http_client.aclose())
+                    except RuntimeError:
+                        # No running loop, we can run cleanup directly
+                        asyncio.run(self._http_client.aclose())
+                except Exception:
+                    # If cleanup fails, at least set to None
+                    pass
+                finally:
+                    self._http_client = None
+            raise
 
     async def create_chat_completion(self, **params: Any) -> Any:
         """Create a chat completion with retry logic and UTF-8 error handling.

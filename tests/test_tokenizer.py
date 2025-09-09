@@ -20,15 +20,15 @@ def create_test_messages(count: int, role: str = "user") -> list[Message]:
     ]
 
 
-def test_truncate_oldest_first():
+async def test_truncate_oldest_first():
     messages = create_test_messages(5)
     system = "System prompt"
     config = TruncationConfig()
 
-    truncated_msgs, truncated_system = truncate_request(
+    truncated_msgs, truncated_system = await truncate_request(
         messages, system, "gpt-4", 150, config, request_id="test"
     )
-    new_tokens = count_tokens_for_anthropic_request(
+    new_tokens = await count_tokens_for_anthropic_request(
         truncated_msgs, truncated_system, "gpt-4", None, None
     )
 
@@ -37,7 +37,7 @@ def test_truncate_oldest_first():
     assert len(truncated_msgs) < len(messages)
 
 
-def test_truncate_newest_first():
+async def test_truncate_newest_first():
     messages = create_test_messages(5)
     system = "System prompt"
 
@@ -45,10 +45,10 @@ def test_truncate_newest_first():
     config = TruncationConfig()
     config.strategy = "newest_first"
 
-    truncated_msgs, truncated_system = truncate_request(
+    truncated_msgs, truncated_system = await truncate_request(
         messages, system, "gpt-4", 150, config, request_id="test"
     )
-    new_tokens = count_tokens_for_anthropic_request(
+    new_tokens = await count_tokens_for_anthropic_request(
         truncated_msgs, truncated_system, "gpt-4", None, None
     )
 
@@ -57,7 +57,7 @@ def test_truncate_newest_first():
     assert len(truncated_msgs) < len(messages)
 
 
-def test_truncate_system_priority():
+async def test_truncate_system_priority():
     messages = create_test_messages(5)
     system = "System prompt"
 
@@ -65,10 +65,10 @@ def test_truncate_system_priority():
     config = TruncationConfig()
     config.strategy = "system_priority"
 
-    truncated_msgs, truncated_system = truncate_request(
+    truncated_msgs, truncated_system = await truncate_request(
         messages, system, "gpt-4", 150, config, request_id="test"
     )
-    new_tokens = count_tokens_for_anthropic_request(
+    new_tokens = await count_tokens_for_anthropic_request(
         truncated_msgs, truncated_system, "gpt-4", None, None
     )
 
@@ -76,12 +76,12 @@ def test_truncate_system_priority():
     assert truncated_system == "System prompt"
 
 
-def test_truncate_below_limit():
+async def test_truncate_below_limit():
     messages = create_test_messages(2)
     system = "System prompt"
     config = TruncationConfig()
 
-    truncated_msgs, truncated_system = truncate_request(
+    truncated_msgs, truncated_system = await truncate_request(
         messages, system, "gpt-4", 10000, config
     )
 

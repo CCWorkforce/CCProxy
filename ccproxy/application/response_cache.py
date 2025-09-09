@@ -83,6 +83,7 @@ class ResponseCache:
         self._consecutive_validation_failures = 0
         self._caching_disabled_until = 0
         self._validation_failure_threshold = validation_failure_threshold
+        self._max_consecutive_failures = validation_failure_threshold * 10  # Cap at 10x threshold
 
         # Start cleanup task
         self._cleanup_task = None
@@ -450,6 +451,10 @@ class ResponseCache:
         if not self._validate_response_for_caching(response):
             self._validation_failures += 1
             self._consecutive_validation_failures += 1
+            
+            # Cap consecutive failures to prevent unbounded memory growth
+            if self._consecutive_validation_failures > self._max_consecutive_failures:
+                self._consecutive_validation_failures = self._max_consecutive_failures
 
             # Trigger circuit breaker if too many consecutive failures
             if (
@@ -639,15 +644,32 @@ class ResponseCache:
             line: The line of streaming response to publish to subscribers
         """
         async with self._lock:
-            subs = list(self._stream_subscribers.get(key, []))
-            for q in subs:
+            # Get subscribers safely - if key doesn't exist, use empty list
+            subs = self._stream_subscribers.get(key)
+            if subs is None:
+                return
+            
+            # Create a copy to iterate over to avoid modification during iteration
+            subs_copy = list(subs)
+            slow_subscribers = []
+            
+            for q in subs_copy:
                 try:
                     q.put_nowait(line)
                 except QueueFull:
-                    # Drop slow subscriber
-                    self._stream_subscribers[key].remove(q)
+                    # Mark for removal - don't modify during iteration
+                    slow_subscribers.append(q)
                 except Exception:
                     pass
+            
+            # Remove slow subscribers after iteration completes
+            if slow_subscribers and key in self._stream_subscribers:
+                for q in slow_subscribers:
+                    try:
+                        self._stream_subscribers[key].remove(q)
+                    except (ValueError, KeyError):
+                        # Queue already removed or key deleted - safe to ignore
+                        pass
 
     async def finalize_stream(self, key: str) -> None:
         """

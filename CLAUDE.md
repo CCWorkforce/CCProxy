@@ -51,18 +51,16 @@ Big-picture architecture
   - / (GET): basic health
 - Provider abstraction
   - ccproxy/infrastructure/providers/base.py defines ChatProvider protocol
-  - ccproxy/infrastructure/providers/openai_provider.py implements OpenAIProvider using openai.AsyncOpenAI
-    - Optimized httpx AsyncClient (HTTP/2, connection pooling, timeouts)
-    - Converts UnicodeDecodeError/JSON issues into openai.APIError; ensures UTF‑8 handling
+  - ccproxy/infrastructure/providers/openai_provider.py: High-performance HTTP/2 client with optimized connection pooling (500 connections, 120s keepalive); exponential backoff with jitter for retries; comprehensive UTF-8 error handling and recovery; rate limiting and network error resilience
 - Request conversion and streaming bridge
-  - ccproxy/application/converters.py maps Anthropic Messages + tools to OpenAI Chat Completions schema and back; enforces developer/system role rules and UTF‑8 developer hint for supported models
+  - ccproxy/application/converters.py: Advanced Anthropic↔OpenAI message conversion with @lru_cache decorators and complex tool result serialization; supports multi-modal content (text, images, tool use, tool results); advanced UTF-8 enforcement with recovery mechanisms; streaming support and sophisticated tool choice mapping
   - ccproxy/interfaces/http/streaming.py converts OpenAI ChatCompletionChunk streams into Anthropic SSE events, tracking content, tool-use, and thinking/signature blocks, with accurate stop-reason mapping
 - Tokenization and model selection
-  - ccproxy/application/tokenizer.py caches tiktoken encoders; counts tokens across message/content/tool structures with fallbacks
+  - ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); complex truncation support with configurable strategies; automatic encoder fallback and comprehensive error recovery; support for redacted thinking blocks
   - ccproxy/application/model_selection.py selects target OpenAI model based on requested Anthropic model (opus/sonnet→BIG, haiku→SMALL)
 - Caching and validation
-  - ccproxy/application/response_cache.py: LRU+TTL cache with memory budget, validation guard (JSON/UTF‑8), pending-request de‑duplication, background cleanup; exposed via app.state.response_cache
-  - ccproxy/application/request_validator.py: LRU cache of validated MessagesRequest instances to avoid repeated Pydantic validation cost
+  - ccproxy/application/response_cache.py: Advanced caching with circuit breaker pattern for validation failures, memory management (500MB limit), streaming de-duplication with publisher-subscriber patterns, data redaction, background cleanup, and comprehensive performance metrics
+  - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with statistical tracking (hits/misses/hit rate); SHA-256 cryptographic hashing for request deduplication; efficient OrderedDict-based eviction
 - Config and logging
   - ccproxy/config.py: Pydantic Settings; reasoning-effort/temperature/developer message capability sets; env aliasing and validation
   - ccproxy/logging.py: JSON log formatting, structured events, optional file logging; middleware stamps X-Request-ID and timing

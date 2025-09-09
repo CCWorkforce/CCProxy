@@ -20,7 +20,7 @@ from ..domain.models import (
     Usage,
 )
 from ..config import Settings
-from ..logging import warning, error, LogRecord, LogEvent
+from ..logging import warning, error, debug, LogRecord, LogEvent
 
 
 StopReasonType = Optional[
@@ -48,7 +48,11 @@ def _serialize_tool_result_content_for_openai_cached(key: Tuple[str, str]) -> st
         if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
             parts.append(str(item["text"]))
         else:
-            parts.append(json.dumps(item))
+            try:
+                parts.append(json.dumps(item))
+            except (TypeError, ValueError):
+                # Fallback for unserializable items
+                parts.append(f"<unserializable_item type='{type(item).__name__}'>")
     return "\n".join(parts)
 
 
@@ -91,18 +95,38 @@ def _serialize_tool_result_content_for_openai(
                         )
             result_str = "\n".join(processed_parts)
         return result_str
-
-    # At this point, content should be either str or list per schema; any other type indicates malformed input.
-    actual_type = type(anthropic_tool_result_content).__name__
-    error(
-        LogRecord(
-            event=LogEvent.TOOL_RESULT_SERIALIZATION_FAILURE.value,
-            message="Unsupported tool result content type; expected str or list.",
-            request_id=request_id,
-            data={**log_context, "actual_type": actual_type},
+    
+    # Handle None type
+    if anthropic_tool_result_content is None:
+        return "null"
+    
+    # Handle primitive types (int, float, bool)
+    if isinstance(anthropic_tool_result_content, (int, float, bool)):
+        return json.dumps(anthropic_tool_result_content)
+    
+    # Handle dict type
+    if isinstance(anthropic_tool_result_content, dict):
+        try:
+            return json.dumps(anthropic_tool_result_content, sort_keys=True)
+        except TypeError:
+            # Fallback for unserializable dicts
+            return f"<unserializable_dict with keys: {list(anthropic_tool_result_content.keys())}>"
+    
+    # For any other type, try JSON serialization first, then fallback to string representation
+    try:
+        return json.dumps(anthropic_tool_result_content)
+    except TypeError:
+        # Last resort: convert to string
+        actual_type = type(anthropic_tool_result_content).__name__
+        debug(
+            LogRecord(
+                event=LogEvent.DEBUG.value,
+                message=f"Using string fallback for tool result content type: {actual_type}",
+                request_id=request_id,
+                data={**log_context, "actual_type": actual_type},
+            )
         )
-    )
-    raise TypeError(f"Unsupported tool result content type: {actual_type}")
+        return str(anthropic_tool_result_content)
 
 
 def convert_anthropic_to_openai_messages(
@@ -414,7 +438,7 @@ def convert_anthropic_tools_to_openai(
             for t in anthropic_tools
         )
         return _tools_cache(key)
-    except TypeError:
+    except (TypeError, ValueError, json.JSONDecodeError):
         return [
             {
                 "type": "function",
