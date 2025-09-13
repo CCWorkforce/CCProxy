@@ -12,9 +12,9 @@ dependencies = [
     "uvicorn>=0.35.0",
     "gunicorn==23.0.0",
     "httpx[http2]>=0.28.1",
-    "pydantic>=2.11.7",
+    "pydantic>=2.11.8",
     "python-dotenv>=1.1.1",
-    "openai>=1.107.1",
+    "openai>=1.107.2",
     "pydantic-settings>=2.10.1",
     "tiktoken>=0.11.0",
     "yarl==1.20.1",
@@ -37,13 +37,13 @@ testpaths = ["tests"]
 dev = [
     "pytest-mock>=3.15.0",
     "pytest>=8.4.2",
-    "pytest-asyncio>=1.1.0",
+    "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.0",
     "pytest-sugar>=1.1.1",
     "respx>=0.22.0",
     "ruff>=0.13.0",
-    "mypy>=1.17.1",
+    "mypy>=1.18.1",
 ]
 
 [tool.ruff]
