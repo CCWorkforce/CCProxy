@@ -6,10 +6,10 @@ fastapi==0.116.1
 uvicorn[standard]==0.35.0
 
 # OpenAI client
-openai==1.107.1
+openai==1.107.2
 
 # Data validation
-pydantic==2.11.7
+pydantic==2.11.8
 pydantic-settings==2.10.1
 
 # Token counting
@@ -40,7 +40,7 @@ gunicorn==23.0.0
 six==1.17.0
 
 pytest==8.4.2
-pytest-asyncio==1.1.0
-ruff==0.12.12
+pytest-asyncio==1.2.0
+ruff==0.13.0
 starlette>=0.47.3
 standard>=1.0.3
