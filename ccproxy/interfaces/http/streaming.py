@@ -323,7 +323,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             "error_type": error_type.value,
             "thinking_enabled": thinking_enabled,
             "stream_state": {
-                "message_id": message_id,
+                "message_id": anthropic_message_id,
                 "total_content": processor.get_total_content() if processor else None,
                 "tool_calls": processor.tool_manager.get_tool_calls() if processor else None,
                 "output_tokens": processor.usage_tracker.output_tokens if processor else 0,
