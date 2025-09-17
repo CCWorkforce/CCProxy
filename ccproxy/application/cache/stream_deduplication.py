@@ -1,7 +1,7 @@
 """Stream deduplication for handling concurrent identical streaming requests."""
 
 import asyncio
-from typing import Dict, List, AsyncIterator, Optional
+from typing import Dict, List, Optional, Tuple
 from asyncio import Queue, QueueFull
 
 from ...logging import debug, info, warning, LogRecord, LogEvent
@@ -23,23 +23,16 @@ class StreamDeduplicator:
         self.max_queue_size = max_queue_size
         self.active_streams: Dict[str, bool] = {}
 
-    async def subscribe(
+    async def register(
         self, key: str, request_id: Optional[str] = None
-    ) -> AsyncIterator[str]:
-        """
-        Subscribe to a stream for the given cache key.
+    ) -> Tuple[bool, "Queue[Optional[str]]"]:
+        """Register a subscriber queue for the given stream key."""
 
-        Args:
-            key: Cache key identifying the request
-            request_id: Optional request ID for logging
-
-        Yields:
-            Lines from the deduplicated stream
-        """
-        queue: Queue[Optional[str]] = Queue(maxsize=self.max_queue_size)
+        queue: "Queue[Optional[str]]" = Queue(maxsize=self.max_queue_size)
 
         async with self.lock:
-            if key not in self.subscribers:
+            is_primary = key not in self.subscribers
+            if is_primary:
                 self.subscribers[key] = []
                 self.active_streams[key] = True
 
@@ -54,23 +47,22 @@ class StreamDeduplicator:
                     data={
                         "cache_key": key[:8] + "...",
                         "subscriber_count": subscriber_count,
+                        "is_primary": is_primary,
                     },
                 )
             )
 
-        try:
-            while True:
-                line = await queue.get()
-                if line is None:  # Stream ended
-                    break
-                yield line
-        finally:
-            async with self.lock:
-                if key in self.subscribers and queue in self.subscribers[key]:
-                    self.subscribers[key].remove(queue)
-                    if not self.subscribers[key]:
-                        del self.subscribers[key]
-                        self.active_streams.pop(key, None)
+        return is_primary, queue
+
+    async def unregister(self, key: str, queue: "Queue[Optional[str]]") -> None:
+        """Remove a subscriber queue from the stream."""
+
+        async with self.lock:
+            if key in self.subscribers and queue in self.subscribers[key]:
+                self.subscribers[key].remove(queue)
+                if not self.subscribers[key]:
+                    del self.subscribers[key]
+                    self.active_streams.pop(key, None)
 
     async def publish(self, key: str, line: str) -> None:
         """

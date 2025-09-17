@@ -142,7 +142,8 @@ class OpenAIProvider:
             **params: Parameters to pass to the OpenAI chat completion API
 
         Returns:
-            The API response from OpenAI
+            The API response from OpenAI (regular object for non-streaming,
+            async generator for streaming)
 
         Raises:
             openai.APIError: If there are issues with the API call after retries
@@ -151,6 +152,37 @@ class OpenAIProvider:
         if not self._client:
             raise ValueError("OpenAI client not properly initialized")
 
+        # Handle streaming case separately so we can return the AsyncStream
+        stream = params.get('stream', False)
+        if stream:
+            # For streaming, await the client call to obtain the AsyncStream
+            attempt = 0
+            while True:
+                try:
+                    return await self._client.chat.completions.create(**params)
+                except openai.RateLimitError as e:
+                    if attempt >= self._max_retries:
+                        raise e
+                    delay = self._base_delay * (2**attempt) + random.uniform(
+                        0, self._jitter
+                    )
+                    await asyncio.sleep(delay)
+                    attempt += 1
+                except (
+                    openai.APIConnectionError,
+                    httpx.ConnectError,
+                    httpx.TimeoutException,
+                    httpx.NetworkError,
+                ) as e:
+                    if attempt >= self._max_retries:
+                        raise e
+                    delay = self._base_delay * (2**attempt) + random.uniform(
+                        0, self._jitter
+                    )
+                    await asyncio.sleep(delay)
+                    attempt += 1
+
+        # Non-streaming case
         attempt = 0
         while True:
             try:

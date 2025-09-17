@@ -56,6 +56,24 @@ class StreamProcessor:
         self.output_token_count = 0
         self.next_anthropic_block_idx = 0
 
+    def snapshot_content(self) -> Dict[str, Optional[str]]:
+        """Return a snapshot of accumulated content for diagnostics."""
+        return {
+            "thinking": self.thinking.buffer if self.thinking else None,
+            "text": self.text.content if self.text else None,
+        }
+
+    def snapshot_tool_calls(self) -> list:
+        """Return simplified view of tool calls for diagnostics."""
+        return [
+            {
+                "id": tool_id,
+                "name": tool.get("name"),
+                "arguments": tool.get("arguments", ""),
+            }
+            for tool_id, tool in self.tools.items()
+        ]
+
     async def process_thinking_content(self, content: str) -> list:
         # Process thinking content with state tracking
         events = []
@@ -324,9 +342,9 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             "thinking_enabled": thinking_enabled,
             "stream_state": {
                 "message_id": anthropic_message_id,
-                "total_content": processor.get_total_content() if processor else None,
-                "tool_calls": processor.tool_manager.get_tool_calls() if processor else None,
-                "output_tokens": processor.usage_tracker.output_tokens if processor else 0,
+                "content": processor.snapshot_content() if processor else None,
+                "tool_calls": processor.snapshot_tool_calls() if processor else None,
+                "output_tokens": processor.output_token_count if processor else 0,
             }
         }
 

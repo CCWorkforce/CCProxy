@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import time
-from typing import Any, Dict, Optional, List, AsyncIterator
+from typing import Any, Dict, Optional, List, AsyncIterator, Tuple
 
 from .models import CachedResponse
 from .statistics import CacheStatistics
@@ -337,11 +337,24 @@ class ResponseCache:
 
     async def subscribe_stream(
         self, request: MessagesRequest, request_id: Optional[str] = None
-    ) -> AsyncIterator[str]:
-        """Subscribe to a deduplicated stream."""
+    ) -> Tuple[bool, AsyncIterator[str], str]:
+        """Subscribe to a deduplicated stream, returning iterator metadata."""
         cache_key = self._generate_cache_key(request)
-        async for line in self._stream_deduplicator.subscribe(cache_key, request_id):
-            yield line
+        is_primary, queue = await self._stream_deduplicator.register(
+            cache_key, request_id
+        )
+
+        async def iterator():
+            try:
+                while True:
+                    item = await queue.get()
+                    if item is None:
+                        break
+                    yield item
+            finally:
+                await self._stream_deduplicator.unregister(cache_key, queue)
+
+        return is_primary, iterator(), cache_key
 
     async def publish_stream_line(self, key: str, line: str) -> None:
         """Publish a line to stream subscribers."""

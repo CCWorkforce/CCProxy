@@ -330,8 +330,8 @@ async def create_message_proxy(request: Request) -> Response:
                 )
             )
             if settings.stream_dedupe_enabled:
-                is_primary, q, key = await response_cache.subscribe_stream(
-                    anthropic_request
+                is_primary, stream_iterator, key = await response_cache.subscribe_stream(
+                    anthropic_request, request_id=request_id
                 )
                 if is_primary:
                     try:
@@ -363,32 +363,26 @@ async def create_message_proxy(request: Request) -> Response:
                         raise
 
                     async def fanout():
-                        async for (
-                            line
-                        ) in handle_anthropic_streaming_response_from_openai_stream(
-                            openai_stream_response,
-                            anthropic_request.model,
-                            estimated_input_tokens,
-                            request_id,
-                            request.state.start_time_monotonic,
-                            thinking_enabled=anthropic_request.thinking is not None,
-                        ):
-                            await response_cache.publish_stream_line(key, line)
-                        await response_cache.finalize_stream(key)
+                        try:
+                            async for (
+                                line
+                            ) in handle_anthropic_streaming_response_from_openai_stream(
+                                openai_stream_response,
+                                anthropic_request.model,
+                                estimated_input_tokens,
+                                request_id,
+                                request.state.start_time_monotonic,
+                                thinking_enabled=anthropic_request.thinking is not None,
+                            ):
+                                await response_cache.publish_stream_line(key, line)
+                        finally:
+                            await response_cache.finalize_stream(key)
 
                     create_task(fanout())
 
-                async def gen():
-                    try:
-                        while True:
-                            item = await q.get()
-                            if item is None:
-                                break
-                            yield item
-                    finally:
-                        await response_cache.finalize_stream(key)
-
-                return StreamingResponse(gen(), media_type="text/event-stream")
+                return StreamingResponse(
+                    stream_iterator, media_type="text/event-stream"
+                )
             else:
                 openai_stream_response = await provider.create_chat_completion(
                     **openai_params
