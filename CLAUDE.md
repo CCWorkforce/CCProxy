@@ -40,38 +40,65 @@ Health/metrics
 - Health: GET / (root) returns {status: ok}
 - Metrics: GET /v1/metrics; cache stats: GET /v1/cache/stats; clear caches: POST /v1/cache/clear
 
-Big-picture architecture
-- Entry points
-  - main.py launches uvicorn; wsgi.py exposes app for Gunicorn
-  - App factory: ccproxy/interfaces/http/app.py:create_app(Settings) wires dependencies and exception handlers
-- HTTP surface (FastAPI routers)
-  - /v1/messages (POST): ccproxy/interfaces/http/routes/messages.py:create_message_proxy handles Anthropic-compatible Messages requests; supports streaming via text/event-stream
-  - /v1/messages/count_tokens (POST): returns token estimate
-  - /v1/metrics, /v1/cache/stats, /v1/cache/clear, /v1/metrics/reset: operational endpoints
-  - / (GET): basic health
-- Provider abstraction
-  - ccproxy/infrastructure/providers/base.py defines ChatProvider protocol
-  - ccproxy/infrastructure/providers/openai_provider.py: High-performance HTTP/2 client with optimized connection pooling (500 connections, 120s keepalive); exponential backoff with jitter for retries; comprehensive UTF-8 error handling and recovery; rate limiting and network error resilience
-- Request conversion and streaming bridge
-  - ccproxy/application/converters.py: Advanced Anthropic↔OpenAI message conversion with @lru_cache decorators and complex tool result serialization; supports multi-modal content (text, images, tool use, tool results); advanced UTF-8 enforcement with recovery mechanisms; streaming support and sophisticated tool choice mapping
-  - ccproxy/interfaces/http/streaming.py converts OpenAI ChatCompletionChunk streams into Anthropic SSE events, tracking content, tool-use, and thinking/signature blocks, with accurate stop-reason mapping
-- Tokenization and model selection
-  - ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); complex truncation support with configurable strategies; automatic encoder fallback and comprehensive error recovery; support for redacted thinking blocks
-  - ccproxy/application/model_selection.py selects target OpenAI model based on requested Anthropic model (opus/sonnet→BIG, haiku→SMALL)
-- Caching and validation
-  - ccproxy/application/response_cache.py: Advanced caching with circuit breaker pattern for validation failures, memory management (500MB limit), streaming de-duplication with publisher-subscriber patterns, data redaction, background cleanup, and comprehensive performance metrics
-  - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with statistical tracking (hits/misses/hit rate); SHA-256 cryptographic hashing for request deduplication; efficient OrderedDict-based eviction
-- Config and logging
-  - ccproxy/config.py: Pydantic Settings; reasoning-effort/temperature/developer message capability sets; env aliasing and validation
-  - ccproxy/logging.py: JSON log formatting, structured events, optional file logging; middleware stamps X-Request-ID and timing
-  - ccproxy/monitoring.py: rolling latency stats (avg/p95/p99), error rate
+Big-picture architecture (Hexagonal/Clean Architecture)
+
+## Domain Layer (ccproxy/domain/)
+- Domain models and core business logic
+- ccproxy/domain/models.py: Core domain entities and data structures
+- ccproxy/domain/exceptions.py: Domain-specific exceptions and error handling
+
+## Application Layer (ccproxy/application/)
+- Use cases and application services
+- ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI
+- ccproxy/application/converters_module/: Modular converter implementations with specialized processors
+- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry)
+- ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
+- ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
+- ccproxy/application/response_cache.py: Response caching abstraction (delegates to cache implementations)
+- ccproxy/application/cache/: Advanced caching with circuit breaker pattern, memory management, streaming de-duplication
+- ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system
+- ccproxy/application/type_utils.py: Type utilities and helper functions
+
+## Infrastructure Layer (ccproxy/infrastructure/)
+- External service integrations and infrastructure concerns
+- ccproxy/infrastructure/providers/: Provider implementations for external services
+  - base.py: ChatProvider protocol definition
+  - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive)
+
+## Interface Layer (ccproxy/interfaces/)
+- External interfaces and delivery mechanisms
+- ccproxy/interfaces/http/: HTTP/REST API interface
+  - app.py: FastAPI application factory and dependency injection
+  - routes/: HTTP route handlers and controllers
+  - streaming.py: SSE streaming for real-time responses
+  - errors.py: HTTP error handling and response formatting
+  - middleware.py: Request/response middleware chain
+  - guardrails.py: Input validation and security guards
+  - http_status.py: HTTP status code utilities
+  - upstream_limits.py: Upstream service rate limiting
+
+## Cross-cutting Concerns
+- ccproxy/config.py: Pydantic Settings with environment validation
+- ccproxy/logging.py: Structured JSON logging with request tracing
+- ccproxy/monitoring.py: Performance metrics and health monitoring
+- ccproxy/constants.py: Global constants and configuration
+- ccproxy/enums.py: Enumeration types used across layers
+
+## Entry Points
+- main.py: Development server (uvicorn with auto-reload)
+- wsgi.py: Production WSGI application for Gunicorn
+- App factory: ccproxy/interfaces/http/app.py:create_app(Settings) provides dependency injection
 
 Development notes for Claude Code
 - Always construct the FastAPI app through create_app(Settings); do not import globals directly
+- Follow hexagonal architecture principles: domain models should not depend on external concerns
+- Application layer orchestrates use cases; infrastructure layer handles external integrations
 - When adding parameters, ensure OpenAI parity: warn or omit unsupported fields; map tool_choice carefully
-- For non-stream requests, integrate with response_cache to avoid duplicate upstream calls; validate responses before caching
+- For non-stream requests, use application/cache layer to avoid duplicate upstream calls
 - Preserve UTF‑8 throughout; never assume ASCII; rely on provider handlers converting decode errors to APIError
 - Follow existing logging events (LogEvent) and avoid logging secrets; Settings controls log file path
+- Use dependency injection through the app factory for testability and loose coupling
+- Error tracking is centralized in application/error_tracker.py for comprehensive monitoring
 
 Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
