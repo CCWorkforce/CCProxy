@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # FastAPI framework
-fastapi==0.116.1
+fastapi==0.116.2
 uvicorn[standard]==0.35.0
 
 # OpenAI client
@@ -42,5 +42,5 @@ six==1.17.0
 pytest==8.4.2
 pytest-asyncio==1.2.0
 ruff==0.13.0
-starlette>=0.47.3
+starlette>=0.48.0
 standard>=1.0.3
