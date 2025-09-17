@@ -10,6 +10,7 @@ from ...logging import init_logging
 from ...infrastructure.providers.openai_provider import OpenAIProvider
 from ...domain.models import AnthropicErrorType
 from ...application.response_cache import response_cache
+from ...application.error_tracker import error_tracker
 from .middleware import logging_middleware
 from .errors import (
     log_and_return_error_response,
@@ -40,6 +41,10 @@ def create_app(settings: Settings) -> FastAPI:
     async def lifespan(app: FastAPI):
         logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
+
+        logging.info("Initializing error tracker")
+        await app.state.error_tracker.initialize(settings)
+
         try:
             yield
         finally:
@@ -47,6 +52,9 @@ def create_app(settings: Settings) -> FastAPI:
             try:
                 await app.state.response_cache.stop_cleanup_task()
                 logging.info("Response cache cleanup stopped")
+
+                await app.state.error_tracker.shutdown()
+                logging.info("Error tracker shutdown")
             finally:
                 provider = getattr(app.state, "provider", None)
                 if provider and hasattr(provider, "close"):
@@ -73,6 +81,7 @@ def create_app(settings: Settings) -> FastAPI:
         logging.error(f"Failed to initialize OpenAI provider: {str(e)}")
         raise
     app.state.response_cache = response_cache
+    app.state.error_tracker = error_tracker
 
     # Core middleware
     app.middleware("http")(logging_middleware)

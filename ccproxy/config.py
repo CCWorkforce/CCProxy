@@ -98,6 +98,30 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("REDACT_LOG_FIELDS"),
     )
 
+    # Error tracking configuration
+    error_tracking_enabled: bool = Field(
+        default=True, validation_alias=AliasChoices("ERROR_TRACKING_ENABLED")
+    )
+    error_tracking_file: str = Field(
+        default="errors_detailed.jsonl",
+        validation_alias=AliasChoices("ERROR_TRACKING_FILE"),
+    )
+    error_tracking_max_size_mb: int = Field(
+        default=100, validation_alias=AliasChoices("ERROR_TRACKING_MAX_SIZE_MB")
+    )
+    error_tracking_retention_days: int = Field(
+        default=30, validation_alias=AliasChoices("ERROR_TRACKING_RETENTION_DAYS")
+    )
+    error_tracking_capture_request: bool = Field(
+        default=True, validation_alias=AliasChoices("ERROR_TRACKING_CAPTURE_REQUEST")
+    )
+    error_tracking_capture_response: bool = Field(
+        default=True, validation_alias=AliasChoices("ERROR_TRACKING_CAPTURE_RESPONSE")
+    )
+    error_tracking_max_body_size: int = Field(
+        default=10000, validation_alias=AliasChoices("ERROR_TRACKING_MAX_BODY_SIZE")
+    )
+
     max_stream_seconds: int = Field(
         default=600, validation_alias=AliasChoices("MAX_STREAM_SECONDS")
     )

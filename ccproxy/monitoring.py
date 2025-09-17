@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from collections import deque
 import statistics
 
+from .constants import MONITORING_RECENT_DURATIONS_MAXLEN
+
 
 @dataclass
 class PerformanceMetrics:
@@ -19,7 +21,7 @@ class PerformanceMetrics:
     p99_duration_ms: float = 0
     error_count: int = 0
     active_requests: int = 0
-    recent_durations: deque = field(default_factory=lambda: deque(maxlen=1000))
+    recent_durations: deque = field(default_factory=lambda: deque(maxlen=MONITORING_RECENT_DURATIONS_MAXLEN))
 
 
 class PerformanceMonitor:

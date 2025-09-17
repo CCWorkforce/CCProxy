@@ -1,12 +1,14 @@
 import json
 import time
 import uuid
+import asyncio
 from typing import AsyncGenerator, Dict, Optional, Literal
 
 import openai
 from openai.types.chat import ChatCompletionChunk
 
 from ...application.tokenizer import get_token_encoder
+from ...application.error_tracker import error_tracker, ErrorType
 from ...logging import error, info, LogRecord, LogEvent
 from .errors import (
     get_anthropic_error_details_from_execution,
@@ -53,6 +55,24 @@ class StreamProcessor:
         self.tool_starts = set()
         self.output_token_count = 0
         self.next_anthropic_block_idx = 0
+
+    def snapshot_content(self) -> Dict[str, Optional[str]]:
+        """Return a snapshot of accumulated content for diagnostics."""
+        return {
+            "thinking": self.thinking.buffer if self.thinking else None,
+            "text": self.text.content if self.text else None,
+        }
+
+    def snapshot_tool_calls(self) -> list:
+        """Return simplified view of tool calls for diagnostics."""
+        return [
+            {
+                "id": tool_id,
+                "name": tool.get("name"),
+                "arguments": tool.get("arguments", ""),
+            }
+            for tool_id, tool in self.tools.items()
+        ]
 
     async def process_thinking_content(self, content: str) -> list:
         # Process thinking content with state tracking
@@ -312,6 +332,32 @@ async def handle_anthropic_streaming_response_from_openai_stream(
         )
         stream_final_message = f"Error during OpenAI stream conversion: {error_msg_str}"
         final_anthropic_stop_reason = "error"
+
+        # Comprehensive error tracking for streaming
+        metadata = {
+            "conversion_type": "openai_to_anthropic_stream",
+            "original_model": original_anthropic_model_name,
+            "error_message": error_msg_str,
+            "error_type": error_type.value,
+            "thinking_enabled": thinking_enabled,
+            "stream_state": {
+                "message_id": anthropic_message_id,
+                "content": processor.snapshot_content() if processor else None,
+                "tool_calls": processor.snapshot_tool_calls() if processor else None,
+                "output_tokens": processor.output_token_count if processor else 0,
+            }
+        }
+
+        if provider_err_details:
+            metadata["provider_details"] = provider_err_details.model_dump()
+
+        # Track the streaming error
+        asyncio.create_task(error_tracker.track_error(
+            error=e,
+            error_type=ErrorType.STREAM_ERROR,
+            request_id=request_id,
+            metadata=metadata,
+        ))
 
         error(
             LogRecord(

@@ -101,6 +101,7 @@ class LogEvent(enum.Enum):
     PROVIDER_ERROR_DETAILS = "provider_error_details"
     CACHE_EVENT = "cache_event"
     STREAM_EVENT = "stream_event"
+    CONVERSION_EVENT = "conversion_event"
 
 
 @dataclasses.dataclass
