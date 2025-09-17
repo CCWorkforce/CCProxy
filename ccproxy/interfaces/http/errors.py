@@ -14,6 +14,11 @@ from ...domain.models import (
     ProviderErrorMetadata,
 )
 from ...logging import error, warning, LogRecord, LogEvent
+from ...application.error_tracker import (
+    error_tracker,
+    ErrorType,
+    get_error_type_from_exception,
+)
 
 
 STATUS_CODE_ERROR_MAP: Dict[int, AnthropicErrorType] = {
@@ -230,4 +235,55 @@ async def log_and_return_error_response(
         ),
         exc=caught_exception,
     )
+
+    # Comprehensive error tracking
+    try:
+        # Determine error type
+        if caught_exception:
+            error_type = get_error_type_from_exception(caught_exception)
+        else:
+            # Map Anthropic error type to our error type
+            error_type_map = {
+                AnthropicErrorType.INVALID_REQUEST: ErrorType.VALIDATION_ERROR,
+                AnthropicErrorType.AUTHENTICATION: ErrorType.AUTH_ERROR,
+                AnthropicErrorType.PERMISSION: ErrorType.AUTH_ERROR,
+                AnthropicErrorType.RATE_LIMIT: ErrorType.RATE_LIMIT_ERROR,
+                AnthropicErrorType.OVERLOADED: ErrorType.RATE_LIMIT_ERROR,
+                AnthropicErrorType.API_ERROR: ErrorType.API_ERROR,
+            }
+            error_type = error_type_map.get(anthropic_error_type, ErrorType.INTERNAL_ERROR)
+
+        # Capture request snapshot
+        request_snapshot = await error_tracker.capture_request_snapshot(request)
+
+        # Capture response snapshot
+        response_snapshot = error_tracker.capture_response_snapshot(
+            response=response,
+            status_code=status_code,
+            elapsed_ms=duration_ms,
+        )
+
+        # Track the error with full context
+        metadata = {
+            "anthropic_error_type": anthropic_error_type.value,
+            "status_code": status_code,
+            "client_ip": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+        }
+        if provider_details:
+            metadata["provider_name"] = provider_details.provider_name
+            metadata["provider_error"] = provider_details.raw_error
+
+        await error_tracker.track_error(
+            error=caught_exception or Exception(error_message),
+            error_type=error_type,
+            request_id=request_id,
+            request_snapshot=request_snapshot,
+            response_snapshot=response_snapshot,
+            metadata=metadata,
+        )
+    except Exception:
+        # Don't let error tracking break the response
+        pass
+
     return response
