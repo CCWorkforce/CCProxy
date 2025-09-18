@@ -52,6 +52,148 @@ CCProxy includes high-performance HTTP client optimizations for faster OpenAI AP
 
 See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
+## Architecture
+
+CCProxy follows Clean Architecture (Hexagonal Architecture) principles with clear separation of concerns:
+
+```mermaid
+graph TB
+    subgraph "External Clients"
+        Client[Claude Code / API Clients]
+    end
+
+    subgraph "Interface Layer"
+        HTTP[FastAPI HTTP Interface]
+        Routes[Route Handlers]
+        MW[Middleware Chain]
+        Stream[SSE Streaming]
+        Guard[Input Guardrails]
+    end
+
+    subgraph "Application Layer"
+        Conv[Message Converters]
+        Cache[Response Cache]
+        Token[Tokenizer Service]
+        Model[Model Selection]
+        Valid[Request Validator]
+        Error[Error Tracker]
+    end
+
+    subgraph "Domain Layer"
+        DModel[Domain Models]
+        DExc[Domain Exceptions]
+        BLogic[Core Business Logic]
+    end
+
+    subgraph "Infrastructure Layer"
+        Provider[Provider Abstraction]
+        OpenAI[OpenAI Provider]
+        HTTP2[HTTP/2 Client]
+        Pool[Connection Pool]
+    end
+
+    subgraph "External Services"
+        OAPI[OpenAI API]
+        OR[OpenRouter API]
+    end
+
+    subgraph "Configuration & Monitoring"
+        Config[Settings/Config]
+        Log[JSON Logging]
+        Monitor[Metrics & Health]
+    end
+
+    Client -->|Anthropic Messages API| HTTP
+    HTTP --> Routes
+    Routes --> MW
+    MW --> Guard
+    Guard --> Conv
+
+    Conv --> Cache
+    Conv --> Token
+    Conv --> Model
+    Conv --> Valid
+    Conv --> Error
+
+    Conv --> DModel
+    Error --> DExc
+    Model --> BLogic
+
+    Conv --> Provider
+    Provider --> OpenAI
+    OpenAI --> HTTP2
+    HTTP2 --> Pool
+    Pool --> OAPI
+    Pool --> OR
+
+    Routes --> Stream
+    Stream --> Provider
+
+    Config -.->|Inject| HTTP
+    Log -.->|Track| MW
+    Monitor -.->|Observe| Cache
+    Monitor -.->|Health| HTTP
+
+    style Client fill:#e1f5fe
+    style HTTP fill:#fff3e0
+    style Routes fill:#fff3e0
+    style MW fill:#fff3e0
+    style Stream fill:#fff3e0
+    style Guard fill:#fff3e0
+    style Conv fill:#f3e5f5
+    style Cache fill:#f3e5f5
+    style Token fill:#f3e5f5
+    style Model fill:#f3e5f5
+    style Valid fill:#f3e5f5
+    style Error fill:#f3e5f5
+    style DModel fill:#e8f5e9
+    style DExc fill:#e8f5e9
+    style BLogic fill:#e8f5e9
+    style Provider fill:#fce4ec
+    style OpenAI fill:#fce4ec
+    style HTTP2 fill:#fce4ec
+    style Pool fill:#fce4ec
+    style OAPI fill:#ffebee
+    style OR fill:#ffebee
+    style Config fill:#f5f5f5
+    style Log fill:#f5f5f5
+    style Monitor fill:#f5f5f5
+```
+
+### Layer Responsibilities
+
+#### 🎯 Domain Layer (`ccproxy/domain/`)
+- **Core Business Logic**: Pure business rules independent of external concerns
+- **Domain Models**: Core entities and data structures
+- **Domain Exceptions**: Business-specific error handling
+
+#### 🔧 Application Layer (`ccproxy/application/`)
+- **Use Cases**: Orchestrates domain logic and infrastructure
+- **Message Conversion**: Anthropic ↔ OpenAI format translation
+- **Caching Strategy**: Response caching with de-duplication
+- **Token Management**: Async token counting with TTL cache (300s)
+- **Model Mapping**: Routes requests to appropriate models (Opus/Sonnet→BIG, Haiku→SMALL)
+- **Request Validation**: Cryptographic hashing with LRU cache (10k capacity)
+
+#### 🌐 Infrastructure Layer (`ccproxy/infrastructure/`)
+- **Provider Integration**: OpenAI/OpenRouter API communication
+- **HTTP/2 Client**: High-performance connection pooling (500 connections, 120s keepalive)
+- **Circuit Breaker**: Fault tolerance and resilience patterns
+- **External Services**: Handles all third-party integrations
+
+#### 📡 Interface Layer (`ccproxy/interfaces/`)
+- **HTTP API**: FastAPI application with dependency injection
+- **Route Handlers**: Request/response processing
+- **SSE Streaming**: Real-time response streaming
+- **Middleware**: Request tracing, logging, error handling
+- **Input Validation**: Security guardrails and sanitization
+
+#### ⚙️ Cross-Cutting Concerns
+- **Configuration**: Environment-based settings with Pydantic validation
+- **Logging**: Structured JSON logging with request correlation
+- **Monitoring**: Performance metrics, health checks, cache statistics
+- **Error Tracking**: Centralized error monitoring and alerting
+
 ## Quickstart (uv + .env + Gunicorn)
 
 1. Create your environment file from the template:
@@ -107,3 +249,7 @@ claude
 * `PORT`: Server port (default: `11434`)
 * `LOG_LEVEL`: Logging level (default: `INFO`)
 * `OPENAI_BASE_URL`: OpenAI API base URL (default: `https://api.openai.com/v1`)
+
+## Author
+
+CCWorkforce Engineers
