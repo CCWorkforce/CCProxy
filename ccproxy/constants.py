@@ -19,7 +19,6 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
-    "qwen/qwen3-235b-a22b-thinking-2507",
 })
 
 # Models that do not support temperature (e.g., temperature)
@@ -81,6 +80,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("deepseek/deepseek-chat-v3.1", 163_840),
     ("x-ai/grok-code-fast-1", 256_000),
     ("qwen/qwen3-next-80b-a3b-thinking", 262_144),
+    ("qwen/qwen3-coder-plus", 128_000),
+    ("qwen/qwen3-coder-flash", 128_000),
 })
 
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -101,6 +102,8 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("qwen/qwen3-next-80b-a3b-thinking", 66_560),
     ("deepseek/deepseek-chat-v3.1", 134_144),
     ("x-ai/grok-code-fast-1", 10_000),
+    ("qwen/qwen3-coder-plus", 66_560),
+    ("qwen/qwen3-coder-flash", 66_560),
 })
 
 MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_MAX_OUTPUT_TOKEN_LIMIT)
