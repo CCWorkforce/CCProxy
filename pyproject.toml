@@ -5,7 +5,7 @@ description = "Proxy server enabling Claude Code to work with OpenAI and its com
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [
-    {name = "Kenny Dizi", email = "chitrung09t2@gmail.com"}
+    {name = "CCWorkforce Engineers"}
 ]
 dependencies = [
     "fastapi[standard]>=0.116.2",
