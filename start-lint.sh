@@ -39,7 +39,8 @@ check_ruff() {
     fi
 
     echo -e "${GREEN}✅ ruff is available via uv${NC}"
-    echo -e "${CYAN}Version: $(uv run --with ruff ruff --version)${NC}"
+    echo -e "${CYAN}uv version: $(uv --version)${NC}"
+    echo -e "${CYAN}ruff version: $(uv run --with ruff ruff --version)${NC}"
 }
 
 # Function to find Python files
@@ -223,7 +224,8 @@ install_ruff() {
     uv add --dev ruff
 
     echo -e "${GREEN}✅ ruff installation completed via uv${NC}"
-    echo -e "${CYAN}Version: $(uv run --with ruff ruff --version)${NC}"
+    echo -e "${CYAN}uv version: $(uv --version)${NC}"
+    echo -e "${CYAN}ruff version: $(uv run --with ruff ruff --version)${NC}"
 }
 
 # Function to list files

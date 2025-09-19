@@ -39,7 +39,8 @@ check_pytest() {
     fi
 
     echo -e "${GREEN}✅ pytest is available via uv${NC}"
-    echo -e "${CYAN}Version: $(uv run pytest --version)${NC}"
+    echo -e "${CYAN}uv version: $(uv --version)${NC}"
+    echo -e "${CYAN}pytest version: $(uv run pytest --version)${NC}"
 }
 
 # Function to find test files
