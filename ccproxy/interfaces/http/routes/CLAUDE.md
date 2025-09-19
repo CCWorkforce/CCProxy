@@ -18,3 +18,11 @@
 - **Error handling**: Use structured error responses through the error handling system
 - **Performance**: Optimize for high throughput and low latency
 - **Rate limiting**: Implement proper rate limiting for API endpoints
+- **Reasoning support**: Handle OpenRouter and standard reasoning configurations based on provider detection
+
+## OpenRouter Reasoning Support:
+- **Provider detection**: Automatically detects OpenRouter by checking if "openrouter" is in base_url
+- **Dual format support**: Uses OpenRouter's `reasoning` object for OpenRouter providers, standard `reasoning_effort` for others
+- **Model filtering**: Uses `OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS` for OpenRouter-specific reasoning models
+- **Token limits**: Enforces OpenRouter's 1024-32000 reasoning token limits with proper validation
+- **Configuration**: OpenRouter reasoning object includes `effort`, `max_tokens`, `enabled`, and `exclude` parameters

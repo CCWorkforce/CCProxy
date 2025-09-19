@@ -81,7 +81,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/config.py: Pydantic Settings with environment validation
 - ccproxy/logging.py: Structured JSON logging with request tracing
 - ccproxy/monitoring.py: Performance metrics and health monitoring
-- ccproxy/constants.py: Global constants and configuration
+- ccproxy/constants.py: Global constants and configuration (includes reasoning effort model support)
 - ccproxy/enums.py: Enumeration types used across layers
 
 ## Entry Points
@@ -99,6 +99,7 @@ Development notes for Claude Code
 - Follow existing logging events (LogEvent) and avoid logging secrets; Settings controls log file path
 - Use dependency injection through the app factory for testability and loose coupling
 - Error tracking is centralized in application/error_tracker.py for comprehensive monitoring
+- Reasoning support: Implement provider-specific reasoning configurations (OpenRouter vs standard) based on base_url detection
 
 Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
