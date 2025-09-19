@@ -14,22 +14,5 @@ Guidelines:
 - Configure cache warmup via environment variables for startup preloading
 - Run tests with uv: ./run-tests.sh or uv run pytest
 - Strict type checking enabled; all modules must have proper type annotations
-
-## New Modules Added
-
-### ccproxy/constants.py
-
-Contains all constant values used throughout the application:
-
-- UTF-8 enforcement message for models that support developer role
-- Model capability sets (reasoning effort, temperature, developer message support)
-- Top-tier models for OpenAI and Anthropic
-- Input and output token limits for all supported models
-
-### ccproxy/enums.py
-
-Contains all enumeration classes used throughout the application:
-
-- MessageRoles enum (Developer, System, User)
-- ReasoningEfforts enum (High, Medium, Low)
-- TruncationStrategy and TruncationConfig for message truncation handling
+- Run linting with uv: ./start-lint.sh whenever finishing the code change
+- Ensure the server works properly after finishing the code change, run ./run-ccproxy.sh and then check its output.
