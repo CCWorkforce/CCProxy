@@ -19,6 +19,13 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "gpt-5-mini",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "openai/gpt-5",
+    "openai/gpt-5-mini",
+})
+
+OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
+    "deepseek/deepseek-chat-v3.1",
+    "x-ai/grok-code-fast-1",
 })
 
 # Models that do not support temperature (e.g., temperature)
@@ -33,6 +40,8 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset({
     "gpt-5",
     "qwen/qwen3-235b-a22b-thinking-2507",
     "deepseek-reasoner",
+    "openai/gpt-5",
+    "openai/gpt-5-mini",
 })
 
 # Models that support developer messages (e.g., developer_message)
@@ -53,6 +62,7 @@ TOP_TIER_OPENAI_MODELS: FrozenSet[str] = frozenset({
     "o3-2025-04-16",
     "gpt-5-2025-08-07",
     "gpt-5",
+    "openai/gpt-5"
 })
 
 # Models that are in the top tier of the Anthropic API
@@ -70,6 +80,8 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("gpt-5", 400_000),
     ("gpt-5-mini-2025-08-07", 400_000),
     ("gpt-5-mini", 400_000),
+    ("openai/gpt-5", 400_000),
+    ("openai/gpt-5-mini", 400_000),
     ("qwen/qwen3-coder", 262_144),
     ("qwen/qwen3-235b-a22b-thinking-2507", 262_144),
     ("qwen/qwen3-coder-480b-a35b-07-25", 262_144),
@@ -95,6 +107,8 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("gpt-5", 128_000),
     ("gpt-5-mini-2025-08-07", 128_000),
     ("gpt-5-mini", 128_000),
+    ("openai/gpt-5", 128_000),
+    ("openai/gpt-5-mini", 128_000),
     ("deepseek-reasoner", 65_536),
     ("deepseek-chat", 8_192),
     ("qwen/qwen3-coder", 66_560),

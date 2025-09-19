@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from asyncio import create_task
 import openai
 
-from ccproxy.constants import MODEL_INPUT_TOKEN_LIMIT_MAP, MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS, TOP_TIER_ANTHROPIC_MODELS, TOP_TIER_OPENAI_MODELS
+from ccproxy.constants import MODEL_INPUT_TOKEN_LIMIT_MAP, MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP, NO_SUPPORT_TEMPERATURE_MODELS, OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS, SUPPORT_REASONING_EFFORT_MODELS, TOP_TIER_ANTHROPIC_MODELS, TOP_TIER_OPENAI_MODELS
 from ccproxy.enums import ReasoningEfforts
 
 from ....application.response_cache import ResponseCache
@@ -301,15 +301,43 @@ async def create_message_proxy(request: Request) -> Response:
                 else ReasoningEfforts.Medium.value
             )
         )
-        warning(
-            LogRecord(
-                LogEvent.STREAM_EVENT.value,
-                f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",
-                request_id,
-                {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
+
+        # Check if using OpenRouter provider
+        is_openrouter = "openrouter" in settings.base_url.lower()
+
+        if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
+            # Use OpenRouter reasoning format with effort and max_tokens
+            max_reasoning_tokens = min(anthropic_request.thinking.max_tokens or 2000, 32000)
+            max_reasoning_tokens = max(max_reasoning_tokens, 1024)  # Minimum 1024 tokens
+
+            reasoning_config = {
+                "effort": reasoning_effort,
+                "max_tokens": max_reasoning_tokens,
+                "enabled": True,
+                "exclude": True,
+            }
+            openai_params["reasoning"] = reasoning_config
+
+            warning(
+                LogRecord(
+                    LogEvent.STREAM_EVENT.value,
+                    f"OpenRouter model supports reasoning; 'reasoning' config with effort '{reasoning_effort}' and max_tokens {max_reasoning_tokens} will be added for model {target_model}.",
+                    request_id,
+                    {"parameter": "reasoning", "config": reasoning_config},
+                )
             )
-        )
-        openai_params["reasoning_effort"] = reasoning_effort
+        else:
+            # Use standard reasoning_effort for non-OpenRouter providers
+            openai_params["reasoning_effort"] = reasoning_effort
+
+            warning(
+                LogRecord(
+                    LogEvent.STREAM_EVENT.value,
+                    f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",
+                    request_id,
+                    {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
+                )
+            )
 
     debug(
         LogRecord(
