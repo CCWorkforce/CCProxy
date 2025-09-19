@@ -4,6 +4,8 @@
 
 ## Files in this layer:
 - `app.py`: FastAPI application factory and dependency injection container
+  - Integrates CacheWarmupManager during startup lifecycle
+  - Handles graceful shutdown of cache warmup and async resources
 - `routes/`: HTTP route handlers for different API endpoints
 - `streaming.py`: Server-Sent Events (SSE) streaming implementation
 - `errors.py`: HTTP error handling and response formatting
@@ -16,8 +18,10 @@
 - **Anthropic compatibility**: Keep endpoints Anthropic-compatible; correctly map OpenAI finish reasons
 - **SSE streaming**: Use StreamProcessor for SSE with race condition protection in subscriber management
 - **Error logging**: Exception handlers must capture and log to error.jsonl via ccproxy.logging
-- **Configuration**: Respect Settings for CORS, rate limits, and security headers
+- **Configuration**: Respect Settings for CORS, rate limits, security headers, and cache warmup
 - **FastAPI patterns**: Use dependency injection and proper async patterns
 - **Request lifecycle**: Proper middleware ordering and request/response handling
+- **Startup/Shutdown**: Initialize CacheWarmupManager in lifespan context if enabled
 - **Security**: Apply guardrails for input validation and protection against malicious requests
 - **Performance**: Optimize streaming and response handling for high throughput
+- **Type safety**: Strict type checking enabled; use proper type annotations

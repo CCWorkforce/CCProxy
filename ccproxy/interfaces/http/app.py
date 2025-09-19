@@ -11,6 +11,7 @@ from ...infrastructure.providers.openai_provider import OpenAIProvider
 from ...domain.models import AnthropicErrorType
 from ...application.response_cache import response_cache
 from ...application.error_tracker import error_tracker
+from ...application.cache.warmup import CacheWarmupManager, CacheWarmupConfig
 from .middleware import logging_middleware
 from .errors import (
     log_and_return_error_response,
@@ -45,6 +46,26 @@ def create_app(settings: Settings) -> FastAPI:
         logging.info("Initializing error tracker")
         await app.state.error_tracker.initialize(settings)
 
+        # Initialize cache warmup manager if enabled
+        if settings.cache_warmup_enabled:
+            logging.info("Initializing cache warmup manager")
+            warmup_config = CacheWarmupConfig(
+                enabled=settings.cache_warmup_enabled,
+                warmup_file_path=settings.cache_warmup_file_path,
+                max_warmup_items=settings.cache_warmup_max_items,
+                warmup_on_startup=settings.cache_warmup_on_startup,
+                preload_common_prompts=settings.cache_warmup_preload_common,
+                auto_save_popular=settings.cache_warmup_auto_save_popular,
+                popularity_threshold=settings.cache_warmup_popularity_threshold,
+                save_interval_seconds=settings.cache_warmup_save_interval_seconds,
+            )
+            app.state.cache_warmup_manager = CacheWarmupManager(
+                cache=app.state.response_cache,
+                config=warmup_config,
+            )
+            await app.state.cache_warmup_manager.start()
+            logging.info("Cache warmup manager started")
+
         try:
             yield
         finally:
@@ -55,6 +76,12 @@ def create_app(settings: Settings) -> FastAPI:
 
                 await app.state.error_tracker.shutdown()
                 logging.info("Error tracker shutdown")
+
+                # Stop cache warmup manager if it exists
+                if hasattr(app.state, 'cache_warmup_manager'):
+                    logging.info("Stopping cache warmup manager")
+                    await app.state.cache_warmup_manager.stop()
+                    logging.info("Cache warmup manager stopped")
             finally:
                 provider = getattr(app.state, "provider", None)
                 if provider and hasattr(provider, "close"):

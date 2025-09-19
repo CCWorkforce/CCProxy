@@ -144,13 +144,13 @@ class HTTPStatus(object):
         self._meaning = self._explanations[code]
         pass
 
-    def get_code(self):
+    def get_code(self) -> int:
         """
         Return the integer value of current status code
         """
         return self._code
 
-    def get_meaning(self):
+    def get_meaning(self) -> str:
         """
         Return the reason meaning of current status code.
         """
@@ -159,5 +159,5 @@ class HTTPStatus(object):
 
         return self._meaning
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self._code) + " " + str(self._meaning)

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from asyncio import create_task
 import openai
 
-from ccproxy.constants import MODEL_INPUT_TOKEN_LIMIT_MAP, MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP, NO_SUPPORT_TEMPERATURE_MODELS, SUPPORT_REASONING_EFFORT_MODELS, TOP_TIER_ANTHROPIC_MODELS, TOP_TIER_OPENAI_MODELS
+from ccproxy.constants import MODEL_INPUT_TOKEN_LIMIT_MAP, MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP, NO_SUPPORT_TEMPERATURE_MODELS, OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS, SUPPORT_REASONING_EFFORT_MODELS, TOP_TIER_ANTHROPIC_MODELS, TOP_TIER_OPENAI_MODELS
 from ccproxy.enums import ReasoningEfforts
 
 from ....application.response_cache import ResponseCache
@@ -27,10 +27,10 @@ from ....application.tokenizer import (
     truncate_request,
 )
 from ....application.converters import (
-    convert_anthropic_to_openai_messages,
     convert_anthropic_tools_to_openai,
     convert_anthropic_tool_choice_to_openai,
-    convert_openai_to_anthropic_response,
+    convert_messages_async,
+    convert_response_async,
 )
 from ....application.model_selection import select_target_model
 from ..streaming import handle_anthropic_streaming_response_from_openai_stream
@@ -206,12 +206,17 @@ async def create_message_proxy(request: Request) -> Response:
     )
 
     try:
-        openai_messages = convert_anthropic_to_openai_messages(
-            anthropic_request.messages,
-            anthropic_request.system,
+        # Use async converter for better performance
+        from ....application.converters_module.base import ConversionContext
+        context = ConversionContext(
             request_id=request_id,
             target_model=target_model,
             settings=settings,
+        )
+        openai_messages = await convert_messages_async(
+            anthropic_request.messages,
+            anthropic_request.system,
+            context=context,
         )
         openai_tools = convert_anthropic_tools_to_openai(
             anthropic_request.tools, settings=settings
@@ -301,15 +306,43 @@ async def create_message_proxy(request: Request) -> Response:
                 else ReasoningEfforts.Medium.value
             )
         )
-        warning(
-            LogRecord(
-                LogEvent.STREAM_EVENT.value,
-                f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",
-                request_id,
-                {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
+
+        # Check if using OpenRouter provider
+        is_openrouter = "openrouter" in settings.base_url.lower()
+
+        if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
+            # Use OpenRouter reasoning format with effort and max_tokens
+            max_reasoning_tokens = min(anthropic_request.thinking.max_tokens or 2000, 32000)
+            max_reasoning_tokens = max(max_reasoning_tokens, 1024)  # Minimum 1024 tokens
+
+            reasoning_config = {
+                "effort": reasoning_effort,
+                "max_tokens": max_reasoning_tokens,
+                "enabled": True,
+                "exclude": True,
+            }
+            openai_params["reasoning"] = reasoning_config
+
+            warning(
+                LogRecord(
+                    LogEvent.STREAM_EVENT.value,
+                    f"OpenRouter model supports reasoning; 'reasoning' config with effort '{reasoning_effort}' and max_tokens {max_reasoning_tokens} will be added for model {target_model}.",
+                    request_id,
+                    {"parameter": "reasoning", "config": reasoning_config},
+                )
             )
-        )
-        openai_params["reasoning_effort"] = reasoning_effort
+        else:
+            # Use standard reasoning_effort for non-OpenRouter providers
+            openai_params["reasoning_effort"] = reasoning_effort
+
+            warning(
+                LogRecord(
+                    LogEvent.STREAM_EVENT.value,
+                    f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",
+                    request_id,
+                    {"parameter": "reasoning_effort", "value": f"{reasoning_effort}"},
+                )
+            )
 
     debug(
         LogRecord(
@@ -426,8 +459,9 @@ async def create_message_proxy(request: Request) -> Response:
                         {"response": response_data},
                     )
                 )
-            anthropic_response_obj = convert_openai_to_anthropic_response(
-                openai_response_obj, anthropic_request.model, request_id=request_id
+            # Use async response converter
+            anthropic_response_obj = await convert_response_async(
+                openai_response_obj, request_id=request_id, context=context
             )
 
             # Cache the successful response for future use

@@ -1,7 +1,7 @@
 import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AliasChoices, field_validator
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 
 from urllib.parse import urlparse
 
@@ -157,6 +157,32 @@ class Settings(BaseSettings):
         default=True, validation_alias=AliasChoices("METRICS_CACHE_ENABLED")
     )
 
+    # Cache warmup configuration
+    cache_warmup_enabled: bool = Field(
+        default=False, validation_alias=AliasChoices("CACHE_WARMUP_ENABLED")
+    )
+    cache_warmup_file_path: Optional[str] = Field(
+        default="cache_warmup.json", validation_alias=AliasChoices("CACHE_WARMUP_FILE_PATH")
+    )
+    cache_warmup_max_items: int = Field(
+        default=100, validation_alias=AliasChoices("CACHE_WARMUP_MAX_ITEMS")
+    )
+    cache_warmup_on_startup: bool = Field(
+        default=True, validation_alias=AliasChoices("CACHE_WARMUP_ON_STARTUP")
+    )
+    cache_warmup_preload_common: bool = Field(
+        default=True, validation_alias=AliasChoices("CACHE_WARMUP_PRELOAD_COMMON")
+    )
+    cache_warmup_auto_save_popular: bool = Field(
+        default=True, validation_alias=AliasChoices("CACHE_WARMUP_AUTO_SAVE_POPULAR")
+    )
+    cache_warmup_popularity_threshold: int = Field(
+        default=3, validation_alias=AliasChoices("CACHE_WARMUP_POPULARITY_THRESHOLD")
+    )
+    cache_warmup_save_interval_seconds: int = Field(
+        default=3600, validation_alias=AliasChoices("CACHE_WARMUP_SAVE_INTERVAL_SECONDS")
+    )
+
     provider_max_retries: int = Field(
         default=3, validation_alias=AliasChoices("PROVIDER_MAX_RETRIES")
     )
@@ -176,7 +202,7 @@ class Settings(BaseSettings):
         "redact_log_fields",
     )
     @classmethod
-    def parse_comma_separated(cls, v):
+    def parse_comma_separated(cls, v: Union[List[str], str]) -> List[str]:
         """Parse comma-separated string values into lists for configuration fields.
 
         Handles both string inputs (splitting by commas) and already-list inputs.
@@ -194,7 +220,7 @@ class Settings(BaseSettings):
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize settings object and perform validation.
 
         Calls parent constructor with provided keyword arguments, then validates
@@ -210,7 +236,7 @@ class Settings(BaseSettings):
         self._validate_required_models()
         self._validate_security()
 
-    def _validate_required_models(self):
+    def _validate_required_models(self) -> None:
         """Validate that required model settings are configured."""
         errors = []
 
@@ -237,7 +263,7 @@ class Settings(BaseSettings):
             logging.error(f"Configuration Error:\n{error_message}\n")
             sys.exit(1)
 
-    def _validate_security(self):
+    def _validate_security(self) -> None:
         """Validates security configurations when RESTRICT_BASE_URL is enabled.
 
         Checks that OPENAI_BASE_URL uses HTTPS and the host is in ALLOWED_BASE_URL_HOSTS.
