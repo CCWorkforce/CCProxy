@@ -18,35 +18,35 @@ class CacheStatistics:
         self.total_cache_attempts = 0
         self.start_time = time.time()
 
-    def record_hit(self):
+    def record_hit(self) -> None:
         """Record a cache hit."""
         self.cache_hits += 1
 
-    def record_miss(self):
+    def record_miss(self) -> None:
         """Record a cache miss."""
         self.cache_misses += 1
 
-    def record_eviction(self, count: int = 1):
+    def record_eviction(self, count: int = 1) -> None:
         """Record cache eviction(s)."""
         self.evictions += count
 
-    def record_timeout_prevented(self):
+    def record_timeout_prevented(self) -> None:
         """Record a timeout that was prevented by cache."""
         self.timeouts_prevented += 1
 
-    def record_validation_failure(self):
+    def record_validation_failure(self) -> None:
         """Record a validation failure."""
         self.validation_failures += 1
 
-    def record_cache_attempt(self):
+    def record_cache_attempt(self) -> None:
         """Record a cache attempt."""
         self.total_cache_attempts += 1
 
-    def update_memory_usage(self, bytes_delta: int):
+    def update_memory_usage(self, bytes_delta: int) -> None:
         """Update memory usage statistics."""
         self.memory_usage_bytes += bytes_delta
 
-    def set_memory_usage(self, bytes_total: int):
+    def set_memory_usage(self, bytes_total: int) -> None:
         """Set total memory usage."""
         self.memory_usage_bytes = bytes_total
 
@@ -77,7 +77,7 @@ class CacheStatistics:
             "uptime_seconds": round(self.uptime_seconds, 1),
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset all statistics."""
         self.cache_hits = 0
         self.cache_misses = 0

@@ -15,6 +15,11 @@ from .converters_module import (
     # Base classes
     BaseConverter,
     ConversionContext,
+    # Async converters
+    AsyncMessageConverter,
+    AsyncResponseConverter,
+    convert_messages_async,
+    convert_response_async,
 )
 
 # Legacy internal functions (if needed by other modules)
@@ -45,6 +50,11 @@ __all__ = [
     "ContentConverter",
     "BaseConverter",
     "ConversionContext",
+    # Async converters
+    "AsyncMessageConverter",
+    "AsyncResponseConverter",
+    "convert_messages_async",
+    "convert_response_async",
     # Legacy/Internal
     "_serialize_tool_result_content_for_openai",
     "_serialize_tool_result_content_for_openai_cached",

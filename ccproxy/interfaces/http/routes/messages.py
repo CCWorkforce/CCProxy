@@ -27,10 +27,10 @@ from ....application.tokenizer import (
     truncate_request,
 )
 from ....application.converters import (
-    convert_anthropic_to_openai_messages,
     convert_anthropic_tools_to_openai,
     convert_anthropic_tool_choice_to_openai,
-    convert_openai_to_anthropic_response,
+    convert_messages_async,
+    convert_response_async,
 )
 from ....application.model_selection import select_target_model
 from ..streaming import handle_anthropic_streaming_response_from_openai_stream
@@ -206,12 +206,17 @@ async def create_message_proxy(request: Request) -> Response:
     )
 
     try:
-        openai_messages = convert_anthropic_to_openai_messages(
-            anthropic_request.messages,
-            anthropic_request.system,
+        # Use async converter for better performance
+        from ....application.converters_module.base import ConversionContext
+        context = ConversionContext(
             request_id=request_id,
             target_model=target_model,
             settings=settings,
+        )
+        openai_messages = await convert_messages_async(
+            anthropic_request.messages,
+            anthropic_request.system,
+            context=context,
         )
         openai_tools = convert_anthropic_tools_to_openai(
             anthropic_request.tools, settings=settings
@@ -454,8 +459,9 @@ async def create_message_proxy(request: Request) -> Response:
                         {"response": response_data},
                     )
                 )
-            anthropic_response_obj = convert_openai_to_anthropic_response(
-                openai_response_obj, anthropic_request.model, request_id=request_id
+            # Use async response converter
+            anthropic_response_obj = await convert_response_async(
+                openai_response_obj, request_id=request_id, context=context
             )
 
             # Cache the successful response for future use

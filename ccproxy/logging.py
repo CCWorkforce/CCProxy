@@ -15,7 +15,7 @@ from .config import Settings
 _REDACT_KEYS: set[str] = set()
 
 
-def _sanitize_for_json(obj) -> Any:
+def _sanitize_for_json(obj: Any) -> Any:
     """Recursively sanitize an object for JSON serialization.
 
     Converts non-serializable types (bytes, dataclasses, etc.) into JSON-compatible structures while redacting sensitive fields. Handles:
@@ -298,7 +298,7 @@ def init_logging(settings: Settings) -> logging.Logger:
     return _logger
 
 
-def shutdown_logging():
+def shutdown_logging() -> None:
     """Safely shutdown logging system, flushing all messages."""
     global _log_listener
     if _log_listener:
@@ -355,19 +355,19 @@ def is_debug_enabled() -> bool:
     return _logger is not None and _logger.isEnabledFor(logging.DEBUG)
 
 
-def debug(record: LogRecord):
+def debug(record: LogRecord) -> None:
     _log(logging.DEBUG, record)
 
 
-def info(record: LogRecord):
+def info(record: LogRecord) -> None:
     _log(logging.INFO, record)
 
 
-def warning(record: LogRecord, exc: Optional[Exception] = None):
+def warning(record: LogRecord, exc: Optional[Exception] = None) -> None:
     _log(logging.WARNING, record, exc=exc)
 
 
-def error(record: LogRecord, exc: Optional[Exception] = None):
+def error(record: LogRecord, exc: Optional[Exception] = None) -> None:
     _log(logging.ERROR, record, exc=exc)
 
 

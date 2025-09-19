@@ -14,6 +14,14 @@ from .main import (
     convert_openai_to_anthropic_response,
 )
 
+# Async converters for improved performance
+from .async_converter import (
+    AsyncMessageConverter,
+    AsyncResponseConverter,
+    convert_messages_async,
+    convert_response_async,
+)
+
 __all__ = [
     "AnthropicToOpenAIConverter",
     "OpenAIToAnthropicConverter",
@@ -26,4 +34,9 @@ __all__ = [
     "convert_anthropic_tools_to_openai",
     "convert_anthropic_tool_choice_to_openai",
     "convert_openai_to_anthropic_response",
+    # Async converters
+    "AsyncMessageConverter",
+    "AsyncResponseConverter",
+    "convert_messages_async",
+    "convert_response_async",
 ]
