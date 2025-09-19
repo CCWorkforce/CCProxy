@@ -5,6 +5,7 @@ import asyncio
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from collections import deque
+from typing import Deque
 import statistics
 
 from .constants import MONITORING_RECENT_DURATIONS_MAXLEN
@@ -21,13 +22,13 @@ class PerformanceMetrics:
     p99_duration_ms: float = 0
     error_count: int = 0
     active_requests: int = 0
-    recent_durations: deque = field(default_factory=lambda: deque(maxlen=MONITORING_RECENT_DURATIONS_MAXLEN))
+    recent_durations: Deque[float] = field(default_factory=lambda: deque(maxlen=MONITORING_RECENT_DURATIONS_MAXLEN))
 
 
 class PerformanceMonitor:
     """Monitor and track application performance metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the performance monitor with default metrics and synchronization primitives.
 
         Sets up:
@@ -99,7 +100,7 @@ class PerformanceMonitor:
                 "p99_duration_ms": round(self.metrics.p99_duration_ms, 2),
             }
 
-    async def reset_metrics(self):
+    async def reset_metrics(self) -> None:
         """Reset all metrics."""
         async with self._lock:
             self.metrics = PerformanceMetrics()

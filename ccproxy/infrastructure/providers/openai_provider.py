@@ -226,7 +226,7 @@ class OpenAIProvider:
                     ) from e
                 raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Clean up the HTTP client when shutting down."""
         if self._http_client:
             await self._http_client.aclose()

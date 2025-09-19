@@ -5,6 +5,8 @@
 ## Files in this layer:
 - `models.py`: Core domain entities and data structures for CCProxy
 - `exceptions.py`: Domain-specific exceptions and error types
+- `constants.py`: Constant values used throughout the application (model capabilities, token limits)
+- `enums.py`: Enumeration types including MessageRoles, ReasoningEfforts, and TruncationConfig
 
 ## Guidelines:
 - **Pure domain logic**: No dependencies on external frameworks or infrastructure
