@@ -139,13 +139,22 @@ class AsyncMessageConverter(BaseConverter):
             openai_msg["content"] = " ".join(text_parts)
         elif non_text_parts:
             # Only non-text
-            if len(non_text_parts) == 1:
-                converted = self.content_converter.convert_to_openai(non_text_parts[0])
-                openai_msg.update(converted if isinstance(converted, dict) else {"content": converted})
-            else:
-                openai_msg["content"] = [
-                    self.content_converter.convert_to_openai(block) for block in non_text_parts
-                ]
+            content = []
+            for block in non_text_parts:
+                if block.type == "image":
+                    content.append(self.content_converter.convert_image_block_to_openai(block))
+                elif block.type == "tool_use":
+                    # Tool use blocks should be handled separately, not in content
+                    pass
+                else:
+                    # For other types, add as text
+                    content.append({"type": "text", "text": str(block)})
+
+            if content:
+                if len(content) == 1:
+                    openai_msg["content"] = content[0]
+                else:
+                    openai_msg["content"] = content
 
         return openai_msg
 
