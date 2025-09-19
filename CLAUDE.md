@@ -11,11 +11,12 @@ Common commands
 - Docker build/run (compose): ./docker-compose-run.sh up -d
 - Docker logs: ./docker-compose-run.sh logs -f
 - Lint (ruff check): ./start-lint.sh --check
-- Lint fix + format: ./start-lint.sh --all
-- Typecheck: mypy .
-- Tests (all): pytest -q
-- Single test file: pytest -q test_optimized_client.py
-- Single test by node: pytest -q test_optimized_client.py::test_name
+- Lint fix + format: ./start-lint.sh --all or ./start-lint.sh --fix
+- Typecheck: mypy . (strict mode enabled)
+- Tests (all): ./run-tests.sh or uv run pytest -q
+- Tests with coverage: ./run-tests.sh --coverage
+- Single test file: uv run pytest -q test_optimized_client.py
+- Single test by node: uv run pytest -q test_optimized_client.py::test_name
 
 Environment configuration
 Required (via .env or environment)
@@ -30,6 +31,15 @@ Optional
 - LOG_FILE_PATH (default log.jsonl)
 - ERROR_LOG_FILE_PATH (default error.jsonl)
 - WEB_CONCURRENCY (for Gunicorn)
+Cache Warmup (all optional)
+- CACHE_WARMUP_ENABLED (default False)
+- CACHE_WARMUP_FILE_PATH (default cache_warmup.json)
+- CACHE_WARMUP_MAX_ITEMS (default 100)
+- CACHE_WARMUP_ON_STARTUP (default True)
+- CACHE_WARMUP_PRELOAD_COMMON (default True)
+- CACHE_WARMUP_AUTO_SAVE_POPULAR (default True)
+- CACHE_WARMUP_POPULARITY_THRESHOLD (default 3)
+- CACHE_WARMUP_SAVE_INTERVAL_SECONDS (default 3600)
 Scripts create .env.example and validate env where helpful.
 
 Run options
@@ -49,13 +59,16 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 
 ## Application Layer (ccproxy/application/)
 - Use cases and application services
-- ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI
+- ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI (exports async converters)
 - ccproxy/application/converters_module/: Modular converter implementations with specialized processors
+  - async_converter.py: AsyncMessageConverter and AsyncResponseConverter for parallel processing
+  - Optimized for high-throughput with ThreadPoolExecutor for CPU-bound operations
 - ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry)
 - ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
 - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
 - ccproxy/application/response_cache.py: Response caching abstraction (delegates to cache implementations)
 - ccproxy/application/cache/: Advanced caching with circuit breaker pattern, memory management, streaming de-duplication
+  - warmup.py: CacheWarmupManager for preloading popular requests and common prompts
 - ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system
 - ccproxy/application/type_utils.py: Type utilities and helper functions
 
@@ -95,18 +108,25 @@ Development notes for Claude Code
 - Application layer orchestrates use cases; infrastructure layer handles external integrations
 - When adding parameters, ensure OpenAI parity: warn or omit unsupported fields; map tool_choice carefully
 - For non-stream requests, use application/cache layer to avoid duplicate upstream calls
+- Use async converters (convert_messages_async, convert_response_async) for better performance
+- Cache warmup runs on startup when enabled, preloading common prompts and popular requests
 - Preserve UTF‑8 throughout; never assume ASCII; rely on provider handlers converting decode errors to APIError
 - Follow existing logging events (LogEvent) and avoid logging secrets; Settings controls log file path
 - Use dependency injection through the app factory for testability and loose coupling
 - Error tracking is centralized in application/error_tracker.py for comprehensive monitoring
 - Reasoning support: Implement provider-specific reasoning configurations (OpenRouter vs standard) based on base_url detection
+- Run tests with uv: ./run-tests.sh or uv run pytest
+- Always run linting after changes: ./start-lint.sh --check
 
 Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
 - For async tests, use pytest-asyncio; respx is available for httpx mocking
+- Test runner script: ./run-tests.sh (supports parallel execution, coverage, watch mode)
+- Comprehensive test coverage for error_tracker, converters, cache, routes, and async components
 
 CI/CD and tooling
-- Ruff and mypy configured in pyproject.toml
+- Ruff and mypy configured in pyproject.toml (strict type checking enabled)
+- Mypy strict mode: disallow_untyped_defs=true, warn_return_any=true, strict_optional=true
 - Dockerfile includes production (Debian) and Alpine targets; docker-compose.yml wires healthcheck and volumes
 - start-lint.sh provides lint workflow; docker-compose-run.sh wraps common compose actions
 

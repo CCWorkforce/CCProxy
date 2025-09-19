@@ -10,6 +10,10 @@
 - `stream_deduplication.py`: Publisher-subscriber patterns for streaming de-duplication
 - `statistics.py`: Cache performance metrics and statistics tracking
 - `models.py`: Cache-related data models and configurations
+- `warmup.py`: CacheWarmupManager for preloading popular requests and common prompts
+  - Tracks request popularity and auto-saves frequently used prompts
+  - Configurable via environment variables (CACHE_WARMUP_*)
+  - Supports warmup from log files and predefined common prompts
 
 ## Guidelines:
 - **Memory limits**: Respect 500MB cache memory limit with automatic cleanup
@@ -20,3 +24,5 @@
 - **Background cleanup**: Implement background processes for cache maintenance
 - **Thread safety**: All cache operations must be thread-safe and async-compatible
 - **TTL management**: Proper handling of time-to-live for cached entries
+- **Cache warmup**: Configure via environment to preload popular requests on startup
+- **Popularity tracking**: Auto-save popular requests based on configurable thresholds
