@@ -264,7 +264,6 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 "type": "message",
                 "role": "assistant",
                 "model": original_anthropic_model_name,
-                "content": [],
                 "stop_reason": None,
                 "stop_sequence": None,
                 "usage": {"input_tokens": estimated_input_tokens, "output_tokens": 0},
