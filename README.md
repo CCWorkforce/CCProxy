@@ -4,7 +4,7 @@
 
 ## Motivation
 
-Recent analytics show a large cost gap between major models: OpenAI GPT‑5 is far more cost‑efficient than Anthropic Claude Opus 4.1 (≈$11.25 vs ≈$90 per 1M input+output tokens). CCProxy helps teams control AI spend and latency by minimizing duplicate work, maximizing transport efficiency, and serving as a drop‑in proxy for OpenAI‑compatible APIs. This allows organizations to standardize on one integration while selecting the most cost‑effective model per workload.
+Recent analytics show a significant cost gap between major models: OpenAI `GPT‑5` and xAI `Grok Code` are far more cost‑efficient than Anthropic `Claude Opus 4.1` (≈$11.25 vs ≈$90 per 1M input+output tokens). `CCProxy` helps teams control AI spend and latency by minimizing duplicate work, maximizing transport efficiency, and serving as a drop‑in proxy for OpenAI‑compatible APIs. This allows organizations to standardize on one integration while selecting the most cost‑effective model per workload.
 
 ### Pricing Overview
 
