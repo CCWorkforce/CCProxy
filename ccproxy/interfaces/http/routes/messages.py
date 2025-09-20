@@ -484,6 +484,19 @@ async def create_message_proxy(request: Request) -> Response:
                     },
                 )
             )
+            # Validate content before serialization
+            if hasattr(anthropic_response_obj, 'content'):
+                # Filter out any invalid content blocks
+                valid_content = [
+                    block for block in anthropic_response_obj.content
+                    if block is not None
+                ]
+                # Ensure we have valid content
+                if not valid_content:
+                    from ....domain.models import ContentBlockText
+                    valid_content = [ContentBlockText(type="text", text="")]
+                anthropic_response_obj.content = valid_content
+
             return JSONResponse(
                 content=anthropic_response_obj.model_dump(exclude_unset=True)
             )

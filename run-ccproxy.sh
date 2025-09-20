@@ -37,6 +37,9 @@ if ! command_exists uv; then
     exit 1
 fi
 
+# Print uv version
+print_info "uv version: $(uv --version)"
+
 # Check if Python 3 is available through uv
 print_info "Checking Python availability via uv..."
 if ! uv python list | grep -q "python"; then
@@ -222,10 +225,12 @@ if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
     print_info "Installing/syncing dependencies via uv..."
     uv sync --dev
     print_success "Dependencies synchronized successfully"
+    print_info "uv version after sync: $(uv --version)"
 else
     print_info "No requirements.txt or pyproject.toml found - will install minimal dependencies"
     # Ensure basic dependencies are available
     uv add fastapi uvicorn openai pydantic tiktoken httpx gunicorn --dev
+    print_info "uv version after add: $(uv --version)"
 fi
 
 # Function to extract version from pyproject.toml

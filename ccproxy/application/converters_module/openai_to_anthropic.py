@@ -62,13 +62,19 @@ class OpenAIToAnthropicConverter(ResponseConverter):
         if response.usage:
             usage = self._convert_usage(response.usage)
 
+        # Filter out any None or invalid content blocks
+        anthropic_content = [
+            block for block in anthropic_content
+            if block is not None and hasattr(block, 'type')
+        ]
+
         # Ensure we have at least some content
         if not anthropic_content:
             anthropic_content = [ContentBlockText(type="text", text="")]
             debug(
                 LogRecord(
                     event=LogEvent.CONVERSION_EVENT.value,
-                    message="No content in OpenAI response, adding empty text block",
+                    message="No valid content in OpenAI response, adding empty text block",
                     request_id=self.context.request_id,
                 )
             )

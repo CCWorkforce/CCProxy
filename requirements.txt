@@ -3,10 +3,10 @@
 
 # FastAPI framework
 fastapi==0.116.2
-uvicorn[standard]==0.35.0
+uvicorn[standard]==0.36.0
 
 # OpenAI client
-openai==1.108.0
+openai==1.108.1
 
 # Data validation
 pydantic==2.11.9
@@ -15,11 +15,11 @@ pydantic-settings==2.10.1
 # Token counting
 tiktoken==0.11.0
 tqdm==4.67.1
-typer==0.17.4
+typer==0.18.0
 typing-extensions==4.15.0
 typing-inspection==0.4.1
 urllib3==2.5.0
-uvicorn==0.35.0
+uvicorn==0.36.0
 uvloop==0.21.0
 watchfiles==1.1.0
 
