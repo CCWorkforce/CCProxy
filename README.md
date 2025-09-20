@@ -8,29 +8,32 @@ Recent analytics show a large cost gap between major models: OpenAI GPT‑5 is f
 
 ### Pricing Overview
 
-| Model               | Input Tokens (\$/1M) | Output Tokens (\$/1M) |
-| ------------------- | -------------------- | --------------------- |
-| **OpenAI GPT‑5**    | \$1.25               | \$10.00               |
-| **Claude Opus 4.1** | \$15.00              | \$75.00               |
+| Model                   | Input Tokens (\$/1M) | Output Tokens (\$/1M) |
+| ----------------------- | -------------------- | --------------------- |
+| **OpenAI: GPT‑5**        | \$1.25               | \$10.00               |
+| **Anthropic: Claude Opus 4.1**     | \$15.00              | \$75.00               |
+| **xAI: Grok Code Fast 1**    | \$0.20               | \$1.50                |
 
 * **GPT‑5** input and output rates are confirmed via Wired, OpenAI's own API pricing page, and TechCrunch
-* **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page.
+* **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page
+* **Grok Code Fast 1** pricing is from xAI's official OpenRouter listing
 
 ### Model Token Limits
 
 CCProxy enforces maximum output token limits for supported models:
 
-| Model | Max Output Tokens |
-|-------|------------------|
-| **o3** | 200,000 |
-| **o3-2025-04-16** | 200,000 |
-| **o4-mini** | 200,000 |
-| **gpt-5-2025-08-07** | 128,000 |
-| **gpt-5** | 128,000 |
-| **gpt-5-mini-2025-08-07** | 128,000 |
-| **gpt-5-mini** | 128,000 |
-| **deepseek-reasoner** | 65,536 |
-| **deepseek-chat** | 8,192 |
+| Model | Context Window | Max Output Tokens |
+|-------|----------------|------------------|
+| **o3** | 200,000 | 100,000 |
+| **o3-2025-04-16** | 200,000 | 100,000 |
+| **o4-mini** | 128,000 | 100,000 |
+| **gpt-5-2025-08-07** | 400,000 | 128,000 |
+| **gpt-5** | 400,000 | 128,000 |
+| **gpt-5-mini-2025-08-07** | 400,000 | 128,000 |
+| **gpt-5-mini** | 400,000 | 128,000 |
+| **deepseek-reasoner** | 163,840 | 65,536 |
+| **deepseek-chat** | 163,840 | 8,192 |
+| **grok-code-fast-1** | 256,000 | 10,000 |
 
 *Note: Models not listed in this table use their default maximum output token limits.*
 
