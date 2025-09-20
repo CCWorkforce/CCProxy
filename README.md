@@ -12,10 +12,13 @@ Recent analytics show a significant cost gap between major models: OpenAI `GPT�
 | ----------------------- | -------------------- | --------------------- |
 | **OpenAI: GPT‑5**        | \$1.25               | \$10.00               |
 | **Anthropic: Claude Opus 4.1**     | \$15.00              | \$75.00               |
+| **Anthropic: Claude Sonnet 4** (≤200K)     | \$3.00               | \$15.00               |
+| **Anthropic: Claude Sonnet 4** (>200K)     | \$6.00               | \$22.50               |
 | **xAI: Grok Code Fast 1**    | \$0.20               | \$1.50                |
 
 * **GPT‑5** input and output rates are confirmed via Wired, OpenAI's own API pricing page, and TechCrunch
 * **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page
+* **Claude Sonnet 4** has tiered pricing based on context length (≤200K tokens vs >200K tokens)
 * **Grok Code Fast 1** pricing is from xAI's official OpenRouter listing
 
 ### Model Token Limits
@@ -31,6 +34,7 @@ CCProxy enforces maximum output token limits for supported models:
 | **gpt-5** | 400,000 | 128,000 |
 | **gpt-5-mini-2025-08-07** | 400,000 | 128,000 |
 | **gpt-5-mini** | 400,000 | 128,000 |
+| **claude-sonnet-4** | 1,000,000 | 64,000 |
 | **deepseek-reasoner** | 163,840 | 65,536 |
 | **deepseek-chat** | 163,840 | 8,192 |
 | **grok-code-fast-1** | 256,000 | 10,000 |
