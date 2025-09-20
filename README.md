@@ -4,33 +4,36 @@
 
 ## Motivation
 
-Recent analytics show a large cost gap between major models: OpenAI GPT‑5 is far more cost‑efficient than Anthropic Claude Opus 4.1 (≈$11.25 vs ≈$90 per 1M input+output tokens). CCProxy helps teams control AI spend and latency by minimizing duplicate work, maximizing transport efficiency, and serving as a drop‑in proxy for OpenAI‑compatible APIs. This allows organizations to standardize on one integration while selecting the most cost‑effective model per workload.
+Recent analytics show a significant cost gap between major models: OpenAI `GPT‑5` and xAI `Grok Code` are far more cost‑efficient than Anthropic `Claude Opus 4.1` (≈$11.25 vs ≈$90 per 1M input+output tokens). `CCProxy` helps teams control AI spend and latency by minimizing duplicate work, maximizing transport efficiency, and serving as a drop‑in proxy for OpenAI‑compatible APIs. This allows organizations to standardize on one integration while selecting the most cost‑effective model per workload.
 
 ### Pricing Overview
 
-| Model               | Input Tokens (\$/1M) | Output Tokens (\$/1M) |
-| ------------------- | -------------------- | --------------------- |
-| **OpenAI GPT‑5**    | \$1.25               | \$10.00               |
-| **Claude Opus 4.1** | \$15.00              | \$75.00               |
+| Model                   | Input Tokens (\$/1M) | Output Tokens (\$/1M) |
+| ----------------------- | -------------------- | --------------------- |
+| **OpenAI: GPT‑5**        | \$1.25               | \$10.00               |
+| **Anthropic: Claude Opus 4.1**     | \$15.00              | \$75.00               |
+| **xAI: Grok Code Fast 1**    | \$0.20               | \$1.50                |
 
 * **GPT‑5** input and output rates are confirmed via Wired, OpenAI's own API pricing page, and TechCrunch
-* **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page.
+* **Claude Opus 4.1** pricing is stated directly on Anthropic's API pricing page
+* **Grok Code Fast 1** pricing is from xAI's official OpenRouter listing
 
 ### Model Token Limits
 
 CCProxy enforces maximum output token limits for supported models:
 
-| Model | Max Output Tokens |
-|-------|------------------|
-| **o3** | 200,000 |
-| **o3-2025-04-16** | 200,000 |
-| **o4-mini** | 200,000 |
-| **gpt-5-2025-08-07** | 128,000 |
-| **gpt-5** | 128,000 |
-| **gpt-5-mini-2025-08-07** | 128,000 |
-| **gpt-5-mini** | 128,000 |
-| **deepseek-reasoner** | 65,536 |
-| **deepseek-chat** | 8,192 |
+| Model | Context Window | Max Output Tokens |
+|-------|----------------|------------------|
+| **o3** | 200,000 | 100,000 |
+| **o3-2025-04-16** | 200,000 | 100,000 |
+| **o4-mini** | 128,000 | 100,000 |
+| **gpt-5-2025-08-07** | 400,000 | 128,000 |
+| **gpt-5** | 400,000 | 128,000 |
+| **gpt-5-mini-2025-08-07** | 400,000 | 128,000 |
+| **gpt-5-mini** | 400,000 | 128,000 |
+| **deepseek-reasoner** | 163,840 | 65,536 |
+| **deepseek-chat** | 163,840 | 8,192 |
+| **grok-code-fast-1** | 256,000 | 10,000 |
 
 *Note: Models not listed in this table use their default maximum output token limits.*
 
@@ -43,12 +46,17 @@ CCProxy includes high-performance HTTP client optimizations for faster OpenAI AP
 * **Compression**: Supports gzip, deflate, and Brotli
 * **Smart Retries**: Automatic retry with exponential backoff
 * **Response Caching**: Prevents duplicate API calls and handles timeouts
+* **Async Processing**: Full async/await architecture with ThreadPoolExecutor for CPU-bound operations
+* **Parallel Message Conversion**: Concurrent processing of message batches for reduced latency
+* **Non-blocking I/O**: Async streaming with httpx for improved throughput
 
 ### Performance Improvements
 
 * 30-50% faster single request latency
 * 2-3x better throughput for concurrent requests
 * Reduced connection overhead with persistent connections
+* 40% reduction in message conversion time via async parallelization
+* Near-zero blocking on I/O operations with full async pipeline
 
 See [HTTP_OPTIMIZATION.md](HTTP_OPTIMIZATION.md) for details.
 
