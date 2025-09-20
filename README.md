@@ -34,7 +34,6 @@ CCProxy enforces maximum output token limits for supported models:
 | **gpt-5** | 400,000 | 128,000 |
 | **gpt-5-mini-2025-08-07** | 400,000 | 128,000 |
 | **gpt-5-mini** | 400,000 | 128,000 |
-| **claude-sonnet-4** | 1,000,000 | 64,000 |
 | **deepseek-reasoner** | 163,840 | 65,536 |
 | **deepseek-chat** | 163,840 | 8,192 |
 | **grok-code-fast-1** | 256,000 | 10,000 |
