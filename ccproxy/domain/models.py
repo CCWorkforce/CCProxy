@@ -139,12 +139,17 @@ class Tool(BaseModel):
     Attributes:
         name (str): The unique name/identifier of the tool.
         description (Optional[str]): Brief explanation of the tool's purpose (default: None).
-        input_schema (Dict[str, Any]): JSON schema defining expected input parameters.
+        input_schema (Optional[Dict[str, Any]]): JSON schema defining expected input parameters.
+            Required for regular tools, optional for built-in tools.
+        type (Optional[str]): Type identifier for built-in tools (e.g., 'web_search_20250305').
+        max_uses (Optional[int]): Maximum number of times the tool can be used in a single request.
     """
 
     name: str
     description: Optional[str] = None
-    input_schema: Dict[str, Any] = Field(..., alias="input_schema")
+    input_schema: Optional[Dict[str, Any]] = Field(None, alias="input_schema")
+    type: Optional[str] = None
+    max_uses: Optional[int] = None
 
 
 class ToolChoice(BaseModel):
