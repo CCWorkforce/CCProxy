@@ -5,8 +5,8 @@
 fastapi==0.117.1
 uvicorn[standard]==0.36.0
 
-# OpenAI client
-openai==1.108.1
+# OpenAI client with aiohttp support for better performance
+openai[aiohttp]==1.108.1
 
 # Data validation
 pydantic==2.11.9
