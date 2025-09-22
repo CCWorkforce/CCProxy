@@ -21,6 +21,7 @@ from .errors import (
 # Import tracing if available
 try:
     from ...tracing import init_tracing
+
     tracing_available = True
 except ImportError:
     tracing_available = False
@@ -52,7 +53,9 @@ def create_app(settings: Settings) -> FastAPI:
         if tracing_available and settings.tracing_enabled:
             logging.info("Initializing distributed tracing")
             init_tracing(settings)
-            logging.info(f"Distributed tracing initialized with {settings.tracing_exporter} exporter")
+            logging.info(
+                f"Distributed tracing initialized with {settings.tracing_exporter} exporter"
+            )
 
         logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
@@ -92,7 +95,7 @@ def create_app(settings: Settings) -> FastAPI:
                 logging.info("Error tracker shutdown")
 
                 # Stop cache warmup manager if it exists
-                if hasattr(app.state, 'cache_warmup_manager'):
+                if hasattr(app.state, "cache_warmup_manager"):
                     logging.info("Stopping cache warmup manager")
                     await app.state.cache_warmup_manager.stop()
                     logging.info("Cache warmup manager stopped")
@@ -112,7 +115,7 @@ def create_app(settings: Settings) -> FastAPI:
         redoc_url=None,
         description="Routes Anthropic API requests to an OpenAI-compatible API, selecting models dynamically.",
         lifespan=lifespan,
-        default_response_class=ORJSONResponse
+        default_response_class=ORJSONResponse,
     )
     app.state.settings = settings
     try:

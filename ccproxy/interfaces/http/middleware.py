@@ -10,6 +10,7 @@ from fastapi.responses import Response
 # Import tracing if available
 try:
     from ...tracing import get_tracing_manager
+
     tracing_available = True
 except ImportError:
     tracing_available = False
@@ -47,10 +48,11 @@ async def logging_middleware(
 
             # Get or create trace ID
             trace_id = (
-                headers_dict.get("x-trace-id") or
-                headers_dict.get("x-b3-traceid") or
-                headers_dict.get("uber-trace-id", "").split(":")[0] if "uber-trace-id" in headers_dict else None or
-                tracing_manager.get_current_trace_id()
+                headers_dict.get("x-trace-id")
+                or headers_dict.get("x-b3-traceid")
+                or headers_dict.get("uber-trace-id", "").split(":")[0]
+                if "uber-trace-id" in headers_dict
+                else None or tracing_manager.get_current_trace_id()
             )
 
             # Store trace context in request state for downstream use
@@ -58,7 +60,12 @@ async def logging_middleware(
             request.state.trace_id = trace_id
 
     # Process request with optional tracing
-    if tracing_available and get_tracing_manager and tracing_manager and tracing_manager.enabled:
+    if (
+        tracing_available
+        and get_tracing_manager
+        and tracing_manager
+        and tracing_manager.enabled
+    ):
         # Start a server span for this request
         span_attributes = {
             "http.method": request.method,
@@ -82,10 +89,14 @@ async def logging_middleware(
 
             # Add response attributes
             if span:
-                tracing_manager.add_span_attributes({
-                    "http.status_code": response.status_code,
-                    "response.size": len(response.body) if hasattr(response, "body") else 0,
-                })
+                tracing_manager.add_span_attributes(
+                    {
+                        "http.status_code": response.status_code,
+                        "response.size": len(response.body)
+                        if hasattr(response, "body")
+                        else 0,
+                    }
+                )
     else:
         # No tracing, just process the request
         response = await call_next(request)

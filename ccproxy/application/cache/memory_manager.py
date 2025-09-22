@@ -113,7 +113,9 @@ class CacheMemoryManager:
                 return response
             return None
 
-    async def _evict_if_needed(self, required_bytes: int, request_id: Optional[str] = None):
+    async def _evict_if_needed(
+        self, required_bytes: int, request_id: Optional[str] = None
+    ):
         """
         Evict entries if needed to make room for new entry.
 

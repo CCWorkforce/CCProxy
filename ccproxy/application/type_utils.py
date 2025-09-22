@@ -1,6 +1,15 @@
 """Type checking utilities for consolidated isinstance patterns and type dispatching."""
 
-from typing import Any, Dict, List, Optional, Union, TypeVar, Protocol, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Union,
+    TypeVar,
+    Protocol,
+    runtime_checkable,
+)
 import dataclasses
 
 from ..domain.models import (
@@ -14,12 +23,13 @@ from ..domain.models import (
     SystemContent,
 )
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @runtime_checkable
 class HasType(Protocol):
     """Protocol for objects with a 'type' attribute."""
+
     type: str
 
 
@@ -148,7 +158,9 @@ class ContentBlockDispatcher:
     """Dispatcher for handling different content block types."""
 
     @staticmethod
-    def dispatch(block: Union[ContentBlock, Dict[str, Any]], handlers: Dict[str, callable]) -> Any:
+    def dispatch(
+        block: Union[ContentBlock, Dict[str, Any]], handlers: Dict[str, callable]
+    ) -> Any:
         """Dispatch to appropriate handler based on block type.
 
         Args:
@@ -161,19 +173,21 @@ class ContentBlockDispatcher:
         """
         # Determine block type
         if isinstance(block, ContentBlockText) or is_text_block(block):
-            handler = handlers.get('text', handlers.get('_default'))
+            handler = handlers.get("text", handlers.get("_default"))
         elif isinstance(block, ContentBlockImage) or is_image_block(block):
-            handler = handlers.get('image', handlers.get('_default'))
+            handler = handlers.get("image", handlers.get("_default"))
         elif isinstance(block, ContentBlockToolUse) or is_tool_use_block(block):
-            handler = handlers.get('tool_use', handlers.get('_default'))
+            handler = handlers.get("tool_use", handlers.get("_default"))
         elif isinstance(block, ContentBlockToolResult) or is_tool_result_block(block):
-            handler = handlers.get('tool_result', handlers.get('_default'))
+            handler = handlers.get("tool_result", handlers.get("_default"))
         elif isinstance(block, ContentBlockThinking) or is_thinking_block(block):
-            handler = handlers.get('thinking', handlers.get('_default'))
-        elif isinstance(block, ContentBlockRedactedThinking) or is_redacted_thinking_block(block):
-            handler = handlers.get('redacted_thinking', handlers.get('_default'))
+            handler = handlers.get("thinking", handlers.get("_default"))
+        elif isinstance(
+            block, ContentBlockRedactedThinking
+        ) or is_redacted_thinking_block(block):
+            handler = handlers.get("redacted_thinking", handlers.get("_default"))
         else:
-            handler = handlers.get('_unknown', handlers.get('_default'))
+            handler = handlers.get("_unknown", handlers.get("_default"))
 
         if handler:
             return handler(block)
@@ -190,7 +204,7 @@ class TypeConverter:
             return obj
         if isinstance(obj, bytes):
             try:
-                return obj.decode('utf-8')
+                return obj.decode("utf-8")
             except UnicodeDecodeError:
                 return fallback
         if obj is None:
@@ -207,11 +221,11 @@ class TypeConverter:
             return obj
         if is_dataclass_instance(obj):
             return dataclasses.asdict(obj)
-        if hasattr(obj, 'model_dump'):
+        if hasattr(obj, "model_dump"):
             return obj.model_dump()
-        if hasattr(obj, 'dict'):
+        if hasattr(obj, "dict"):
             return obj.dict()
-        if hasattr(obj, '__dict__'):
+        if hasattr(obj, "__dict__"):
             return obj.__dict__
         return fallback or {}
 

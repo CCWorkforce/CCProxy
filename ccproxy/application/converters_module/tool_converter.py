@@ -13,7 +13,9 @@ class ToolConverter:
 
     @staticmethod
     @lru_cache(maxsize=128)
-    def _convert_tools_cached(key: Tuple[Tuple[str, str, str], ...]) -> List[Dict[str, Any]]:
+    def _convert_tools_cached(
+        key: Tuple[Tuple[str, str, str], ...],
+    ) -> List[Dict[str, Any]]:
         """Cached tool conversion for performance."""
         openai_tools = []
         for tool_name, tool_desc, input_schema_json in key:
@@ -22,7 +24,9 @@ class ToolConverter:
                 "function": {
                     "name": tool_name,
                     "description": tool_desc or "",
-                    "parameters": json.loads(input_schema_json) if input_schema_json else {},
+                    "parameters": json.loads(input_schema_json)
+                    if input_schema_json
+                    else {},
                 },
             }
             openai_tools.append(openai_tool)
@@ -52,7 +56,9 @@ class ToolConverter:
             (
                 tool.name,
                 tool.description or "",
-                json.dumps(tool.input_schema, sort_keys=True) if tool.input_schema else "",
+                json.dumps(tool.input_schema, sort_keys=True)
+                if tool.input_schema
+                else "",
             )
             for tool in anthropic_tools
         )
@@ -107,7 +113,11 @@ class ToolConverter:
             return None
 
         tool_choice_type = anthropic_tool_choice.type
-        tool_name = anthropic_tool_choice.name if hasattr(anthropic_tool_choice, "name") else None
+        tool_name = (
+            anthropic_tool_choice.name
+            if hasattr(anthropic_tool_choice, "name")
+            else None
+        )
 
         result = cls._convert_tool_choice_cached(tool_choice_type, tool_name)
 

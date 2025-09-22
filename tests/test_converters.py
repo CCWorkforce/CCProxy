@@ -38,8 +38,7 @@ def conversion_context():
 def text_message():
     """Create a simple text message."""
     return Message(
-        role="user",
-        content=[ContentBlockText(type="text", text="Hello, how are you?")]
+        role="user", content=[ContentBlockText(type="text", text="Hello, how are you?")]
     )
 
 
@@ -48,7 +47,7 @@ def assistant_message():
     """Create an assistant message."""
     return Message(
         role="assistant",
-        content=[ContentBlockText(type="text", text="I'm doing well, thank you!")]
+        content=[ContentBlockText(type="text", text="I'm doing well, thank you!")],
     )
 
 
@@ -64,10 +63,10 @@ def image_message():
                 source={
                     "type": "base64",
                     "media_type": "image/jpeg",
-                    "data": "base64encodedimagedata"
-                }
-            )
-        ]
+                    "data": "base64encodedimagedata",
+                },
+            ),
+        ],
     )
 
 
@@ -81,9 +80,9 @@ def tool_use_message():
                 type="tool_use",
                 id="tool_call_123",
                 name="get_weather",
-                input={"location": "San Francisco", "unit": "celsius"}
+                input={"location": "San Francisco", "unit": "celsius"},
             )
-        ]
+        ],
     )
 
 
@@ -97,9 +96,9 @@ def tool_result_message():
                 type="tool_result",
                 tool_use_id="tool_call_123",
                 content="The weather in San Francisco is 18°C and sunny.",
-                is_error=False
+                is_error=False,
             )
-        ]
+        ],
     )
 
 
@@ -113,10 +112,10 @@ def sample_tool():
             "type": "object",
             "properties": {
                 "location": {"type": "string", "description": "The city name"},
-                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
             },
-            "required": ["location"]
-        }
+            "required": ["location"],
+        },
     )
 
 
@@ -195,7 +194,9 @@ class TestAnthropicToOpenAIConversion:
         # Check image part
         assert result[0]["content"][1]["type"] == "image_url"
         assert "url" in result[0]["content"][1]["image_url"]
-        assert result[0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        assert result[0]["content"][1]["image_url"]["url"].startswith(
+            "data:image/jpeg;base64,"
+        )
 
     def test_convert_tool_use_message(self, tool_use_message):
         """Test converting tool use message."""
@@ -212,7 +213,7 @@ class TestAnthropicToOpenAIConversion:
         assert tool_call["function"]["name"] == "get_weather"
         assert json.loads(tool_call["function"]["arguments"]) == {
             "location": "San Francisco",
-            "unit": "celsius"
+            "unit": "celsius",
         }
 
     def test_convert_tool_result_message(self, tool_result_message):
@@ -236,7 +237,7 @@ class TestAnthropicToOpenAIConversion:
         invalid_message.role = "user"
         invalid_message.content = None  # Invalid content
 
-        with patch('ccproxy.application.converters_module.main.asyncio.create_task'):
+        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
             result = convert_anthropic_to_openai_messages([invalid_message])
             # Should handle error gracefully
             assert isinstance(result, list)
@@ -252,7 +253,10 @@ class TestToolConversion:
         assert len(result) == 1
         assert result[0]["type"] == "function"
         assert result[0]["function"]["name"] == "get_weather"
-        assert result[0]["function"]["description"] == "Get the current weather for a location"
+        assert (
+            result[0]["function"]["description"]
+            == "Get the current weather for a location"
+        )
         assert result[0]["function"]["parameters"] == sample_tool.input_schema
 
     def test_convert_multiple_tools(self, sample_tool):
@@ -260,7 +264,10 @@ class TestToolConversion:
         tool2 = Tool(
             name="search_web",
             description="Search the web",
-            input_schema={"type": "object", "properties": {"query": {"type": "string"}}}
+            input_schema={
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+            },
         )
 
         result = convert_anthropic_tools_to_openai([sample_tool, tool2])
@@ -283,7 +290,9 @@ class TestToolConversion:
 
     def test_convert_tool_choice_specific(self, sample_tool):
         """Test converting specific tool choice."""
-        tool_choice = ToolChoice(type="tool", name="get_weather", disable_parallel_tool_use=False)
+        tool_choice = ToolChoice(
+            type="tool", name="get_weather", disable_parallel_tool_use=False
+        )
         result = convert_anthropic_tool_choice_to_openai(tool_choice, [sample_tool])
 
         assert result["type"] == "function"
@@ -336,7 +345,9 @@ class TestOpenAIToAnthropicConversion:
     def test_convert_response_with_refusal(self, openai_chat_completion):
         """Test converting response with refusal."""
         openai_chat_completion.choices[0].message.content = None
-        openai_chat_completion.choices[0].message.refusal = "I cannot help with that request."
+        openai_chat_completion.choices[
+            0
+        ].message.refusal = "I cannot help with that request."
 
         result = convert_openai_to_anthropic_response(openai_chat_completion)
 
@@ -385,8 +396,8 @@ class TestContentConverter:
             source={
                 "type": "base64",
                 "media_type": "image/png",
-                "data": "imagedata123"
-            }
+                "data": "imagedata123",
+            },
         )
 
         result = converter.convert_to_openai(image_block)
@@ -401,7 +412,7 @@ class TestContentConverter:
             type="tool_use",
             id="tool_123",
             name="calculator",
-            input={"expression": "2+2"}
+            input={"expression": "2+2"},
         )
 
         result = converter.convert_to_openai(tool_block)
@@ -434,7 +445,7 @@ class TestErrorHandling:
         invalid_message.role = "user"
         invalid_message.content = None
 
-        with patch('ccproxy.application.converters_module.main.asyncio.create_task'):
+        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
             result = convert_anthropic_to_openai_messages([invalid_message])
             assert isinstance(result, list)
 
@@ -443,7 +454,7 @@ class TestErrorHandling:
         # Make input non-serializable
         tool_use_message.content[0].input = MagicMock()  # Non-serializable object
 
-        with patch('ccproxy.application.converters_module.main.asyncio.create_task'):
+        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
             result = convert_anthropic_to_openai_messages([tool_use_message])
             # Should handle error and still return valid structure
             assert isinstance(result, list)

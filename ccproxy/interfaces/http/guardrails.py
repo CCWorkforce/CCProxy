@@ -76,40 +76,40 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
 
     # Common SQL injection patterns
     SQL_PATTERNS = [
-        r'\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|CREATE|ALTER|EXEC|EXECUTE)\b.*\b(FROM|WHERE|TABLE|INTO)\b',
-        r'\b(OR|AND)\b.*=.*',  # OR 1=1 style
-        r'--.*$',  # SQL comments
-        r';\s*(SELECT|INSERT|UPDATE|DELETE|DROP)',  # Command chaining
-        r'\bUNION\s+(ALL\s+)?SELECT\b',
+        r"\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|CREATE|ALTER|EXEC|EXECUTE)\b.*\b(FROM|WHERE|TABLE|INTO)\b",
+        r"\b(OR|AND)\b.*=.*",  # OR 1=1 style
+        r"--.*$",  # SQL comments
+        r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP)",  # Command chaining
+        r"\bUNION\s+(ALL\s+)?SELECT\b",
     ]
 
     # XSS patterns
     XSS_PATTERNS = [
-        r'<script[^>]*>.*?</script>',  # Script tags
-        r'javascript:',  # Javascript protocol
-        r'on\w+\s*=',  # Event handlers (onclick, onload, etc.)
-        r'<iframe',  # Iframe injection
-        r'<embed',  # Embed tags
-        r'<object',  # Object tags
+        r"<script[^>]*>.*?</script>",  # Script tags
+        r"javascript:",  # Javascript protocol
+        r"on\w+\s*=",  # Event handlers (onclick, onload, etc.)
+        r"<iframe",  # Iframe injection
+        r"<embed",  # Embed tags
+        r"<object",  # Object tags
     ]
 
     # Command injection patterns
     CMD_PATTERNS = [
-        r'\$\([^)]+\)',  # Command substitution $(cmd)
-        r'`[^`]+`',  # Backtick command substitution
-        r'\|\s*[a-zA-Z]+',  # Pipe to command
-        r';\s*[a-zA-Z]+',  # Command chaining
-        r'&&\s*[a-zA-Z]+',  # Command chaining with &&
-        r'\|\|\s*[a-zA-Z]+',  # Command chaining with ||
+        r"\$\([^)]+\)",  # Command substitution $(cmd)
+        r"`[^`]+`",  # Backtick command substitution
+        r"\|\s*[a-zA-Z]+",  # Pipe to command
+        r";\s*[a-zA-Z]+",  # Command chaining
+        r"&&\s*[a-zA-Z]+",  # Command chaining with &&
+        r"\|\|\s*[a-zA-Z]+",  # Command chaining with ||
     ]
 
     # Path traversal patterns
     PATH_PATTERNS = [
-        r'\.\./\.\.',  # Multiple path traversals
-        r'/etc/passwd',  # Common target files
-        r'/etc/shadow',
-        r'C:\\Windows\\',  # Windows paths
-        r'\.\.\\\.\.\\',  # Windows traversal
+        r"\.\./\.\.",  # Multiple path traversals
+        r"/etc/passwd",  # Common target files
+        r"/etc/shadow",
+        r"C:\\Windows\\",  # Windows paths
+        r"\.\.\\\.\.\\",  # Windows traversal
     ]
 
     def __init__(self, app: ASGIApp, check_headers: bool = True):
@@ -123,10 +123,16 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
         self.check_headers = check_headers
 
         # Compile patterns for efficiency
-        self.sql_regex: List[Pattern[str]] = [re.compile(p, re.IGNORECASE) for p in self.SQL_PATTERNS]
-        self.xss_regex: List[Pattern[str]] = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.XSS_PATTERNS]
+        self.sql_regex: List[Pattern[str]] = [
+            re.compile(p, re.IGNORECASE) for p in self.SQL_PATTERNS
+        ]
+        self.xss_regex: List[Pattern[str]] = [
+            re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.XSS_PATTERNS
+        ]
         self.cmd_regex: List[Pattern[str]] = [re.compile(p) for p in self.CMD_PATTERNS]
-        self.path_regex: List[Pattern[str]] = [re.compile(p) for p in self.PATH_PATTERNS]
+        self.path_regex: List[Pattern[str]] = [
+            re.compile(p) for p in self.PATH_PATTERNS
+        ]
 
     def _check_for_injection(self, text: str) -> tuple[bool, str]:
         """Check text for injection patterns.
@@ -201,7 +207,7 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                                 event=LogEvent.REQUEST_VALIDATION_ERROR.value,
                                 message=f"Blocked {attack_type} attempt in header {header}",
                                 request_id=request_id,
-                                data={"header": header, "attack_type": attack_type}
+                                data={"header": header, "attack_type": attack_type},
                             )
                         )
                         return await log_and_return_error_response(
@@ -221,14 +227,16 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                         # Parse JSON body
                         try:
                             json_body = json.loads(body)
-                            is_malicious, attack_type = self._check_json_recursively(json_body)
+                            is_malicious, attack_type = self._check_json_recursively(
+                                json_body
+                            )
                             if is_malicious:
                                 warning(
                                     LogRecord(
                                         event=LogEvent.REQUEST_VALIDATION_ERROR.value,
                                         message=f"Blocked {attack_type} attempt in request body",
                                         request_id=request_id,
-                                        data={"attack_type": attack_type}
+                                        data={"attack_type": attack_type},
                                     )
                                 )
                                 return await log_and_return_error_response(
@@ -239,7 +247,7 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                                 )
                         except json.JSONDecodeError:
                             # If it's not valid JSON, check as plain text
-                            text = body.decode('utf-8', errors='ignore')
+                            text = body.decode("utf-8", errors="ignore")
                             is_malicious, attack_type = self._check_for_injection(text)
                             if is_malicious:
                                 warning(
@@ -247,7 +255,7 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                                         event=LogEvent.REQUEST_VALIDATION_ERROR.value,
                                         message=f"Blocked {attack_type} attempt in malformed JSON",
                                         request_id=request_id,
-                                        data={"attack_type": attack_type}
+                                        data={"attack_type": attack_type},
                                     )
                                 )
                                 return await log_and_return_error_response(

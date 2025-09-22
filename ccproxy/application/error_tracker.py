@@ -114,21 +114,30 @@ class ErrorTracker:
     def _setup_redaction_patterns(self):
         """Setup regex patterns for sensitive data redaction."""
         # API keys and tokens
-        self._redact_patterns.extend([
-            re.compile(r'(api[_-]?key|token|secret|password)["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)', re.IGNORECASE),
-            re.compile(r'Bearer\s+([A-Za-z0-9\-._~+/]+=*)', re.IGNORECASE),
-            re.compile(r'(sk-[a-zA-Z0-9]{48}|sk-proj-[a-zA-Z0-9]{48})'),  # OpenAI keys
-        ])
+        self._redact_patterns.extend(
+            [
+                re.compile(
+                    r'(api[_-]?key|token|secret|password)["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)',
+                    re.IGNORECASE,
+                ),
+                re.compile(r"Bearer\s+([A-Za-z0-9\-._~+/]+=*)", re.IGNORECASE),
+                re.compile(
+                    r"(sk-[a-zA-Z0-9]{48}|sk-proj-[a-zA-Z0-9]{48})"
+                ),  # OpenAI keys
+            ]
+        )
 
     async def initialize(self, settings: Settings):
         """Initialize the error tracker with settings."""
         self._settings = settings
 
         if not settings.error_tracking_enabled:
-            debug(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message="Error tracking disabled",
-            ))
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message="Error tracking disabled",
+                )
+            )
             return
 
         # Create error log directory if needed
@@ -139,10 +148,12 @@ class ErrorTracker:
         if not self._writer_task:
             self._writer_task = asyncio.create_task(self._writer_loop())
 
-        info(LogRecord(
-            event=LogEvent.CACHE_EVENT.value,
-            message=f"Error tracking initialized: {settings.error_tracking_file}",
-        ))
+        info(
+            LogRecord(
+                event=LogEvent.CACHE_EVENT.value,
+                message=f"Error tracking initialized: {settings.error_tracking_file}",
+            )
+        )
 
     async def shutdown(self):
         """Shutdown the error tracker gracefully."""
@@ -172,10 +183,12 @@ class ErrorTracker:
 
             except Exception as e:
                 # Log but don't crash the writer
-                warning(LogRecord(
-                    event=LogEvent.CACHE_EVENT.value,
-                    message=f"Error writer exception: {str(e)}",
-                ))
+                warning(
+                    LogRecord(
+                        event=LogEvent.CACHE_EVENT.value,
+                        message=f"Error writer exception: {str(e)}",
+                    )
+                )
 
     async def _write_error(self, error_context: ErrorContext):
         """Write error context to file."""
@@ -196,10 +209,12 @@ class ErrorTracker:
             self._file_handle.flush()
 
         except Exception as e:
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Failed to write error log: {str(e)}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Failed to write error log: {str(e)}",
+                )
+            )
 
     async def _rotate_log_if_needed(self):
         """Rotate log file if it exceeds size limit."""
@@ -224,19 +239,23 @@ class ErrorTracker:
                 rotated_path = log_path.with_suffix(f".{timestamp}.jsonl")
                 log_path.rename(rotated_path)
 
-                info(LogRecord(
-                    event=LogEvent.CACHE_EVENT.value,
-                    message=f"Rotated error log: {rotated_path}",
-                ))
+                info(
+                    LogRecord(
+                        event=LogEvent.CACHE_EVENT.value,
+                        message=f"Rotated error log: {rotated_path}",
+                    )
+                )
 
                 # Clean old logs
                 await self._clean_old_logs()
 
         except Exception as e:
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Log rotation failed: {str(e)}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Log rotation failed: {str(e)}",
+                )
+            )
 
     async def _clean_old_logs(self):
         """Remove old rotated logs based on retention policy."""
@@ -245,15 +264,19 @@ class ErrorTracker:
 
         try:
             log_dir = Path(self._settings.error_tracking_file).parent
-            cutoff_date = datetime.now() - timedelta(days=self._settings.error_tracking_retention_days)
+            cutoff_date = datetime.now() - timedelta(
+                days=self._settings.error_tracking_retention_days
+            )
 
             for file_path in log_dir.glob("errors_detailed.*.jsonl"):
                 if file_path.stat().st_mtime < cutoff_date.timestamp():
                     file_path.unlink()
-                    debug(LogRecord(
-                        event=LogEvent.CACHE_EVENT.value,
-                        message=f"Deleted old error log: {file_path}",
-                    ))
+                    debug(
+                        LogRecord(
+                            event=LogEvent.CACHE_EVENT.value,
+                            message=f"Deleted old error log: {file_path}",
+                        )
+                    )
         except Exception:
             pass  # Best effort cleanup
 
@@ -263,7 +286,10 @@ class ErrorTracker:
             redacted = {}
             for key, value in data.items():
                 # Check if key contains sensitive keywords
-                if any(keyword in key.lower() for keyword in ["password", "secret", "token", "key", "auth"]):
+                if any(
+                    keyword in key.lower()
+                    for keyword in ["password", "secret", "token", "key", "auth"]
+                ):
                     redacted[key] = "***REDACTED***"
                 else:
                     redacted[key] = self._redact_sensitive_data(value)
@@ -274,13 +300,18 @@ class ErrorTracker:
             # Apply redaction patterns
             result = data
             for pattern in self._redact_patterns:
-                result = pattern.sub(lambda m: f"{m.group(1) if m.lastindex > 0 else ''}=***REDACTED***", result)
+                result = pattern.sub(
+                    lambda m: f"{m.group(1) if m.lastindex > 0 else ''}=***REDACTED***",
+                    result,
+                )
             return result
         return data
 
     def _truncate_large_data(self, data: Any, max_size: int = None) -> Any:
         """Truncate large data structures to prevent log bloat."""
-        max_size = max_size or (self._settings.error_tracking_max_body_size if self._settings else 10000)
+        max_size = max_size or (
+            self._settings.error_tracking_max_body_size if self._settings else 10000
+        )
 
         if isinstance(data, str) and len(data) > max_size:
             return data[:max_size] + f"...[truncated {len(data) - max_size} chars]"
@@ -358,7 +389,11 @@ class ErrorTracker:
                 headers = self._redact_sensitive_data(headers)
 
             # Process body
-            if body is not None and self._settings and self._settings.error_tracking_capture_response:
+            if (
+                body is not None
+                and self._settings
+                and self._settings.error_tracking_capture_response
+            ):
                 body = self._redact_sensitive_data(body)
                 body = self._truncate_large_data(body)
 
@@ -404,19 +439,23 @@ class ErrorTracker:
                 await self._write_queue.put(error_context)
             else:
                 # Queue is full, log a warning
-                warning(LogRecord(
-                    event=LogEvent.CACHE_EVENT.value,
-                    message="Error tracking queue full, dropping error",
-                    request_id=request_id,
-                ))
+                warning(
+                    LogRecord(
+                        event=LogEvent.CACHE_EVENT.value,
+                        message="Error tracking queue full, dropping error",
+                        request_id=request_id,
+                    )
+                )
 
         except Exception as e:
             # Don't let error tracking errors break the application
-            debug(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Error tracking failed: {str(e)}",
-                request_id=request_id,
-            ))
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Error tracking failed: {str(e)}",
+                    request_id=request_id,
+                )
+            )
 
     @asynccontextmanager
     async def track_context(
@@ -443,6 +482,7 @@ class ErrorTracker:
         include_request: bool = True,
     ):
         """Decorator for automatic error tracking."""
+
         def decorator(func: Callable):
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
@@ -456,7 +496,9 @@ class ErrorTracker:
                     if include_request:
                         for arg in args:
                             if isinstance(arg, Request):
-                                request_snapshot = await self.capture_request_snapshot(arg)
+                                request_snapshot = await self.capture_request_snapshot(
+                                    arg
+                                )
                                 request_id = getattr(arg.state, "request_id", None)
                                 break
 
@@ -475,14 +517,17 @@ class ErrorTracker:
                     return func(*args, **kwargs)
                 except Exception as e:
                     # For sync functions, try to queue error tracking
-                    asyncio.create_task(self.track_error(
-                        error=e,
-                        error_type=error_type,
-                        metadata={"function": func.__name__},
-                    ))
+                    asyncio.create_task(
+                        self.track_error(
+                            error=e,
+                            error_type=error_type,
+                            metadata={"function": func.__name__},
+                        )
+                    )
                     raise
 
             return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
         return decorator
 
 

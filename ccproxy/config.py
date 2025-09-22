@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from ccproxy.enums import TruncationConfig
 
 
-
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -162,7 +161,8 @@ class Settings(BaseSettings):
         default=False, validation_alias=AliasChoices("CACHE_WARMUP_ENABLED")
     )
     cache_warmup_file_path: Optional[str] = Field(
-        default="cache_warmup.json", validation_alias=AliasChoices("CACHE_WARMUP_FILE_PATH")
+        default="cache_warmup.json",
+        validation_alias=AliasChoices("CACHE_WARMUP_FILE_PATH"),
     )
     cache_warmup_max_items: int = Field(
         default=100, validation_alias=AliasChoices("CACHE_WARMUP_MAX_ITEMS")
@@ -180,7 +180,8 @@ class Settings(BaseSettings):
         default=3, validation_alias=AliasChoices("CACHE_WARMUP_POPULARITY_THRESHOLD")
     )
     cache_warmup_save_interval_seconds: int = Field(
-        default=3600, validation_alias=AliasChoices("CACHE_WARMUP_SAVE_INTERVAL_SECONDS")
+        default=3600,
+        validation_alias=AliasChoices("CACHE_WARMUP_SAVE_INTERVAL_SECONDS"),
     )
 
     provider_max_retries: int = Field(

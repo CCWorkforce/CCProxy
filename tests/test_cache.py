@@ -29,7 +29,7 @@ async def response_cache():
         max_memory_mb=1,
         ttl_seconds=60,
         cleanup_interval_seconds=10,
-        validation_failure_threshold=3
+        validation_failure_threshold=3,
     )
     await cache.start_cleanup_task()
     yield cache
@@ -68,11 +68,11 @@ def sample_request():
         messages=[
             Message(
                 role="user",
-                content=[ContentBlockText(type="text", text="Hello, how are you?")]
+                content=[ContentBlockText(type="text", text="Hello, how are you?")],
             )
         ],
         max_tokens=100,
-        stream=False
+        stream=False,
     )
 
 
@@ -86,7 +86,7 @@ def sample_response():
         model="claude-3-opus-20240229",
         content=[ContentBlockText(type="text", text="I'm doing well, thank you!")],
         usage=Usage(input_tokens=10, output_tokens=20),
-        stop_reason="end_turn"
+        stop_reason="end_turn",
     )
 
 
@@ -94,9 +94,7 @@ def sample_response():
 def cached_response(sample_response):
     """Create a CachedResponse."""
     return CachedResponse(
-        response=sample_response,
-        timestamp=time.time(),
-        size_bytes=1024
+        response=sample_response, timestamp=time.time(), size_bytes=1024
     )
 
 
@@ -157,7 +155,9 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.asyncio
-    async def test_cache_deduplication(self, response_cache, sample_request, sample_response):
+    async def test_cache_deduplication(
+        self, response_cache, sample_request, sample_response
+    ):
         """Test request deduplication."""
         cache_key = "dedupe_test"
 
@@ -178,7 +178,9 @@ class TestResponseCache:
         assert all(r.id == sample_response.id for r in results)
 
     @pytest.mark.asyncio
-    async def test_cache_statistics(self, response_cache, sample_request, sample_response):
+    async def test_cache_statistics(
+        self, response_cache, sample_request, sample_response
+    ):
         """Test cache statistics tracking."""
         cache_key = "stats_test"
 
@@ -260,7 +262,7 @@ class TestMemoryManager:
         large_response = CachedResponse(
             response=cached_response.response,
             timestamp=time.time(),
-            size_bytes=2 * 1024 * 1024  # 2MB, exceeds limit
+            size_bytes=2 * 1024 * 1024,  # 2MB, exceeds limit
         )
 
         success = memory_manager.add_entry("large_key", large_response)
@@ -272,22 +274,20 @@ class TestMemoryManager:
         # Add entries up to the limit
         for i in range(10):
             response = CachedResponse(
-                response=MagicMock(),
-                timestamp=time.time(),
-                size_bytes=1024
+                response=MagicMock(), timestamp=time.time(), size_bytes=1024
             )
             memory_manager.add_entry(f"key_{i}", response)
 
         # Adding one more should evict the oldest
         new_response = CachedResponse(
-            response=MagicMock(),
-            timestamp=time.time(),
-            size_bytes=1024
+            response=MagicMock(), timestamp=time.time(), size_bytes=1024
         )
         success = memory_manager.add_entry("new_key", new_response)
         assert success is True
         assert "new_key" in memory_manager._cache_entries
-        assert "key_0" not in memory_manager._cache_entries  # First one should be evicted
+        assert (
+            "key_0" not in memory_manager._cache_entries
+        )  # First one should be evicted
 
     def test_get_entry(self, memory_manager, cached_response):
         """Test getting entry from memory manager."""
@@ -448,8 +448,7 @@ class TestStreamDeduplicator:
 
         # Collect concurrently
         await asyncio.gather(
-            collect_data(subscriber1, data1),
-            collect_data(subscriber2, data2)
+            collect_data(subscriber1, data1), collect_data(subscriber2, data2)
         )
 
         # Both should receive all chunks
@@ -530,7 +529,7 @@ class TestCacheStatistics:
         assert summary["misses"] == 1
         assert summary["sets"] == 1
         assert summary["evictions"] == 1
-        assert summary["hit_rate"] == 2/3
+        assert summary["hit_rate"] == 2 / 3
 
     def test_reset_statistics(self, cache_statistics):
         """Test resetting statistics."""
@@ -555,9 +554,7 @@ class TestCachedResponse:
     def test_cached_response_creation(self, sample_response):
         """Test creating a cached response."""
         cached = CachedResponse(
-            response=sample_response,
-            timestamp=time.time(),
-            size_bytes=2048
+            response=sample_response, timestamp=time.time(), size_bytes=2048
         )
 
         assert cached.response == sample_response
@@ -569,9 +566,7 @@ class TestCachedResponse:
         # Create response with past timestamp
         past_time = time.time() - 100
         cached = CachedResponse(
-            response=sample_response,
-            timestamp=past_time,
-            size_bytes=1024
+            response=sample_response, timestamp=past_time, size_bytes=1024
         )
 
         # Check if expired with different TTLs

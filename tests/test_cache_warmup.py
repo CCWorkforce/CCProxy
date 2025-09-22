@@ -18,12 +18,9 @@ class TestCacheWarmupManager:
         cache = MagicMock(spec=ResponseCache)
         cache.get_cached_response = AsyncMock(return_value=None)
         cache.cache_response = AsyncMock()
-        cache.get_stats = AsyncMock(return_value={
-            "hits": 0,
-            "misses": 0,
-            "entries": 0,
-            "size_bytes": 0
-        })
+        cache.get_stats = AsyncMock(
+            return_value={"hits": 0, "misses": 0, "entries": 0, "size_bytes": 0}
+        )
         return cache
 
     @pytest.fixture
@@ -38,7 +35,7 @@ class TestCacheWarmupManager:
             preload_common_prompts=True,
             auto_save_popular=True,
             popularity_threshold=2,
-            save_interval_seconds=60
+            save_interval_seconds=60,
         )
 
     @pytest.mark.asyncio
@@ -63,7 +60,7 @@ class TestCacheWarmupManager:
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
         # Mock the provider to return a response
-        with patch.object(manager, '_load_warmup_item', new=AsyncMock()) as mock_load:
+        with patch.object(manager, "_load_warmup_item", new=AsyncMock()) as mock_load:
             await manager._warmup_cache()
 
             # Should have loaded at least one common prompt
@@ -78,14 +75,14 @@ class TestCacheWarmupManager:
         test_item = {
             "request": {
                 "model": "claude-3-opus",
-                "messages": [{"role": "user", "content": "Hello"}]
+                "messages": [{"role": "user", "content": "Hello"}],
             },
             "response": {
                 "id": "msg_123",
                 "model": "claude-3-opus",
                 "content": [{"type": "text", "text": "Hi there!"}],
-                "usage": {"input_tokens": 5, "output_tokens": 4}
-            }
+                "usage": {"input_tokens": 5, "output_tokens": 4},
+            },
         }
         manager._warmup_items = [test_item]
 
@@ -111,7 +108,7 @@ class TestCacheWarmupManager:
         request = MessagesRequest(
             model="claude-3-opus",
             messages=[{"role": "user", "content": "Test message"}],
-            max_tokens=100
+            max_tokens=100,
         )
 
         response = MessagesResponse(
@@ -119,7 +116,7 @@ class TestCacheWarmupManager:
             model="claude-3-opus",
             role="assistant",
             content=[{"type": "text", "text": "Test response"}],
-            usage=Usage(input_tokens=10, output_tokens=8)
+            usage=Usage(input_tokens=10, output_tokens=8),
         )
 
         # Track the same request multiple times
@@ -144,15 +141,15 @@ class TestCacheWarmupManager:
             "request": {
                 "model": "claude-3-opus",
                 "messages": [{"role": "user", "content": "Hello"}],
-                "max_tokens": 100
+                "max_tokens": 100,
             },
             "response": {
                 "id": "msg_789",
                 "model": "claude-3-opus",
                 "role": "assistant",
                 "content": [{"type": "text", "text": "Hello!"}],
-                "usage": {"input_tokens": 5, "output_tokens": 3}
-            }
+                "usage": {"input_tokens": 5, "output_tokens": 3},
+            },
         }
 
         await manager._load_warmup_item(test_item)
@@ -174,14 +171,14 @@ class TestCacheWarmupManager:
         request = MessagesRequest(
             model="claude-3-opus",
             messages=[{"role": "user", "content": "Popular request"}],
-            max_tokens=100
+            max_tokens=100,
         )
         response = MessagesResponse(
             id="msg_999",
             model="claude-3-opus",
             role="assistant",
             content=[{"type": "text", "text": "Popular response"}],
-            usage=Usage(input_tokens=10, output_tokens=10)
+            usage=Usage(input_tokens=10, output_tokens=10),
         )
 
         for _ in range(3):
@@ -192,6 +189,7 @@ class TestCacheWarmupManager:
 
         # Wait for save to happen
         import asyncio
+
         await asyncio.sleep(0.2)
 
         # Stop the manager
@@ -215,14 +213,14 @@ class TestCacheWarmupManager:
             request = MessagesRequest(
                 model="claude-3-opus",
                 messages=[{"role": "user", "content": f"Request {i}"}],
-                max_tokens=100
+                max_tokens=100,
             )
             response = MessagesResponse(
                 id=f"msg_{i}",
                 model="claude-3-opus",
                 role="assistant",
                 content=[{"type": "text", "text": f"Response {i}"}],
-                usage=Usage(input_tokens=10, output_tokens=10)
+                usage=Usage(input_tokens=10, output_tokens=10),
             )
 
             # Track each request 3 times to make it popular
@@ -244,7 +242,7 @@ class TestCacheWarmupManager:
             max_warmup_items=10,
             warmup_on_startup=False,
             preload_common_prompts=False,
-            auto_save_popular=False
+            auto_save_popular=False,
         )
 
         manager = CacheWarmupManager(cache=mock_cache, config=config)

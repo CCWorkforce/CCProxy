@@ -47,11 +47,14 @@ def sample_request_snapshot():
     return RequestSnapshot(
         method="POST",
         path="/v1/messages",
-        headers={"Authorization": "Bearer sk-test123", "Content-Type": "application/json"},
+        headers={
+            "Authorization": "Bearer sk-test123",
+            "Content-Type": "application/json",
+        },
         query_params={"stream": "true"},
         body={"messages": [{"role": "user", "content": "test"}]},
         client_ip="192.168.1.1",
-        user_agent="TestClient/1.0"
+        user_agent="TestClient/1.0",
     )
 
 
@@ -62,7 +65,7 @@ def sample_response_snapshot():
         status_code=200,
         headers={"Content-Type": "application/json"},
         body={"id": "msg_123", "content": "response"},
-        elapsed_ms=150.5
+        elapsed_ms=150.5,
     )
 
 
@@ -79,7 +82,7 @@ def sample_error_context(sample_request_snapshot, sample_response_snapshot):
         request_snapshot=sample_request_snapshot,
         response_snapshot=sample_response_snapshot,
         metadata={"test_key": "test_value"},
-        redacted_fields=["authorization"]
+        redacted_fields=["authorization"],
     )
 
 
@@ -127,7 +130,7 @@ class TestErrorTracker:
             error=test_error,
             error_type=ErrorType.VALIDATION_ERROR,
             request_id=request_id,
-            metadata=metadata
+            metadata=metadata,
         )
 
         # Check that error was queued
@@ -139,7 +142,7 @@ class TestErrorTracker:
         error_tracker_instance,
         mock_settings,
         sample_request_snapshot,
-        sample_response_snapshot
+        sample_response_snapshot,
     ):
         """Test tracking error with request and response snapshots."""
         await error_tracker_instance.initialize(mock_settings)
@@ -150,7 +153,10 @@ class TestErrorTracker:
         mock_request = MagicMock()
         mock_request.method = "POST"
         mock_request.url.path = "/v1/messages"
-        mock_request.headers = {"Authorization": "Bearer sk-test", "Content-Type": "application/json"}
+        mock_request.headers = {
+            "Authorization": "Bearer sk-test",
+            "Content-Type": "application/json",
+        }
         mock_request.query_params = {"stream": "true"}
         mock_request.client.host = "192.168.1.1"
 
@@ -163,7 +169,7 @@ class TestErrorTracker:
             error_type=ErrorType.INTERNAL_ERROR,
             request=mock_request,
             response=mock_response,
-            request_id="req-789"
+            request_id="req-789",
         )
 
         assert error_tracker_instance._write_queue.qsize() > 0
@@ -191,8 +197,7 @@ class TestErrorTracker:
 
         # Test successful execution
         async with error_tracker_instance.track_context(
-            error_type=ErrorType.API_ERROR,
-            request_id="ctx-123"
+            error_type=ErrorType.API_ERROR, request_id="ctx-123"
         ):
             pass  # No error should be tracked
 
@@ -201,8 +206,7 @@ class TestErrorTracker:
         # Test with exception
         with pytest.raises(ValueError):
             async with error_tracker_instance.track_context(
-                error_type=ErrorType.API_ERROR,
-                request_id="ctx-456"
+                error_type=ErrorType.API_ERROR, request_id="ctx-456"
             ):
                 raise ValueError("Test error in context")
 
@@ -230,8 +234,7 @@ class TestErrorTracker:
 
             # Add an error context to the queue
             test_context = ErrorContext(
-                error_type=ErrorType.CACHE_ERROR,
-                error_message="Test cache error"
+                error_type=ErrorType.CACHE_ERROR, error_message="Test cache error"
             )
             await error_tracker_instance._write_queue.put(test_context)
 
@@ -289,8 +292,7 @@ class TestErrorTracker:
         # Add some items to the queue
         for i in range(3):
             test_context = ErrorContext(
-                error_type=ErrorType.INTERNAL_ERROR,
-                error_message=f"Test error {i}"
+                error_type=ErrorType.INTERNAL_ERROR, error_message=f"Test error {i}"
             )
             await error_tracker_instance._write_queue.put(test_context)
 
@@ -298,7 +300,10 @@ class TestErrorTracker:
         await error_tracker_instance.shutdown()
 
         # Check that writer task was cancelled
-        assert error_tracker_instance._writer_task is None or error_tracker_instance._writer_task.cancelled()
+        assert (
+            error_tracker_instance._writer_task is None
+            or error_tracker_instance._writer_task.cancelled()
+        )
 
     @pytest.mark.asyncio
     async def test_decorator_sync_function(self, error_tracker_instance, mock_settings):
@@ -316,7 +321,9 @@ class TestErrorTracker:
         assert error_tracker_instance._write_queue.qsize() > 0
 
     @pytest.mark.asyncio
-    async def test_decorator_async_function(self, error_tracker_instance, mock_settings):
+    async def test_decorator_async_function(
+        self, error_tracker_instance, mock_settings
+    ):
         """Test error tracking decorator on async function."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -340,7 +347,7 @@ class TestErrorTracker:
             await error_tracker_instance.track_error(
                 error=Exception(f"Test {error_type.value}"),
                 error_type=error_type,
-                request_id=f"test-{error_type.value}"
+                request_id=f"test-{error_type.value}",
             )
 
         # All errors should be queued
@@ -354,13 +361,13 @@ class TestErrorTracker:
 
         large_metadata = {
             "large_data": "x" * 1000,  # Very large string
-            "normal_data": "small"
+            "normal_data": "small",
         }
 
         await error_tracker_instance.track_error(
             error=Exception("Test"),
             error_type=ErrorType.INTERNAL_ERROR,
-            metadata=large_metadata
+            metadata=large_metadata,
         )
 
         # Check that error was queued (truncation should not prevent tracking)
@@ -376,7 +383,7 @@ class TestErrorTracker:
                 await error_tracker_instance.track_error(
                     error=Exception(f"Task {task_id} error {i}"),
                     error_type=ErrorType.INTERNAL_ERROR,
-                    request_id=f"task-{task_id}-{i}"
+                    request_id=f"task-{task_id}-{i}",
                 )
                 await asyncio.sleep(0.01)
 
@@ -398,11 +405,15 @@ class TestErrorTracker:
         # Add items until queue is full
         for i in range(2):
             await error_tracker_instance._write_queue.put(
-                ErrorContext(error_type=ErrorType.INTERNAL_ERROR, error_message=f"Error {i}")
+                ErrorContext(
+                    error_type=ErrorType.INTERNAL_ERROR, error_message=f"Error {i}"
+                )
             )
 
         # Try to add one more (should not block indefinitely)
         with pytest.raises(asyncio.QueueFull):
             error_tracker_instance._write_queue.put_nowait(
-                ErrorContext(error_type=ErrorType.INTERNAL_ERROR, error_message="Overflow")
+                ErrorContext(
+                    error_type=ErrorType.INTERNAL_ERROR, error_message="Overflow"
+                )
             )

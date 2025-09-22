@@ -43,11 +43,17 @@ class TracingManager:
             return
 
         # Create resource with service information
-        resource = Resource.create({
-            "service.name": settings.tracing_service_name,
-            "service.version": settings.version if hasattr(settings, "version") else "1.0.0",
-            "deployment.environment": "production" if os.getenv("IS_LOCAL_DEPLOYMENT", "False").lower() != "true" else "development"
-        })
+        resource = Resource.create(
+            {
+                "service.name": settings.tracing_service_name,
+                "service.version": settings.version
+                if hasattr(settings, "version")
+                else "1.0.0",
+                "deployment.environment": "production"
+                if os.getenv("IS_LOCAL_DEPLOYMENT", "False").lower() != "true"
+                else "development",
+            }
+        )
 
         # Initialize tracer provider
         provider = TracerProvider(resource=resource)
@@ -61,7 +67,9 @@ class TracingManager:
         trace.set_tracer_provider(provider)
         self.tracer = trace.get_tracer(__name__)
 
-        logging.info(f"Distributed tracing enabled with {settings.tracing_exporter} exporter")
+        logging.info(
+            f"Distributed tracing enabled with {settings.tracing_exporter} exporter"
+        )
 
     def _create_exporter(self, settings: Any) -> Optional[Any]:
         """Create the appropriate span exporter based on configuration.
@@ -79,7 +87,9 @@ class TracingManager:
 
         elif exporter_type == "otlp" and OTLPSpanExporter:
             if not settings.tracing_endpoint:
-                logging.warning("OTLP exporter configured but no endpoint specified, using default")
+                logging.warning(
+                    "OTLP exporter configured but no endpoint specified, using default"
+                )
                 return OTLPSpanExporter()
             return OTLPSpanExporter(endpoint=settings.tracing_endpoint)
 
@@ -100,7 +110,9 @@ class TracingManager:
             return JaegerExporter()
 
         else:
-            logging.warning(f"Unsupported or unavailable exporter: {exporter_type}, using console")
+            logging.warning(
+                f"Unsupported or unavailable exporter: {exporter_type}, using console"
+            )
             return ConsoleSpanExporter()
 
     def extract_context(self, headers: Dict[str, str]) -> Optional[Any]:
@@ -123,7 +135,9 @@ class TracingManager:
         # Extract using W3C Trace Context propagator
         return extract(headers)
 
-    def inject_context(self, headers: Dict[str, str], context: Optional[Any] = None) -> None:
+    def inject_context(
+        self, headers: Dict[str, str], context: Optional[Any] = None
+    ) -> None:
         """Inject trace context into outgoing request headers.
 
         Args:
@@ -191,7 +205,7 @@ class TracingManager:
         if span and span.is_recording():
             context = span.get_span_context()
             if context and context.is_valid:
-                return format(context.trace_id, '032x')
+                return format(context.trace_id, "032x")
         return None
 
     def add_span_attributes(self, attributes: Dict[str, Any]) -> None:

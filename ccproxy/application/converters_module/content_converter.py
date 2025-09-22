@@ -65,7 +65,9 @@ class ContentConverter:
             try:
                 key = (
                     json.dumps(
-                        anthropic_tool_result_content, sort_keys=True, separators=(",", ":")
+                        anthropic_tool_result_content,
+                        sort_keys=True,
+                        separators=(",", ":"),
                     ),
                     "1",
                 )
@@ -91,9 +93,9 @@ class ContentConverter:
             return "null"
 
         # Handle primitive types
-        if is_serializable_primitive(anthropic_tool_result_content) and not is_string_content(
+        if is_serializable_primitive(
             anthropic_tool_result_content
-        ):
+        ) and not is_string_content(anthropic_tool_result_content):
             return json.dumps(anthropic_tool_result_content)
 
         # Handle dict type

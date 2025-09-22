@@ -251,7 +251,9 @@ async def log_and_return_error_response(
                 AnthropicErrorType.OVERLOADED: ErrorType.RATE_LIMIT_ERROR,
                 AnthropicErrorType.API_ERROR: ErrorType.API_ERROR,
             }
-            error_type = error_type_map.get(anthropic_error_type, ErrorType.INTERNAL_ERROR)
+            error_type = error_type_map.get(
+                anthropic_error_type, ErrorType.INTERNAL_ERROR
+            )
 
         # Capture request snapshot
         request_snapshot = await error_tracker.capture_request_snapshot(request)

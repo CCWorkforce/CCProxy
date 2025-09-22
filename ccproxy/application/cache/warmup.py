@@ -87,10 +87,12 @@ class CacheWarmupManager:
                     "id": "warmup_hello",
                     "type": "message",
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "Hello! How can I help you today?"}],
+                    "content": [
+                        {"type": "text", "text": "Hello! How can I help you today?"}
+                    ],
                     "usage": {"input_tokens": 10, "output_tokens": 20},
-                    "stop_reason": "end_turn"
-                }
+                    "stop_reason": "end_turn",
+                },
             },
             {
                 "messages": [{"role": "user", "content": "What can you help me with?"}],
@@ -98,37 +100,53 @@ class CacheWarmupManager:
                     "id": "warmup_help",
                     "type": "message",
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "I can help you with a wide range of tasks including answering questions, writing, analysis, coding, and more!"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "I can help you with a wide range of tasks including answering questions, writing, analysis, coding, and more!",
+                        }
+                    ],
                     "usage": {"input_tokens": 15, "output_tokens": 30},
-                    "stop_reason": "end_turn"
-                }
+                    "stop_reason": "end_turn",
+                },
             },
             {
-                "messages": [{"role": "user", "content": "Explain how to use this API"}],
+                "messages": [
+                    {"role": "user", "content": "Explain how to use this API"}
+                ],
                 "response": {
                     "id": "warmup_api",
                     "type": "message",
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "This API provides OpenAI-compatible endpoints for Anthropic's Claude models..."}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This API provides OpenAI-compatible endpoints for Anthropic's Claude models...",
+                        }
+                    ],
                     "usage": {"input_tokens": 20, "output_tokens": 50},
-                    "stop_reason": "end_turn"
-                }
+                    "stop_reason": "end_turn",
+                },
             },
         ]
 
     async def start(self) -> None:
         """Start the cache warmup manager."""
         if not self.config.enabled:
-            debug(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message="Cache warmup disabled",
-            ))
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message="Cache warmup disabled",
+                )
+            )
             return
 
-        info(LogRecord(
-            event=LogEvent.CACHE_EVENT.value,
-            message="Starting cache warmup manager",
-        ))
+        info(
+            LogRecord(
+                event=LogEvent.CACHE_EVENT.value,
+                message="Starting cache warmup manager",
+            )
+        )
 
         # Start warmup on startup if configured
         if self.config.warmup_on_startup:
@@ -174,30 +192,36 @@ class CacheWarmupManager:
             warmup_file = Path(self.config.warmup_file_path)
             if warmup_file.exists():
                 try:
-                    async with aiofiles.open(warmup_file, 'r') as f:
+                    async with aiofiles.open(warmup_file, "r") as f:
                         content = await f.read()
                         warmup_data = json.loads(content)
 
-                    for item in warmup_data[:self.config.max_warmup_items]:
+                    for item in warmup_data[: self.config.max_warmup_items]:
                         await self._load_warmup_item(item)
                         warmup_count += 1
 
                 except Exception as e:
-                    warning(LogRecord(
-                        event=LogEvent.CACHE_EVENT.value,
-                        message=f"Failed to load warmup file: {e}",
-                    ))
+                    warning(
+                        LogRecord(
+                            event=LogEvent.CACHE_EVENT.value,
+                            message=f"Failed to load warmup file: {e}",
+                        )
+                    )
 
-            info(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Cache warmup completed with {warmup_count} items",
-            ))
+            info(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Cache warmup completed with {warmup_count} items",
+                )
+            )
 
         except Exception as e:
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Cache warmup failed: {e}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Cache warmup failed: {e}",
+                )
+            )
 
     async def _load_warmup_item(self, item: Dict[str, Any]) -> None:
         """Load a single warmup item into cache."""
@@ -208,7 +232,7 @@ class CacheWarmupManager:
                     role=msg["role"],
                     content=[ContentBlockText(type="text", text=msg["content"])]
                     if isinstance(msg.get("content"), str)
-                    else msg.get("content", [])
+                    else msg.get("content", []),
                 )
                 for msg in item.get("messages", [])
             ]
@@ -227,15 +251,14 @@ class CacheWarmupManager:
                 role=response_data.get("role", "assistant"),
                 model=request.model,
                 content=[
-                    ContentBlockText(
-                        type="text",
-                        text=content.get("text", "")
-                    )
+                    ContentBlockText(type="text", text=content.get("text", ""))
                     for content in response_data.get("content", [])
                 ],
                 usage=Usage(
                     input_tokens=response_data.get("usage", {}).get("input_tokens", 10),
-                    output_tokens=response_data.get("usage", {}).get("output_tokens", 20),
+                    output_tokens=response_data.get("usage", {}).get(
+                        "output_tokens", 20
+                    ),
                 ),
                 stop_reason=response_data.get("stop_reason", "end_turn"),
             )
@@ -246,16 +269,20 @@ class CacheWarmupManager:
             # Store in cache
             await self.cache.set(cache_key, response, request)
 
-            debug(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Warmed up cache entry: {cache_key[:20]}...",
-            ))
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Warmed up cache entry: {cache_key[:20]}...",
+                )
+            )
 
         except Exception as e:
-            debug(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Failed to load warmup item: {e}",
-            ))
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Failed to load warmup item: {e}",
+                )
+            )
 
     async def _auto_save_loop(self) -> None:
         """Periodically save popular items for warmup."""
@@ -266,17 +293,20 @@ class CacheWarmupManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                warning(LogRecord(
-                    event=LogEvent.CACHE_EVENT.value,
-                    message=f"Failed to save popular items: {e}",
-                ))
+                warning(
+                    LogRecord(
+                        event=LogEvent.CACHE_EVENT.value,
+                        message=f"Failed to save popular items: {e}",
+                    )
+                )
 
     async def _save_popular_items(self) -> None:
         """Save popular cache items for future warmup."""
         try:
             # Get items that meet popularity threshold
             popular_items = [
-                key for key, count in self._popular_items.items()
+                key
+                for key, count in self._popular_items.items()
                 if count >= self.config.popularity_threshold
             ]
 
@@ -285,7 +315,7 @@ class CacheWarmupManager:
 
             # Collect cache data for popular items
             warmup_data = []
-            for cache_key in popular_items[:self.config.max_warmup_items]:
+            for cache_key in popular_items[: self.config.max_warmup_items]:
                 # This would need access to the actual cached data
                 # For now, we'll just save the keys
                 warmup_data.append({"cache_key": cache_key})
@@ -294,19 +324,23 @@ class CacheWarmupManager:
             warmup_file = Path(self.config.warmup_file_path)
             warmup_file.parent.mkdir(parents=True, exist_ok=True)
 
-            async with aiofiles.open(warmup_file, 'w') as f:
+            async with aiofiles.open(warmup_file, "w") as f:
                 await f.write(json.dumps(warmup_data, indent=2))
 
-            info(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Saved {len(warmup_data)} popular items for warmup",
-            ))
+            info(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Saved {len(warmup_data)} popular items for warmup",
+                )
+            )
 
         except Exception as e:
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Failed to save popular items: {e}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Failed to save popular items: {e}",
+                )
+            )
 
     def track_cache_hit(self, cache_key: str) -> None:
         """Track a cache hit for popularity tracking."""
@@ -349,15 +383,19 @@ class CacheWarmupManager:
                 await self.cache.set(cache_key, response, request)
                 preloaded += 1
             except Exception as e:
-                debug(LogRecord(
-                    event=LogEvent.CACHE_EVENT.value,
-                    message=f"Failed to preload item: {e}",
-                ))
+                debug(
+                    LogRecord(
+                        event=LogEvent.CACHE_EVENT.value,
+                        message=f"Failed to preload item: {e}",
+                    )
+                )
 
-        info(LogRecord(
-            event=LogEvent.CACHE_EVENT.value,
-            message=f"Preloaded {preloaded} items into cache",
-        ))
+        info(
+            LogRecord(
+                event=LogEvent.CACHE_EVENT.value,
+                message=f"Preloaded {preloaded} items into cache",
+            )
+        )
 
         return preloaded
 
@@ -376,14 +414,16 @@ class CacheWarmupManager:
         log_path = Path(log_file_path)
 
         if not log_path.exists():
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Log file not found: {log_file_path}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Log file not found: {log_file_path}",
+                )
+            )
             return 0
 
         try:
-            async with aiofiles.open(log_path, 'r') as f:
+            async with aiofiles.open(log_path, "r") as f:
                 async for line in f:
                     if loaded >= max_items:
                         break
@@ -402,14 +442,18 @@ class CacheWarmupManager:
                         continue
 
         except Exception as e:
-            warning(LogRecord(
-                event=LogEvent.CACHE_EVENT.value,
-                message=f"Failed to warmup from log: {e}",
-            ))
+            warning(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Failed to warmup from log: {e}",
+                )
+            )
 
-        info(LogRecord(
-            event=LogEvent.CACHE_EVENT.value,
-            message=f"Loaded {loaded} items from log file",
-        ))
+        info(
+            LogRecord(
+                event=LogEvent.CACHE_EVENT.value,
+                message=f"Loaded {loaded} items from log file",
+            )
+        )
 
         return loaded

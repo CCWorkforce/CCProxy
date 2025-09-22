@@ -53,14 +53,9 @@ def sample_anthropic_request():
     """Create a sample Anthropic messages request."""
     return {
         "model": "claude-3-opus-20240229",
-        "messages": [
-            {
-                "role": "user",
-                "content": "Hello, how are you?"
-            }
-        ],
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "max_tokens": 100,
-        "stream": False
+        "stream": False,
     }
 
 
@@ -74,7 +69,7 @@ def sample_anthropic_response():
         model="claude-3-opus-20240229",
         content=[ContentBlockText(type="text", text="I'm doing well, thank you!")],
         usage=Usage(input_tokens=10, output_tokens=20),
-        stop_reason="end_turn"
+        stop_reason="end_turn",
     )
 
 
@@ -138,16 +133,23 @@ class TestMonitoringRoutes:
         """Test cache clearing endpoint."""
         response = test_client.post("/v1/cache/clear")
         assert response.status_code == 200
-        assert response.json() == {"status": "cache_cleared", "message": "All caches have been cleared"}
+        assert response.json() == {
+            "status": "cache_cleared",
+            "message": "All caches have been cleared",
+        }
 
 
 class TestMessagesRoute:
     """Test the main messages proxy route."""
 
     @pytest.mark.asyncio
-    async def test_messages_endpoint_success(self, test_client, sample_anthropic_request):
+    async def test_messages_endpoint_success(
+        self, test_client, sample_anthropic_request
+    ):
         """Test successful message proxying."""
-        with patch('ccproxy.interfaces.http.routes.messages.OpenAIProvider') as mock_provider:
+        with patch(
+            "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
+        ) as mock_provider:
             # Mock the provider response
             mock_completion = MagicMock()
             mock_completion.choices = [MagicMock()]
@@ -161,12 +163,14 @@ class TestMessagesRoute:
             mock_completion.id = "chatcmpl-test"
             mock_completion.model = "gpt-5"
 
-            mock_provider.return_value.create_chat_completion = AsyncMock(return_value=mock_completion)
+            mock_provider.return_value.create_chat_completion = AsyncMock(
+                return_value=mock_completion
+            )
 
             response = test_client.post(
                 "/v1/messages",
                 json=sample_anthropic_request,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
 
             assert response.status_code == 200
@@ -181,7 +185,7 @@ class TestMessagesRoute:
         response = test_client.post(
             "/v1/messages",
             data="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 400
@@ -200,7 +204,7 @@ class TestMessagesRoute:
         response = test_client.post(
             "/v1/messages",
             json=invalid_request,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 422
@@ -208,21 +212,27 @@ class TestMessagesRoute:
         assert data["type"] == "error"
 
     @pytest.mark.asyncio
-    async def test_messages_endpoint_streaming(self, test_client, sample_anthropic_request):
+    async def test_messages_endpoint_streaming(
+        self, test_client, sample_anthropic_request
+    ):
         """Test streaming response."""
         sample_anthropic_request["stream"] = True
 
-        with patch('ccproxy.interfaces.http.routes.messages.OpenAIProvider') as mock_provider:
+        with patch(
+            "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
+        ) as mock_provider:
             # Mock streaming response
             async def mock_stream():
                 yield MagicMock()  # Mock chunk
 
-            mock_provider.return_value.create_chat_completion = AsyncMock(return_value=mock_stream())
+            mock_provider.return_value.create_chat_completion = AsyncMock(
+                return_value=mock_stream()
+            )
 
             response = test_client.post(
                 "/v1/messages",
                 json=sample_anthropic_request,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
 
             # Streaming returns SSE format
@@ -275,12 +285,15 @@ class TestMiddleware:
             "/v1/messages",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "POST"
-            }
+                "Access-Control-Request-Method": "POST",
+            },
         )
 
         # CORS headers should be present when enabled
-        assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+        assert (
+            response.headers.get("access-control-allow-origin")
+            == "http://localhost:3000"
+        )
 
     def test_rate_limiting(self, test_client, mock_settings):
         """Test rate limiting middleware."""
@@ -311,7 +324,9 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_internal_server_error_handling(self, test_client):
         """Test handling of internal server errors."""
-        with patch('ccproxy.interfaces.http.routes.messages.OpenAIProvider') as mock_provider:
+        with patch(
+            "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
+        ) as mock_provider:
             # Mock provider to raise an exception
             mock_provider.return_value.create_chat_completion = AsyncMock(
                 side_effect=Exception("Internal error")
@@ -322,8 +337,8 @@ class TestErrorHandling:
                 json={
                     "model": "claude-3-opus-20240229",
                     "messages": [{"role": "user", "content": "test"}],
-                    "max_tokens": 100
-                }
+                    "max_tokens": 100,
+                },
             )
 
             assert response.status_code == 500
@@ -338,10 +353,8 @@ class TestTokenCountEndpoint:
         """Test token counting endpoint."""
         request_data = {
             "model": "claude-3-opus-20240229",
-            "messages": [
-                {"role": "user", "content": "Count my tokens"}
-            ],
-            "system": "You are a helpful assistant"
+            "messages": [{"role": "user", "content": "Count my tokens"}],
+            "system": "You are a helpful assistant",
         }
 
         response = test_client.post("/v1/messages/count_tokens", json=request_data)
@@ -361,7 +374,7 @@ class TestRequestValidation:
         request_data = {
             "model": "claude-3-opus-20240229",
             "messages": [{"role": "user", "content": "test"}],
-            "max_tokens": -1  # Invalid negative value
+            "max_tokens": -1,  # Invalid negative value
         }
 
         response = test_client.post("/v1/messages", json=request_data)
@@ -373,7 +386,7 @@ class TestRequestValidation:
         request_data = {
             "model": "claude-3-opus-20240229",
             "messages": [{"role": "user", "content": "test"}],
-            "temperature": 2.5  # Invalid, should be between 0 and 1
+            "temperature": 2.5,  # Invalid, should be between 0 and 1
         }
 
         response = test_client.post("/v1/messages", json=request_data)
@@ -386,7 +399,7 @@ class TestRequestValidation:
         request_data = {
             "model": "claude-3-opus-20240229",
             "messages": [],  # Empty messages
-            "max_tokens": 100
+            "max_tokens": 100,
         }
 
         response = test_client.post("/v1/messages", json=request_data)
@@ -425,7 +438,7 @@ class TestContentTypes:
         response = test_client.post(
             "/v1/messages",
             data="plain text data",
-            headers={"Content-Type": "text/plain"}
+            headers={"Content-Type": "text/plain"},
         )
 
         # Should reject non-JSON content type for this endpoint
