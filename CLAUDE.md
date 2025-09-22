@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Project: CCProxy – OpenAI-compatible proxy for Anthropic Messages API
 
 Common commands
-- Install deps: uv pip install -r requirements.txt
+- Install deps: uv pip install -r requirements.txt (includes aiofiles for async file I/O in cache warmup)
 - Run dev (uvicorn): python main.py
 - Run via script (env checks): ./run-ccproxy.sh
 - Docker build/run (compose): ./docker-compose-run.sh up -d
@@ -63,7 +63,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/application/converters_module/: Modular converter implementations with specialized processors
   - async_converter.py: AsyncMessageConverter and AsyncResponseConverter for parallel processing
   - Optimized for high-throughput with ThreadPoolExecutor for CPU-bound operations
-- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry)
+- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); now includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
 - ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
 - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
 - ccproxy/application/response_cache.py: Response caching abstraction (delegates to cache implementations)
@@ -76,7 +76,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - External service integrations and infrastructure concerns
 - ccproxy/infrastructure/providers/: Provider implementations for external services
   - base.py: ChatProvider protocol definition
-  - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, and request correlation IDs for resilience and monitoring
+  - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, tiktoken for precise token estimation in rate limiting (via tokenizer.py), and request correlation IDs for resilience and monitoring
   - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); integrates with openai_provider for token estimation and release.
 
 ## Interface Layer (ccproxy/interfaces/)

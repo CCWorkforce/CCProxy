@@ -10,7 +10,7 @@
 - `streaming.py`: Server-Sent Events (SSE) streaming implementation
 - `errors.py`: HTTP error handling and response formatting
 - `middleware.py`: Request/response middleware pipeline
-- `guardrails.py`: Input validation and security protection
+- `guardrails.py`: Input validation and security protection including BodySizeLimitMiddleware and InjectionGuardMiddleware (SQLi/XSS/cmd/path traversal detection/blocking via regex patterns and recursive JSON checks)
 - `http_status.py`: HTTP status code utilities and mappings
 - `upstream_limits.py`: Rate limiting for upstream service calls
 
@@ -22,6 +22,6 @@
 - **FastAPI patterns**: Use dependency injection and proper async patterns
 - **Request lifecycle**: Proper middleware ordering and request/response handling
 - **Startup/Shutdown**: Initialize CacheWarmupManager in lifespan context if enabled
-- **Security**: Apply guardrails for input validation and protection against malicious requests
+- **Security**: Apply guardrails for input validation and protection against malicious requests; includes injection guards for SQLi/XSS in JSON bodies/headers (blocks on pattern match with logging)
 - **Performance**: Optimize streaming and response handling for high throughput
 - **Type safety**: Strict type checking enabled; use proper type annotations

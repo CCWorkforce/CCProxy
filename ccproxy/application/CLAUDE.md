@@ -8,7 +8,7 @@
   - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
   - Uses ThreadPoolExecutor for CPU-bound operations, optimized for high throughput
   - Provides `convert_messages_async()` and `convert_response_async()` functions
-- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry)
+- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
 - `model_selection.py`: Model mapping logic (opus/sonnet→BIG, haiku→SMALL)
 - `request_validator.py`: Request validation with LRU cache (10,000 capacity) and cryptographic hashing
 - `response_cache.py`: Response caching abstraction (delegates to cache implementations)
@@ -29,4 +29,4 @@
 - **Secret safety**: Never log secrets; use ccproxy.logging for structured logging
 - **Dependency injection**: Accept dependencies as parameters for testability
 - **Memory management**: Respect cache limits and TTL configurations
-- **Type safety**: Strict type checking enabled; all functions must have type annotations
+- **Token Accuracy**: Use tokenizer.py's model-specific tiktoken encoders for precise counting in rate limiting and truncation; fallback to ~4 chars/token on encoder failure.
