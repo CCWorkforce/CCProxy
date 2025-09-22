@@ -305,7 +305,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_retry_on_rate_limit(self, openai_provider, sample_messages):
         """Test retry mechanism on rate limit errors."""
-        # Test the retry mechanism directly, bypassing circuit breaker
+        # Test the retry mechanism through RetryHandler
         with patch.object(
             openai_provider._openAIClient.chat.completions,
             "create",
@@ -330,8 +330,8 @@ class TestOpenAIProvider:
             mock_create.side_effect = mock_func
 
             with patch("asyncio.sleep", new_callable=AsyncMock):  # Skip actual sleep
-                # Test _execute_with_retry directly
-                result = await openai_provider._execute_with_retry(
+                # Test through retry_handler directly
+                result = await openai_provider._retry_handler.execute_with_retry(
                     mock_create, messages=sample_messages, model="gpt-5"
                 )
 

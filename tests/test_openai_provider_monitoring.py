@@ -7,11 +7,8 @@ import pytest_asyncio
 from datetime import datetime
 from openai import RateLimitError, AuthenticationError
 
-from ccproxy.infrastructure.providers.openai_provider import (
-    OpenAIProvider,
-    CircuitBreaker,
-    CircuitState,
-)
+from ccproxy.infrastructure.providers.openai_provider import OpenAIProvider
+from ccproxy.infrastructure.providers.resilience import CircuitBreaker, CircuitState
 from ccproxy.config import Settings
 from ccproxy.application.error_tracker import ErrorType
 
@@ -32,6 +29,23 @@ def mock_settings():
     settings.error_log_file_path = "test_errors.log"
     settings.log_file_path = "test.log"
     settings.monitoring_recent_durations_maxlen = 100
+    # Circuit breaker settings
+    settings.circuit_breaker_failure_threshold = 5
+    settings.circuit_breaker_recovery_timeout = 60
+    settings.circuit_breaker_half_open_requests = 3
+    # Client rate limiter settings
+    settings.client_rate_limit_enabled = False
+    settings.client_rate_limit_rpm = 100
+    settings.client_rate_limit_tpm = 10000
+    settings.client_rate_limit_burst = 10
+    settings.client_rate_limit_adaptive = True
+    # HTTP client settings
+    settings.pool_max_keepalive_connections = 50
+    settings.pool_max_connections = 100
+    settings.pool_keepalive_expiry = 30.0
+    settings.http_connect_timeout = 30.0
+    settings.http_write_timeout = 30.0
+    settings.http_pool_timeout = 30.0
     return settings
 
 
@@ -209,7 +223,7 @@ class TestProviderMetrics:
     async def test_latency_percentiles(self, provider_with_monitoring):
         """Test latency percentile calculations."""
         # Simulate multiple requests with different latencies
-        provider_with_monitoring._latency_history = [
+        latencies = [
             10,
             20,
             30,
@@ -232,25 +246,16 @@ class TestProviderMetrics:
             200,
         ]
 
-        async with provider_with_monitoring._metrics_lock:
-            provider_with_monitoring._metrics.successful_requests = 20
-            provider_with_monitoring._metrics.total_requests = 20
-
-            # Trigger percentile calculation
-            if len(provider_with_monitoring._latency_history) >= 10:
-                sorted_latencies = sorted(provider_with_monitoring._latency_history)
-                # For 20 items: index 18 (0-based) = 190, index 19 = 200
-                provider_with_monitoring._metrics.p95_latency_ms = sorted_latencies[
-                    18
-                ]  # 190
-                provider_with_monitoring._metrics.p99_latency_ms = sorted_latencies[
-                    19
-                ]  # 200
-
-            provider_with_monitoring._update_health_score()
+        # Record successes with these latencies through the metrics collector
+        for latency in latencies:
+            await provider_with_monitoring._metrics_collector.record_success(latency, 0)
 
         metrics = await provider_with_monitoring.get_metrics()
-        assert metrics.p95_latency_ms == 190  # 95th percentile
+
+        # For 20 items sorted: 95th percentile at index 19 (int(20 * 0.95) = 19)
+        # 99th percentile at index 19 (int(20 * 0.99) = 19)
+        # Both point to index 19, which is value 200 (0-indexed)
+        assert metrics.p95_latency_ms == 200  # 95th percentile
         assert metrics.p99_latency_ms == 200  # 99th percentile
 
 
