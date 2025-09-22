@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # FastAPI framework
-fastapi==0.116.2
+fastapi==0.117.1
 uvicorn[standard]==0.36.0
 
 # OpenAI client
@@ -39,3 +39,4 @@ gunicorn==23.0.0
 locust
 starlette>=0.48.0
 standard>=1.0.3
+asyncio>=4.0.0

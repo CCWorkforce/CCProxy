@@ -21,6 +21,7 @@ dependencies = [
     "typing-extensions>=4.15.0",
     "starlette>=0.48.0",
     "standard>=1.0.3",
+    "asyncio>=4.0.0",
 ]
 
 [project.optional-dependencies]
