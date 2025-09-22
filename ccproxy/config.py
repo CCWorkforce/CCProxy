@@ -245,13 +245,13 @@ class Settings(BaseSettings):
         default=True, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_ENABLED")
     )
     client_rate_limit_rpm: int = Field(
-        default=500, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_RPM")
+        default=1500, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_RPM")
     )
     client_rate_limit_tpm: int = Field(
-        default=90000, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_TPM")
+        default=270000, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_TPM")
     )
     client_rate_limit_burst: int = Field(
-        default=100, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_BURST")
+        default=300, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_BURST")
     )
     client_rate_limit_adaptive: bool = Field(
         default=True, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_ADAPTIVE")

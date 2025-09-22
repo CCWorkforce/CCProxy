@@ -214,8 +214,7 @@ class OpenAIProvider:
                 adaptive_enabled=settings.client_rate_limit_adaptive,
             )
             self._rate_limiter = ClientRateLimiter(rate_limit_config)
-            # Start rate limiter background tasks
-            asyncio.create_task(self._rate_limiter.start())
+            # Rate limiter will start automatically on first use
             logging.info(f"Client rate limiter initialized: {settings.client_rate_limit_rpm} RPM, {settings.client_rate_limit_tpm} TPM")
         else:
             self._rate_limiter = None
@@ -448,11 +447,7 @@ class OpenAIProvider:
                     logging.warning(f"Request {correlation_id} blocked by client rate limiter")
                     async with self._metrics_lock:
                         self._metrics.failed_requests += 1
-                    raise openai.RateLimitError(
-                        message="Client-side rate limit exceeded",
-                        response=None,
-                        body=None
-                    )
+                    raise Exception("Client-side rate limit exceeded. Please retry after a short delay.")
 
             # Handle streaming case separately
             stream = params.get('stream', False)

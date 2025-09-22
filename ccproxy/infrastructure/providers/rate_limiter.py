@@ -73,28 +73,20 @@ class ClientRateLimiter:
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
 
-        # Background task for refilling buckets
-        self._refill_task: Optional[asyncio.Task] = None
+        # Rate limiter state
         self._running = False
 
     async def start(self) -> None:
-        """Start the rate limiter background tasks."""
+        """Start the rate limiter."""
         if not self._running:
             self._running = True
-            self._refill_task = asyncio.create_task(self._refill_buckets())
+            # Note: Background task for bucket refill not needed - using sliding window approach
             logging.info(f"Client rate limiter started with {self._current_rpm_limit} RPM, {self._current_tpm_limit} TPM")
 
     async def stop(self) -> None:
-        """Stop the rate limiter background tasks."""
+        """Stop the rate limiter."""
         self._running = False
-        if self._refill_task:
-            self._refill_task.cancel()
-            try:
-                await self._refill_task
-            except asyncio.CancelledError:
-                pass
-            self._refill_task = None
-            logging.info("Client rate limiter stopped")
+        logging.info("Client rate limiter stopped")
 
     async def acquire(self, estimated_tokens: int = 0, priority: int = 0) -> bool:
         """
@@ -107,6 +99,10 @@ class ClientRateLimiter:
         Returns:
             True if request can proceed, False if rate limited
         """
+        # Auto-start on first use
+        if not self._running:
+            await self.start()
+
         async with self._lock:
             current_time = time.time()
 
@@ -212,24 +208,6 @@ class ClientRateLimiter:
 
                 self.metrics.consecutive_successes = 0
 
-    async def _refill_buckets(self) -> None:
-        """Background task to refill token buckets."""
-        while self._running:
-            try:
-                await asyncio.sleep(1)  # Refill every second
-
-                # Calculate refill amounts (per second)
-                # TODO: Implement actual bucket refill logic
-                # requests_per_second = self._current_rpm_limit / 60
-                # tokens_per_second = self._current_tpm_limit / 60
-
-                # Note: In a real implementation, we'd need more sophisticated
-                # bucket management here. This is simplified for demonstration.
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Error in rate limiter refill task: {e}")
 
     def get_metrics(self) -> Dict[str, Any]:
         """
