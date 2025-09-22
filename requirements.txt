@@ -36,6 +36,12 @@ yarl>=1.20.1
 # Python dotenv for environment variables
 python-dotenv>=1.1.1
 
+# OpenTelemetry for distributed tracing
+opentelemetry-api>=1.37.0
+opentelemetry-sdk>=1.37.0
+opentelemetry-exporter-otlp-proto-grpc>=1.37.0
+opentelemetry-exporter-jaeger-thrift>=1.21.0
+
 # Production server (optional, for better performance)
 gunicorn>=23.0.0
 locust
