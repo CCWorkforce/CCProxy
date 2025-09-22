@@ -27,6 +27,7 @@ OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset({
     "deepseek/deepseek-chat-v3.1",
     "x-ai/grok-code-fast-1",
     "x-ai/grok-4-fast:free",
+    "z-ai/glm-4.5"
 })
 
 # Models that do not support temperature (e.g., temperature)
@@ -96,6 +97,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("qwen/qwen3-coder-plus", 128_000),
     ("qwen/qwen3-coder-flash", 128_000),
     ("x-ai/grok-4-fast:free", 2_000_000),
+    ("z-ai/glm-4.5", 131_072),
 })
 
 MODEL_INPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_INPUT_TOKEN_LIMIT)
@@ -121,6 +123,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset({
     ("qwen/qwen3-coder-plus", 66_560),
     ("qwen/qwen3-coder-flash", 66_560),
     ("x-ai/grok-4-fast:free", 30_720),
+    ("z-ai/glm-4.5", 65_536),
 })
 
 MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP: Dict[str, int] = dict(MODEL_MAX_OUTPUT_TOKEN_LIMIT)
