@@ -76,7 +76,8 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - External service integrations and infrastructure concerns
 - ccproxy/infrastructure/providers/: Provider implementations for external services
   - base.py: ChatProvider protocol definition
-  - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive)
+  - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, and request correlation IDs for resilience and monitoring
+  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); integrates with openai_provider for token estimation and release.
 
 ## Interface Layer (ccproxy/interfaces/)
 - External interfaces and delivery mechanisms
