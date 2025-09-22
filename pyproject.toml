@@ -1,6 +1,6 @@
 [project]
 name = "CCProxy"
-version = "1.1.7"
+version = "1.1.8"
 description = "Proxy server enabling Claude Code to work with OpenAI and its compatible API providers"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -10,17 +10,24 @@ authors = [
 dependencies = [
     "fastapi[standard]>=0.117.1",
     "uvicorn>=0.36.0",
-    "gunicorn==23.0.0",
+    "gunicorn>=23.0.0",
     "httpx[http2]>=0.28.1",
     "pydantic>=2.11.9",
     "python-dotenv>=1.1.1",
-    "openai>=1.108.1",
+    "openai[aiohttp]>=1.108.1",
+    "httpx-aiohttp>=0.1.8",
     "pydantic-settings>=2.10.1",
     "tiktoken>=0.11.0",
-    "yarl==1.20.1",
+    "yarl>=1.20.1",
     "typing-extensions>=4.15.0",
     "starlette>=0.48.0",
     "standard>=1.0.3",
+    "asyncio>=4.0.0",
+    "orjson>=3.11.3",
+    "opentelemetry-api>=1.37.0",
+    "opentelemetry-sdk>=1.37.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.37.0",
+    "opentelemetry-exporter-jaeger-thrift>=1.21.0",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +47,7 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
-    "pytest-sugar>=1.1.1",
+    "aiofiles>=24.1.0",
     "respx>=0.22.0",
     "ruff>=0.13.1",
     "mypy>=1.18.2",

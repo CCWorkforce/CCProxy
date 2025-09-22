@@ -4,7 +4,8 @@
 
 ## Files in this module:
 - `base.py`: ChatProvider protocol definition and interface contracts
-- `openai_provider.py`: High-performance OpenAI API client with HTTP/2 optimization
+- `openai_provider.py`: High-performance OpenAI API client with dynamic HTTP client selection (aiohttp for prod, httpx for local) and HTTP/2 optimization; integrates CircuitBreaker, PerformanceMonitor, ErrorTracker, tiktoken for precise token counting in rate limiter (via tokenizer.py), UTF-8 safe decoding, tracing propagation (if available), and rate limiter for estimated token-based limiting.
+- `rate_limiter.py`: Implements ClientRateLimiter with RateLimitStrategy (adaptive default); sliding window for rates, metrics for hits/rejections, handles 429 with backoff/recovery multipliers.
 
 ## Guidelines:
 - **Protocol compliance**: Implement ChatProvider protocol contracts correctly
@@ -12,7 +13,7 @@
 - **UTF-8 integrity**: Ensure UTF-8 integrity on all request/response bodies
 - **Resource cleanup**: Implement proper resource cleanup with async context managers
 - **Configuration**: Keep provider-specific config under Settings
-- **HTTP optimization**: Use HTTP/2, connection pooling (500 connections, 120s keepalive)
+- **HTTP optimization**: Use HTTP/2 where supported, dynamic connection pooling (500 local / 1000 prod connections, 120s keepalive)
 - **Retry logic**: Implement exponential backoff with jitter for retries
-- **Rate limiting**: Respect upstream rate limits and implement backoff strategies
+- **Rate limiting**: Client-side rate limiting via rate_limiter.py uses precise tiktoken counts from tokenizer.py for RPM/TPM (OpenAI format); fallback to rough estimate on failure.
 - **Security**: Never leak API keys or secrets in logs or error messages

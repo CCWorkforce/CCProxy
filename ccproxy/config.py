@@ -193,6 +193,70 @@ class Settings(BaseSettings):
         default=0.5, validation_alias=AliasChoices("PROVIDER_RETRY_JITTER")
     )
 
+    # Circuit breaker configuration
+    circuit_breaker_failure_threshold: int = Field(
+        default=5, validation_alias=AliasChoices("CIRCUIT_BREAKER_FAILURE_THRESHOLD")
+    )
+    circuit_breaker_recovery_timeout: int = Field(
+        default=60, validation_alias=AliasChoices("CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
+    )
+    circuit_breaker_half_open_requests: int = Field(
+        default=3, validation_alias=AliasChoices("CIRCUIT_BREAKER_HALF_OPEN_REQUESTS")
+    )
+
+    # Connection pool configuration
+    pool_max_keepalive_connections: int = Field(
+        default=50, validation_alias=AliasChoices("POOL_MAX_KEEPALIVE_CONNECTIONS")
+    )
+    pool_max_connections: int = Field(
+        default=500, validation_alias=AliasChoices("POOL_MAX_CONNECTIONS")
+    )
+    pool_keepalive_expiry: int = Field(
+        default=120, validation_alias=AliasChoices("POOL_KEEPALIVE_EXPIRY")
+    )
+
+    # HTTP timeout configuration
+    http_connect_timeout: float = Field(
+        default=10.0, validation_alias=AliasChoices("HTTP_CONNECT_TIMEOUT")
+    )
+    http_write_timeout: float = Field(
+        default=30.0, validation_alias=AliasChoices("HTTP_WRITE_TIMEOUT")
+    )
+    http_pool_timeout: float = Field(
+        default=10.0, validation_alias=AliasChoices("HTTP_POOL_TIMEOUT")
+    )
+
+    # Distributed tracing configuration
+    tracing_enabled: bool = Field(
+        default=False, validation_alias=AliasChoices("TRACING_ENABLED")
+    )
+    tracing_exporter: str = Field(
+        default="console", validation_alias=AliasChoices("TRACING_EXPORTER")
+    )
+    tracing_endpoint: str = Field(
+        default="", validation_alias=AliasChoices("TRACING_ENDPOINT")
+    )
+    tracing_service_name: str = Field(
+        default="ccproxy", validation_alias=AliasChoices("TRACING_SERVICE_NAME")
+    )
+
+    # Client-side rate limiting configuration
+    client_rate_limit_enabled: bool = Field(
+        default=True, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_ENABLED")
+    )
+    client_rate_limit_rpm: int = Field(
+        default=3000, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_RPM")
+    )
+    client_rate_limit_tpm: int = Field(
+        default=1620000, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_TPM")
+    )
+    client_rate_limit_burst: int = Field(
+        default=600, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_BURST")
+    )
+    client_rate_limit_adaptive: bool = Field(
+        default=True, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_ADAPTIVE")
+    )
+
     @field_validator(
         "cors_allow_origins",
         "cors_allow_methods",

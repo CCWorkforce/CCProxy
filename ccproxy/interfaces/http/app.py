@@ -17,6 +17,14 @@ from .errors import (
     log_and_return_error_response,
     get_anthropic_error_details_from_execution,
 )
+
+# Import tracing if available
+try:
+    from ...tracing import init_tracing
+    tracing_available = True
+except ImportError:
+    tracing_available = False
+    init_tracing = None
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
@@ -40,6 +48,12 @@ def create_app(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Initialize distributed tracing if enabled
+        if tracing_available and settings.tracing_enabled:
+            logging.info("Initializing distributed tracing")
+            init_tracing(settings)
+            logging.info(f"Distributed tracing initialized with {settings.tracing_exporter} exporter")
+
         logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
 

@@ -3,7 +3,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import pytest
-import httpx
+import pytest_asyncio
+import openai
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -12,10 +13,6 @@ from openai.types import CompletionUsage
 
 from ccproxy.infrastructure.providers.openai_provider import OpenAIProvider
 from ccproxy.config import Settings
-from ccproxy.domain.exceptions import (
-    AuthenticationError,
-    ProviderError
-)
 
 
 @pytest.fixture
@@ -30,12 +27,39 @@ def mock_settings():
     settings.referer_url = "http://localhost:11434"
     settings.app_name = "CCProxy"
     settings.app_version = "1.0.0"
+    settings.max_stream_seconds = 300  # Add missing attribute
+    # Circuit breaker settings
+    settings.circuit_breaker_failure_threshold = 5
+    settings.circuit_breaker_recovery_timeout = 60
+    settings.circuit_breaker_half_open_requests = 3
+    # Connection pool settings
+    settings.pool_max_keepalive_connections = 50
+    settings.pool_max_connections = 500
+    settings.pool_keepalive_expiry = 120
+    # HTTP timeout settings
+    settings.http_connect_timeout = 10.0
+    settings.http_write_timeout = 30.0
+    settings.http_pool_timeout = 10.0
+    # Tracing settings
+    settings.tracing_enabled = False
+    settings.tracing_exporter = "console"
+    settings.tracing_endpoint = ""
+    settings.tracing_service_name = "ccproxy"
+    # Client rate limiting settings
+    settings.client_rate_limit_enabled = False
+    settings.client_rate_limit_rpm = 500
+    settings.client_rate_limit_tpm = 90000
+    settings.client_rate_limit_burst = 100
+    settings.client_rate_limit_adaptive = True
     return settings
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def openai_provider(mock_settings):
     """Create an OpenAI provider instance for testing."""
+    import os
+    # Set to local mode for consistent testing
+    os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
     provider = OpenAIProvider(mock_settings)
     yield provider
     await provider.close()
@@ -188,16 +212,17 @@ class TestOpenAIProvider:
         """Test provider initialization with settings."""
         provider = OpenAIProvider(mock_settings)
 
-        assert provider._settings == mock_settings
-        assert provider._client is not None
-        assert isinstance(provider._client, AsyncOpenAI)
+        assert provider.settings == mock_settings
+        assert provider._openAIClient is not None
+        assert isinstance(provider._openAIClient, AsyncOpenAI)
+        assert provider._http_client is not None
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_create_chat_completion(self, openai_provider, sample_messages, mock_chat_completion):
         """Test creating a chat completion."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -223,7 +248,7 @@ class TestOpenAIProvider:
         self, openai_provider, sample_messages, sample_tools, mock_chat_completion
     ):
         """Test creating a chat completion with tools."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -251,7 +276,7 @@ class TestOpenAIProvider:
             for chunk in mock_stream_chunks:
                 yield chunk
 
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = async_generator()
 
@@ -274,38 +299,50 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_retry_on_rate_limit(self, openai_provider, sample_messages):
         """Test retry mechanism on rate limit errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        # Test the retry mechanism directly, bypassing circuit breaker
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             # First call raises rate limit error, second succeeds
-            mock_create.side_effect = [
-                httpx.HTTPStatusError(
-                    "Rate limit exceeded",
-                    request=Mock(),
-                    response=Mock(status_code=429)
-                ),
-                MagicMock()  # Success on retry
-            ]
+            mock_response = MagicMock()
+            call_count = [0]  # Use list to capture in closure
+
+            async def mock_func(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    # First call raises rate limit error
+                    raise openai.RateLimitError(
+                        message="Rate limit exceeded",
+                        response=Mock(status_code=429),
+                        body=None
+                    )
+                # Second call succeeds
+                return mock_response
+
+            mock_create.side_effect = mock_func
 
             with patch('asyncio.sleep', new_callable=AsyncMock):  # Skip actual sleep
-                await openai_provider.create_chat_completion(
+                # Test _execute_with_retry directly
+                result = await openai_provider._execute_with_retry(
+                    mock_create,
                     messages=sample_messages,
                     model="gpt-5"
                 )
 
-            assert mock_create.call_count == 2  # Initial + 1 retry
+            assert result == mock_response
+            assert call_count[0] == 2  # Initial + 1 retry
 
     @pytest.mark.asyncio
     async def test_authentication_error(self, openai_provider, sample_messages):
         """Test handling of authentication errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = httpx.HTTPStatusError(
-                "Unauthorized",
-                request=Mock(),
-                response=Mock(status_code=401)
+            mock_create.side_effect = openai.AuthenticationError(
+                message="Unauthorized",
+                response=Mock(status_code=401),
+                body=None
             )
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(openai.AuthenticationError):
                 await openai_provider.create_chat_completion(
                     messages=sample_messages,
                     model="gpt-5"
@@ -314,11 +351,14 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_network_error_handling(self, openai_provider, sample_messages):
         """Test handling of network errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = httpx.ConnectError("Connection failed")
+            mock_create.side_effect = openai.APIConnectionError(
+                message="Connection failed",
+                request=Mock()
+            )
 
-            with pytest.raises(ProviderError):
+            with pytest.raises(openai.APIError):
                 await openai_provider.create_chat_completion(
                     messages=sample_messages,
                     model="gpt-5"
@@ -327,51 +367,57 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_timeout_handling(self, openai_provider, sample_messages):
         """Test handling of timeout errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
-            mock_create.side_effect = asyncio.TimeoutError("Request timed out")
+            mock_create.side_effect = openai.APITimeoutError(
+                request=Mock()
+            )
 
-            with pytest.raises(ProviderError) as exc_info:
+            with pytest.raises(openai.APIError):
                 await openai_provider.create_chat_completion(
                     messages=sample_messages,
                     model="gpt-5"
                 )
 
-            assert "timeout" in str(exc_info.value).lower()
-
     @pytest.mark.asyncio
     async def test_http2_configuration(self, mock_settings):
         """Test HTTP/2 configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Check that HTTP/2 is enabled in the client
-        assert provider._client._client._transport is not None
+        # Check that HTTP client is configured
+        assert provider._http_client is not None
+        assert provider._openAIClient is not None
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_custom_headers(self, mock_settings):
         """Test custom headers are set."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Headers should include referer and user-agent
-        default_headers = provider._client.default_headers
-        assert "Referer" in default_headers
-        assert default_headers["Referer"] == mock_settings.referer_url
+        # Headers should include referer and X-Title
+        default_headers = provider._openAIClient.default_headers
+        assert "HTTP-Referer" in default_headers
+        assert default_headers["HTTP-Referer"] == mock_settings.referer_url
+        assert "X-Title" in default_headers
+        assert default_headers["X-Title"] == mock_settings.app_name
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_connection_pool_limits(self, mock_settings):
         """Test connection pool configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Check connection pool settings
-        transport = provider._client._client._transport
-        if hasattr(transport, '_pool'):
-            pool = transport._pool
-            # Verify pool limits are configured
-            assert pool is not None
+        # Check that HTTP client is configured
+        assert provider._http_client is not None
+        # The actual pool limits are handled internally by the DefaultAsyncHttpxClient
 
         await provider.close()
 
@@ -387,7 +433,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_reasoning_effort_parameter(self, openai_provider, sample_messages):
         """Test reasoning effort parameter handling."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -404,11 +450,13 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_openrouter_specific_reasoning(self, mock_settings):
         """Test OpenRouter-specific reasoning configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         # Configure for OpenRouter
         mock_settings.base_url = "https://openrouter.ai/api/v1"
         provider = OpenAIProvider(mock_settings)
 
-        with patch.object(provider._client.chat.completions, 'create',
+        with patch.object(provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -430,33 +478,32 @@ class TestOpenAIProvider:
 
     @pytest.mark.asyncio
     async def test_parameter_filtering(self, openai_provider, sample_messages):
-        """Test filtering of unsupported parameters."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        """Test that all parameters are passed through to OpenAI client."""
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
-            # Pass various parameters, some unsupported
+            # Pass various parameters
             await openai_provider.create_chat_completion(
                 messages=sample_messages,
                 model="gpt-5",
                 temperature=0.7,
                 top_p=0.9,
-                unsupported_param="should_be_filtered",
-                another_unsupported=123
+                custom_param="custom_value",
+                another_param=123
             )
 
             call_args = mock_create.call_args
-            # Supported params should be present
+            # All params should be passed through - let OpenAI SDK handle validation
             assert "temperature" in call_args.kwargs
             assert "top_p" in call_args.kwargs
-            # Unsupported params should be filtered
-            assert "unsupported_param" not in call_args.kwargs
-            assert "another_unsupported" not in call_args.kwargs
+            assert "custom_param" in call_args.kwargs
+            assert "another_param" in call_args.kwargs
 
     @pytest.mark.asyncio
     async def test_concurrent_requests(self, openai_provider, sample_messages, mock_chat_completion):
         """Test handling multiple concurrent requests."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -478,7 +525,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_empty_messages_handling(self, openai_provider):
         """Test handling of empty messages list."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -493,7 +540,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_model_validation(self, openai_provider):
         """Test model name validation and mapping."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 

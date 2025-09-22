@@ -6,6 +6,7 @@ import json
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import time
+import aiofiles
 
 from ...domain.models import (
     MessagesRequest,
@@ -173,8 +174,9 @@ class CacheWarmupManager:
             warmup_file = Path(self.config.warmup_file_path)
             if warmup_file.exists():
                 try:
-                    with open(warmup_file, 'r') as f:
-                        warmup_data = json.load(f)
+                    async with aiofiles.open(warmup_file, 'r') as f:
+                        content = await f.read()
+                        warmup_data = json.loads(content)
 
                     for item in warmup_data[:self.config.max_warmup_items]:
                         await self._load_warmup_item(item)
@@ -292,8 +294,8 @@ class CacheWarmupManager:
             warmup_file = Path(self.config.warmup_file_path)
             warmup_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(warmup_file, 'w') as f:
-                json.dump(warmup_data, f, indent=2)
+            async with aiofiles.open(warmup_file, 'w') as f:
+                await f.write(json.dumps(warmup_data, indent=2))
 
             info(LogRecord(
                 event=LogEvent.CACHE_EVENT.value,
@@ -381,8 +383,8 @@ class CacheWarmupManager:
             return 0
 
         try:
-            with open(log_path, 'r') as f:
-                for line in f:
+            async with aiofiles.open(log_path, 'r') as f:
+                async for line in f:
                     if loaded >= max_items:
                         break
 
