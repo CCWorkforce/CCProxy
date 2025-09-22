@@ -29,13 +29,16 @@ from .rate_limiter import ClientRateLimiter, RateLimitConfig
 # Import tracing if available
 try:
     from ...tracing import get_tracing_manager
+
     tracing_available = True
 except ImportError:
     tracing_available = False
     get_tracing_manager = None
 
 # Context variable for trace context propagation
-trace_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar("trace_context", default=None)
+trace_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+    "trace_context", default=None
+)
 
 
 def _safe_decode_response(response_bytes: bytes, context: str = "API response") -> str:
@@ -82,14 +85,16 @@ def _safe_decode_response(response_bytes: bytes, context: str = "API response") 
 
 class CircuitState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"  # Normal operation
-    OPEN = "open"      # Failing, requests blocked
+    OPEN = "open"  # Failing, requests blocked
     HALF_OPEN = "half_open"  # Testing if service recovered
 
 
 @dataclass
 class ProviderMetrics:
     """Detailed provider metrics."""
+
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
@@ -107,7 +112,12 @@ class ProviderMetrics:
 class CircuitBreaker:
     """Circuit breaker for OpenAI API calls."""
 
-    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 60, half_open_requests: int = 3):
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: int = 60,
+        half_open_requests: int = 3,
+    ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout  # seconds
         self.half_open_requests = half_open_requests
@@ -153,7 +163,9 @@ class CircuitBreaker:
 
             if self.consecutive_failures >= self.failure_threshold:
                 self.state = CircuitState.OPEN
-                logging.warning(f"Circuit breaker OPEN - {self.consecutive_failures} consecutive failures")
+                logging.warning(
+                    f"Circuit breaker OPEN - {self.consecutive_failures} consecutive failures"
+                )
             elif self.state == CircuitState.HALF_OPEN:
                 self.state = CircuitState.OPEN
                 logging.warning("Circuit breaker OPEN - failed during recovery test")
@@ -161,7 +173,9 @@ class CircuitBreaker:
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt reset."""
         if self.last_failure_time:
-            time_since_failure = (datetime.now() - self.last_failure_time).total_seconds()
+            time_since_failure = (
+                datetime.now() - self.last_failure_time
+            ).total_seconds()
             return time_since_failure >= self.recovery_timeout
         return False
 
@@ -196,12 +210,14 @@ class OpenAIProvider:
         self._circuit_breaker = CircuitBreaker(
             failure_threshold=settings.circuit_breaker_failure_threshold,
             recovery_timeout=settings.circuit_breaker_recovery_timeout,
-            half_open_requests=settings.circuit_breaker_half_open_requests
+            half_open_requests=settings.circuit_breaker_half_open_requests,
         )
         self._performance_monitor = PerformanceMonitor()
         self._error_tracker = ErrorTracker()  # Singleton, no parameters
         self._metrics = ProviderMetrics()
-        self._request_log: Dict[str, Dict[str, Any]] = {}  # Correlation ID -> request details
+        self._request_log: Dict[
+            str, Dict[str, Any]
+        ] = {}  # Correlation ID -> request details
         self._latency_history: List[float] = []  # For adaptive timeout
         self._metrics_lock = asyncio.Lock()
 
@@ -215,7 +231,9 @@ class OpenAIProvider:
             )
             self._rate_limiter = ClientRateLimiter(rate_limit_config)
             # Rate limiter will start automatically on first use
-            logging.info(f"Client rate limiter initialized: {settings.client_rate_limit_rpm} RPM, {settings.client_rate_limit_tpm} TPM")
+            logging.info(
+                f"Client rate limiter initialized: {settings.client_rate_limit_rpm} RPM, {settings.client_rate_limit_tpm} TPM"
+            )
         else:
             self._rate_limiter = None
             logging.info("Client rate limiting disabled")
@@ -252,14 +270,17 @@ class OpenAIProvider:
                 try:
                     # Try with HTTP/2
                     self._http_client = DefaultAsyncHttpxClient(
-                        **http_client_kwargs,
-                        http2=True
+                        **http_client_kwargs, http2=True
                     )
-                    logging.info("Using DefaultAsyncHttpxClient with HTTP/2 for local deployment")
+                    logging.info(
+                        "Using DefaultAsyncHttpxClient with HTTP/2 for local deployment"
+                    )
                 except ImportError:
                     # Fallback without HTTP/2
                     self._http_client = DefaultAsyncHttpxClient(**http_client_kwargs)
-                    logging.info("Using DefaultAsyncHttpxClient (HTTP/1.1) for local deployment")
+                    logging.info(
+                        "Using DefaultAsyncHttpxClient (HTTP/1.1) for local deployment"
+                    )
             else:
                 # Use aiohttp for production (better performance under high concurrency)
                 # Note: DefaultAioHttpClient requires the openai SDK to be installed with aiohttp extra
@@ -274,7 +295,9 @@ class OpenAIProvider:
                     # Try with HTTP/2 first, fallback without if h2 not available
                     # Use production-optimized values with higher limits
                     max_keepalive = max(settings.pool_max_keepalive_connections, 100)
-                    max_connections = min(settings.pool_max_connections, 300)  # Cap at reasonable limit
+                    max_connections = min(
+                        settings.pool_max_connections, 300
+                    )  # Cap at reasonable limit
 
                     http_client_kwargs = {
                         "limits": httpx.Limits(
@@ -295,8 +318,7 @@ class OpenAIProvider:
                     try:
                         # Try with HTTP/2
                         self._http_client = DefaultAsyncHttpxClient(
-                            **http_client_kwargs,
-                            http2=True
+                            **http_client_kwargs, http2=True
                         )
                         logging.info(
                             "Using optimized DefaultAsyncHttpxClient with HTTP/2 for production. "
@@ -304,7 +326,9 @@ class OpenAIProvider:
                         )
                     except ImportError:
                         # Fallback without HTTP/2
-                        self._http_client = DefaultAsyncHttpxClient(**http_client_kwargs)
+                        self._http_client = DefaultAsyncHttpxClient(
+                            **http_client_kwargs
+                        )
                         logging.info(
                             "Using optimized DefaultAsyncHttpxClient (HTTP/1.1) for production. "
                             "Install h2 for HTTP/2: pip install 'httpx[http2]'. "
@@ -352,8 +376,12 @@ class OpenAIProvider:
             except openai.RateLimitError as e:
                 if attempt >= self._max_retries:
                     raise e
-                delay = self._base_delay * (2**attempt) + random.uniform(0, self._jitter)
-                logging.debug(f"Rate limit hit, retrying in {delay:.2f}s (attempt {attempt + 1}/{self._max_retries})")
+                delay = self._base_delay * (2**attempt) + random.uniform(
+                    0, self._jitter
+                )
+                logging.debug(
+                    f"Rate limit hit, retrying in {delay:.2f}s (attempt {attempt + 1}/{self._max_retries})"
+                )
                 await asyncio.sleep(delay)
                 attempt += 1
             except (
@@ -364,8 +392,12 @@ class OpenAIProvider:
             ) as e:
                 if attempt >= self._max_retries:
                     raise e
-                delay = self._base_delay * (2**attempt) + random.uniform(0, self._jitter)
-                logging.debug(f"Network error, retrying in {delay:.2f}s (attempt {attempt + 1}/{self._max_retries}): {e}")
+                delay = self._base_delay * (2**attempt) + random.uniform(
+                    0, self._jitter
+                )
+                logging.debug(
+                    f"Network error, retrying in {delay:.2f}s (attempt {attempt + 1}/{self._max_retries}): {e}"
+                )
                 await asyncio.sleep(delay)
                 attempt += 1
 
@@ -400,7 +432,11 @@ class OpenAIProvider:
             tracing_manager = get_tracing_manager()
             if tracing_manager and tracing_manager.enabled:
                 # Get trace ID from context or generate new one
-                trace_id = trace_info.get("trace_id") if trace_info else tracing_manager.get_current_trace_id()
+                trace_id = (
+                    trace_info.get("trace_id")
+                    if trace_info
+                    else tracing_manager.get_current_trace_id()
+                )
 
                 # Inject trace context into headers for OpenAI API calls
                 if trace_id:
@@ -429,17 +465,20 @@ class OpenAIProvider:
 
             # Check circuit breaker
             if self._circuit_breaker.is_open:
-                logging.warning(f"Request {correlation_id} blocked by open circuit breaker")
+                logging.warning(
+                    f"Request {correlation_id} blocked by open circuit breaker"
+                )
                 async with self._metrics_lock:
                     self._metrics.failed_requests += 1
-                raise Exception("Service temporarily unavailable - circuit breaker is open")
+                raise Exception(
+                    "Service temporarily unavailable - circuit breaker is open"
+                )
 
             # Apply client-side rate limiting
             if self._rate_limiter:
                 # Accurately count tokens using tiktoken
                 estimated_tokens = await self._estimate_tokens(
-                    params.get("messages", []),
-                    params.get("model")
+                    params.get("messages", []), params.get("model")
                 )
 
                 # Wait if necessary to respect rate limits
@@ -447,19 +486,23 @@ class OpenAIProvider:
 
                 # Try to acquire rate limit permit
                 if not await self._rate_limiter.acquire(estimated_tokens):
-                    logging.warning(f"Request {correlation_id} blocked by client rate limiter")
+                    logging.warning(
+                        f"Request {correlation_id} blocked by client rate limiter"
+                    )
                     async with self._metrics_lock:
                         self._metrics.failed_requests += 1
-                    raise Exception("Client-side rate limit exceeded. Please retry after a short delay.")
+                    raise Exception(
+                        "Client-side rate limit exceeded. Please retry after a short delay."
+                    )
 
             # Handle streaming case separately
-            stream = params.get('stream', False)
+            stream = params.get("stream", False)
             if stream:
                 # For streaming, use circuit breaker with retry logic
                 response = await self._circuit_breaker.call(
                     self._execute_with_retry,
                     self._openAIClient.chat.completions.create,
-                    **params
+                    **params,
                 )
                 await self._on_request_success(correlation_id, request_start)
                 return response
@@ -468,18 +511,19 @@ class OpenAIProvider:
             response = await self._circuit_breaker.call(
                 self._execute_with_retry,
                 self._openAIClient.chat.completions.create,
-                **params
+                **params,
             )
 
             # Decode bytes if needed
-            if hasattr(response, 'choices') and response.choices:
+            if hasattr(response, "choices") and response.choices:
                 for choice in response.choices:
-                    if (hasattr(choice, 'message') and
-                        hasattr(choice.message, 'content') and
-                        isinstance(choice.message.content, bytes)):
+                    if (
+                        hasattr(choice, "message")
+                        and hasattr(choice.message, "content")
+                        and isinstance(choice.message.content, bytes)
+                    ):
                         choice.message.content = _safe_decode_response(
-                            choice.message.content,
-                            "chat completion response"
+                            choice.message.content, "chat completion response"
                         )
 
             # Update metrics and log success
@@ -489,25 +533,33 @@ class OpenAIProvider:
             if self._rate_limiter:
                 await self._rate_limiter.handle_success()
                 # Release with actual token count if available
-                if hasattr(response, 'usage') and response.usage:
+                if hasattr(response, "usage") and response.usage:
                     await self._rate_limiter.release(response.usage.total_tokens)
 
             return response
 
         except UnicodeDecodeError as e:
-            await self._on_request_failure(correlation_id, request_start, e, ErrorType.CONVERSION_ERROR)
+            await self._on_request_failure(
+                correlation_id, request_start, e, ErrorType.CONVERSION_ERROR
+            )
             raise ValueError(
                 f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}"
             ) from e
         except openai.RateLimitError as e:
-            await self._on_request_failure(correlation_id, request_start, e, ErrorType.RATE_LIMIT_ERROR)
+            await self._on_request_failure(
+                correlation_id, request_start, e, ErrorType.RATE_LIMIT_ERROR
+            )
             # Update rate limiter on 429
             if self._rate_limiter:
-                retry_after = getattr(e.response, 'headers', {}).get('retry-after')
-                await self._rate_limiter.handle_429_response(int(retry_after) if retry_after else None)
+                retry_after = getattr(e.response, "headers", {}).get("retry-after")
+                await self._rate_limiter.handle_429_response(
+                    int(retry_after) if retry_after else None
+                )
             raise
         except openai.AuthenticationError as e:
-            await self._on_request_failure(correlation_id, request_start, e, ErrorType.AUTH_ERROR)
+            await self._on_request_failure(
+                correlation_id, request_start, e, ErrorType.AUTH_ERROR
+            )
             raise
         except Exception as e:
             error_type = ErrorType.API_ERROR
@@ -524,12 +576,21 @@ class OpenAIProvider:
                 ) from e
             raise
 
-    def _log_request(self, correlation_id: str, params: Dict[str, Any], trace_id: Optional[str] = None) -> None:
+    def _log_request(
+        self,
+        correlation_id: str,
+        params: Dict[str, Any],
+        trace_id: Optional[str] = None,
+    ) -> None:
         """Log request with correlation ID and optional trace ID."""
         request_info = {
             "timestamp": datetime.now().isoformat(),
-            "params": {k: v for k, v in params.items() if k not in ["api_key", "messages", "extra_headers"]},
-            "model": params.get("model", "unknown")
+            "params": {
+                k: v
+                for k, v in params.items()
+                if k not in ["api_key", "messages", "extra_headers"]
+            },
+            "model": params.get("model", "unknown"),
         }
         if trace_id:
             request_info["trace_id"] = trace_id
@@ -541,7 +602,9 @@ class OpenAIProvider:
             log_msg += f", trace_id={trace_id}"
         logging.debug(log_msg)
 
-    async def _on_request_success(self, correlation_id: str, request_start: float, response: Any = None) -> None:
+    async def _on_request_success(
+        self, correlation_id: str, request_start: float, response: Any = None
+    ) -> None:
         """Handle successful request - update metrics and monitoring."""
         latency_ms = (time.monotonic() - request_start) * 1000
 
@@ -552,7 +615,9 @@ class OpenAIProvider:
         async with self._metrics_lock:
             self._metrics.successful_requests += 1
             self._metrics.total_latency_ms += latency_ms
-            self._metrics.avg_latency_ms = self._metrics.total_latency_ms / max(self._metrics.successful_requests, 1)
+            self._metrics.avg_latency_ms = self._metrics.total_latency_ms / max(
+                self._metrics.successful_requests, 1
+            )
 
             # Track latency for percentiles and adaptive timeout
             self._latency_history.append(latency_ms)
@@ -562,15 +627,21 @@ class OpenAIProvider:
             # Calculate percentiles
             if len(self._latency_history) >= 10:
                 sorted_latencies = sorted(self._latency_history)
-                self._metrics.p95_latency_ms = sorted_latencies[int(len(sorted_latencies) * 0.95)]
-                self._metrics.p99_latency_ms = sorted_latencies[int(len(sorted_latencies) * 0.99)]
+                self._metrics.p95_latency_ms = sorted_latencies[
+                    int(len(sorted_latencies) * 0.95)
+                ]
+                self._metrics.p99_latency_ms = sorted_latencies[
+                    int(len(sorted_latencies) * 0.99)
+                ]
 
             # Update health score (100 = perfect, 0 = dead)
             self._update_health_score()
 
             # Count tokens if available
-            if response and hasattr(response, 'usage'):
-                self._metrics.tokens_processed += getattr(response.usage, 'total_tokens', 0)
+            if response and hasattr(response, "usage"):
+                self._metrics.tokens_processed += getattr(
+                    response.usage, "total_tokens", 0
+                )
 
         # Clean up request log
         if correlation_id in self._request_log:
@@ -578,7 +649,13 @@ class OpenAIProvider:
 
         logging.debug(f"Request {correlation_id} succeeded in {latency_ms:.2f}ms")
 
-    async def _on_request_failure(self, correlation_id: str, request_start: float, error: Exception, error_type: ErrorType) -> None:
+    async def _on_request_failure(
+        self,
+        correlation_id: str,
+        request_start: float,
+        error: Exception,
+        error_type: ErrorType,
+    ) -> None:
         """Handle failed request - update metrics and error tracking."""
         latency_ms = (time.monotonic() - request_start) * 1000
 
@@ -586,15 +663,14 @@ class OpenAIProvider:
         await self._performance_monitor.end_request(correlation_id, success=False)
 
         # Track error (ErrorTracker.track_error doesn't have a context parameter)
-        await self._error_tracker.track_error(
-            error=error,
-            error_type=error_type
-        )
+        await self._error_tracker.track_error(error=error, error_type=error_type)
 
         # Update metrics
         async with self._metrics_lock:
             self._metrics.failed_requests += 1
-            self._metrics.consecutive_failures = self._circuit_breaker.consecutive_failures
+            self._metrics.consecutive_failures = (
+                self._circuit_breaker.consecutive_failures
+            )
             self._metrics.last_failure_time = datetime.now()
             self._metrics.circuit_state = self._circuit_breaker.state.value
 
@@ -605,7 +681,9 @@ class OpenAIProvider:
         if correlation_id in self._request_log:
             del self._request_log[correlation_id]
 
-        logging.error(f"Request {correlation_id} failed after {latency_ms:.2f}ms: {error}")
+        logging.error(
+            f"Request {correlation_id} failed after {latency_ms:.2f}ms: {error}"
+        )
 
     def _update_health_score(self) -> None:
         """Update health score based on metrics (call with lock held)."""
@@ -632,7 +710,9 @@ class OpenAIProvider:
 
         # Recent failures penalty
         if self._metrics.last_failure_time:
-            minutes_since_failure = (datetime.now() - self._metrics.last_failure_time).total_seconds() / 60
+            minutes_since_failure = (
+                datetime.now() - self._metrics.last_failure_time
+            ).total_seconds() / 60
             if minutes_since_failure < 1:
                 penalties += 15
             elif minutes_since_failure < 5:
@@ -663,11 +743,12 @@ class OpenAIProvider:
             "status": status,
             "health_score": metrics.health_score,
             "circuit_breaker": metrics.circuit_state,
-            "success_rate": metrics.successful_requests / max(metrics.total_requests, 1),
+            "success_rate": metrics.successful_requests
+            / max(metrics.total_requests, 1),
             "avg_latency_ms": metrics.avg_latency_ms,
             "p99_latency_ms": metrics.p99_latency_ms,
             "active_requests": self._performance_monitor.metrics.active_requests,
-            "tokens_processed": metrics.tokens_processed
+            "tokens_processed": metrics.tokens_processed,
         }
 
     def get_adaptive_timeout(self) -> float:
@@ -676,16 +757,22 @@ class OpenAIProvider:
             return float(self.settings.max_stream_seconds)
 
         # Use p95 latency * 2 as timeout, with min/max bounds
-        p95_latency = statistics.quantiles(self._latency_history, n=20)[18]  # 95th percentile
+        p95_latency = statistics.quantiles(self._latency_history, n=20)[
+            18
+        ]  # 95th percentile
         adaptive_timeout_s = min(
             float(self.settings.max_stream_seconds),
-            max(10.0, p95_latency * 2 / 1000)  # Convert ms to seconds
+            max(10.0, p95_latency * 2 / 1000),  # Convert ms to seconds
         )
 
-        logging.debug(f"Adaptive timeout: {adaptive_timeout_s:.2f}s (based on p95={p95_latency:.2f}ms)")
+        logging.debug(
+            f"Adaptive timeout: {adaptive_timeout_s:.2f}s (based on p95={p95_latency:.2f}ms)"
+        )
         return adaptive_timeout_s
 
-    async def _estimate_tokens(self, messages: List[Dict[str, Any]], model_name: str = None) -> int:
+    async def _estimate_tokens(
+        self, messages: List[Dict[str, Any]], model_name: str = None
+    ) -> int:
         """
         Accurately count tokens for messages using tiktoken.
 
@@ -710,12 +797,14 @@ class OpenAIProvider:
             token_count = await count_tokens_for_openai_request(
                 messages=messages,
                 model_name=model,
-                request_id=None  # Could pass correlation_id if available
+                request_id=None,  # Could pass correlation_id if available
             )
 
             return token_count
         except Exception as e:
-            logging.warning(f"Failed to count tokens accurately, falling back to rough estimate: {e}")
+            logging.warning(
+                f"Failed to count tokens accurately, falling back to rough estimate: {e}"
+            )
 
             # Fallback to rough estimation: ~4 characters per token
             total_chars = 0
@@ -745,10 +834,12 @@ class OpenAIProvider:
         # Properly close HTTP clients to avoid resource leaks
         if self._http_client:
             try:
-                if hasattr(self._http_client, 'aclose'):
+                if hasattr(self._http_client, "aclose"):
                     # For httpx-based clients
                     await self._http_client.aclose()
-                elif hasattr(self._http_client, '_session') and hasattr(self._http_client._session, 'close'):
+                elif hasattr(self._http_client, "_session") and hasattr(
+                    self._http_client._session, "close"
+                ):
                     # For aiohttp-based clients
                     await self._http_client._session.close()
             except Exception as e:

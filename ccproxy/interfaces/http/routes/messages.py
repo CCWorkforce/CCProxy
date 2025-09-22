@@ -7,7 +7,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from asyncio import create_task
 import openai
 
-from ccproxy.constants import MODEL_INPUT_TOKEN_LIMIT_MAP, MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP, NO_SUPPORT_TEMPERATURE_MODELS, OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS, SUPPORT_REASONING_EFFORT_MODELS, TOP_TIER_ANTHROPIC_MODELS, TOP_TIER_OPENAI_MODELS
+from ccproxy.constants import (
+    MODEL_INPUT_TOKEN_LIMIT_MAP,
+    MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP,
+    NO_SUPPORT_TEMPERATURE_MODELS,
+    OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS,
+    SUPPORT_REASONING_EFFORT_MODELS,
+    TOP_TIER_ANTHROPIC_MODELS,
+    TOP_TIER_OPENAI_MODELS,
+)
 from ccproxy.enums import ReasoningEfforts
 
 from ....application.response_cache import ResponseCache
@@ -166,7 +174,10 @@ async def create_message_proxy(request: Request) -> Response:
     _limit = MODEL_INPUT_TOKEN_LIMIT_MAP.get(target_model, 200_000)
     if estimated_input_tokens > _limit:
         if settings.truncate_long_requests:
-            anthropic_request.messages, anthropic_request.system = await truncate_request(
+            (
+                anthropic_request.messages,
+                anthropic_request.system,
+            ) = await truncate_request(
                 anthropic_request.messages,
                 anthropic_request.system,
                 anthropic_request.model,
@@ -208,6 +219,7 @@ async def create_message_proxy(request: Request) -> Response:
     try:
         # Use async converter for better performance
         from ....application.converters_module.base import ConversionContext
+
         context = ConversionContext(
             request_id=request_id,
             target_model=target_model,
@@ -239,7 +251,9 @@ async def create_message_proxy(request: Request) -> Response:
         "stream": is_stream,
     }
     if target_model not in SUPPORT_REASONING_EFFORT_MODELS:
-        max_tokens = MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP.get(target_model, anthropic_request.max_tokens)
+        max_tokens = MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP.get(
+            target_model, anthropic_request.max_tokens
+        )
         warning(
             LogRecord(
                 LogEvent.STREAM_EVENT.value,
@@ -298,7 +312,11 @@ async def create_message_proxy(request: Request) -> Response:
         and target_model in SUPPORT_REASONING_EFFORT_MODELS
     ):
         reasoning_effort = (
-            (ReasoningEfforts.High.value if request_model in TOP_TIER_ANTHROPIC_MODELS else ReasoningEfforts.Medium.value)
+            (
+                ReasoningEfforts.High.value
+                if request_model in TOP_TIER_ANTHROPIC_MODELS
+                else ReasoningEfforts.Medium.value
+            )
             if is_stream
             else (
                 ReasoningEfforts.Low.value
@@ -312,8 +330,12 @@ async def create_message_proxy(request: Request) -> Response:
 
         if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
             # Use OpenRouter reasoning format with effort and max_tokens
-            max_reasoning_tokens = min(anthropic_request.thinking.max_tokens or 2000, 32000)
-            max_reasoning_tokens = max(max_reasoning_tokens, 1024)  # Minimum 1024 tokens
+            max_reasoning_tokens = min(
+                anthropic_request.thinking.max_tokens or 2000, 32000
+            )
+            max_reasoning_tokens = max(
+                max_reasoning_tokens, 1024
+            )  # Minimum 1024 tokens
 
             reasoning_config = {
                 "effort": reasoning_effort,
@@ -363,7 +385,11 @@ async def create_message_proxy(request: Request) -> Response:
                 )
             )
             if settings.stream_dedupe_enabled:
-                is_primary, stream_iterator, key = await response_cache.subscribe_stream(
+                (
+                    is_primary,
+                    stream_iterator,
+                    key,
+                ) = await response_cache.subscribe_stream(
                     anthropic_request, request_id=request_id
                 )
                 if is_primary:
@@ -485,15 +511,17 @@ async def create_message_proxy(request: Request) -> Response:
                 )
             )
             # Validate content before serialization
-            if hasattr(anthropic_response_obj, 'content'):
+            if hasattr(anthropic_response_obj, "content"):
                 # Filter out any invalid content blocks
                 valid_content = [
-                    block for block in anthropic_response_obj.content
+                    block
+                    for block in anthropic_response_obj.content
                     if block is not None
                 ]
                 # Ensure we have valid content
                 if not valid_content:
                     from ....domain.models import ContentBlockText
+
                     valid_content = [ContentBlockText(type="text", text="")]
                 anthropic_response_obj.content = valid_content
 

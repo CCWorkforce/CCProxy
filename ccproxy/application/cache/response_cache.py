@@ -141,7 +141,7 @@ class ResponseCache:
             # Ensure all content blocks are valid
             for item in content_items:
                 if isinstance(item, (ContentBlockText, ContentBlockThinking)):
-                    if not hasattr(item, 'text') or item.text is None:
+                    if not hasattr(item, "text") or item.text is None:
                         return False
                 elif isinstance(item, ContentBlockRedactedThinking):
                     pass  # Redacted thinking blocks are valid without text
@@ -166,8 +166,9 @@ class ResponseCache:
         """Redact sensitive data from cache entries."""
         if isinstance(data, dict):
             return {
-                k: "***REDACTED***" if k.lower() in self._redact_fields else
-                self._redact_sensitive_data(v)
+                k: "***REDACTED***"
+                if k.lower() in self._redact_fields
+                else self._redact_sensitive_data(v)
                 for k, v in data.items()
             }
         elif isinstance(data, list):
@@ -205,13 +206,16 @@ class ResponseCache:
                 if cache_key in self._pending_requests:
                     event = self._pending_requests[cache_key]
 
-            if 'event' in locals():
+            if "event" in locals():
                 debug(
                     LogRecord(
                         event=LogEvent.CACHE_EVENT.value,
                         message="Request pending, waiting for completion",
                         request_id=request_id,
-                        data={"cache_key": cache_key[:8] + "...", "timeout": timeout_seconds},
+                        data={
+                            "cache_key": cache_key[:8] + "...",
+                            "timeout": timeout_seconds,
+                        },
                     )
                 )
                 try:
@@ -222,7 +226,10 @@ class ResponseCache:
                             event=LogEvent.CACHE_EVENT.value,
                             message="Timeout waiting for pending request",
                             request_id=request_id,
-                            data={"cache_key": cache_key[:8] + "...", "timeout": timeout_seconds},
+                            data={
+                                "cache_key": cache_key[:8] + "...",
+                                "timeout": timeout_seconds,
+                            },
                         )
                     )
                     # Continue to check cache even after timeout

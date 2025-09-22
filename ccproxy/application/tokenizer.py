@@ -22,8 +22,8 @@ from ccproxy.config import Settings, TruncationConfig
 
 class TokenEncoder(Protocol):
     """Protocol for token encoders that can encode text into tokens."""
-    def encode(self, text: str) -> List[int]:
-        ...
+
+    def encode(self, text: str) -> List[int]: ...
 
 
 _token_encoder_cache: Dict[str, TokenEncoder] = {}
@@ -348,7 +348,7 @@ async def count_tokens_for_openai_request(
     messages: List[Dict[str, Union[str, List]]],
     model_name: str = "gpt-4",
     tools: Optional[List[Dict[str, Any]]] = None,
-    request_id: Optional[str] = None
+    request_id: Optional[str] = None,
 ) -> int:
     """Calculate the total number of tokens for an OpenAI API request.
 

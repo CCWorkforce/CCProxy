@@ -88,8 +88,12 @@ class AnthropicToOpenAIConverter(MessageConverter):
                 elif role == "assistant":
                     text_content.append(block.text)
 
-            elif (isinstance(block, ContentBlockImage) or is_image_block(block)) and role == "user":
-                openai_parts.append(self.content_converter.convert_image_block_to_openai(block))
+            elif (
+                isinstance(block, ContentBlockImage) or is_image_block(block)
+            ) and role == "user":
+                openai_parts.append(
+                    self.content_converter.convert_image_block_to_openai(block)
+                )
 
             elif (
                 isinstance(block, ContentBlockToolUse) or is_tool_use_block(block)
@@ -191,7 +195,9 @@ class AnthropicToOpenAIConverter(MessageConverter):
 
         return openai_messages
 
-    def _convert_system_prompt(self, system_prompt: Union[str, List]) -> List[Dict[str, Any]]:
+    def _convert_system_prompt(
+        self, system_prompt: Union[str, List]
+    ) -> List[Dict[str, Any]]:
         """Convert system prompt to OpenAI format."""
         system_text = self.content_converter.extract_system_text(
             system_prompt, self.context.request_id
@@ -210,7 +216,9 @@ class AnthropicToOpenAIConverter(MessageConverter):
         if supports_developer:
             # Combine system content with UTF-8 enforcement
             combined_content = system_text + "\n\n" + UTF8_ENFORCEMENT_MESSAGE
-            messages.append({"role": MessageRoles.Developer.value, "content": combined_content})
+            messages.append(
+                {"role": MessageRoles.Developer.value, "content": combined_content}
+            )
         else:
             # Use system role for models that don't support developer role
             messages.append({"role": MessageRoles.System.value, "content": system_text})

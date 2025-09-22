@@ -11,7 +11,10 @@ from fastapi import Request
 
 class UpstreamTimeoutError(Exception):
     """Custom exception for upstream timeout with request context."""
-    def __init__(self, request: Request, message: str = "Upstream request timeout exceeded."):
+
+    def __init__(
+        self, request: Request, message: str = "Upstream request timeout exceeded."
+    ):
         self.request = request
         self.message = message
         super().__init__(message)

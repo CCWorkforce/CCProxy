@@ -344,19 +344,21 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 "content": processor.snapshot_content() if processor else None,
                 "tool_calls": processor.snapshot_tool_calls() if processor else None,
                 "output_tokens": processor.output_token_count if processor else 0,
-            }
+            },
         }
 
         if provider_err_details:
             metadata["provider_details"] = provider_err_details.model_dump()
 
         # Track the streaming error
-        asyncio.create_task(error_tracker.track_error(
-            error=e,
-            error_type=ErrorType.STREAM_ERROR,
-            request_id=request_id,
-            metadata=metadata,
-        ))
+        asyncio.create_task(
+            error_tracker.track_error(
+                error=e,
+                error_type=ErrorType.STREAM_ERROR,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        )
 
         error(
             LogRecord(

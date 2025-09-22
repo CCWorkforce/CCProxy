@@ -70,19 +70,23 @@ def convert_anthropic_to_openai_messages(
                 metadata["first_message_content_preview"] = content_preview
 
         # Log and track error asynchronously
-        asyncio.create_task(error_tracker.track_error(
-            error=e,
-            error_type=ErrorType.CONVERSION_ERROR,
-            request_id=request_id,
-            metadata=metadata,
-        ))
+        asyncio.create_task(
+            error_tracker.track_error(
+                error=e,
+                error_type=ErrorType.CONVERSION_ERROR,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        )
 
-        error(LogRecord(
-            event=LogEvent.CONVERSION_EVENT.value,
-            message=f"Failed to convert Anthropic messages to OpenAI format: {str(e)}",
-            request_id=request_id,
-            data=metadata,
-        ))
+        error(
+            LogRecord(
+                event=LogEvent.CONVERSION_EVENT.value,
+                message=f"Failed to convert Anthropic messages to OpenAI format: {str(e)}",
+                request_id=request_id,
+                data=metadata,
+            )
+        )
 
         # Re-raise to maintain original behavior
         raise
@@ -117,19 +121,23 @@ def convert_anthropic_tools_to_openai(
         if anthropic_tools and len(anthropic_tools) > 0:
             metadata["first_tool_name"] = getattr(anthropic_tools[0], "name", "unknown")
 
-        asyncio.create_task(error_tracker.track_error(
-            error=e,
-            error_type=ErrorType.CONVERSION_ERROR,
-            request_id=request_id,
-            metadata=metadata,
-        ))
+        asyncio.create_task(
+            error_tracker.track_error(
+                error=e,
+                error_type=ErrorType.CONVERSION_ERROR,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        )
 
-        error(LogRecord(
-            event=LogEvent.CONVERSION_EVENT.value,
-            message=f"Failed to convert Anthropic tools: {str(e)}",
-            request_id=request_id,
-            data=metadata,
-        ))
+        error(
+            LogRecord(
+                event=LogEvent.CONVERSION_EVENT.value,
+                message=f"Failed to convert Anthropic tools: {str(e)}",
+                request_id=request_id,
+                data=metadata,
+            )
+        )
         raise
 
 
@@ -151,27 +159,35 @@ def convert_anthropic_tool_choice_to_openai(
     """
     try:
         converter = ToolConverter()
-        return converter.convert_tool_choice_to_openai(anthropic_tool_choice, request_id)
+        return converter.convert_tool_choice_to_openai(
+            anthropic_tool_choice, request_id
+        )
     except Exception as e:
         metadata = {
             "conversion_type": "anthropic_to_openai_tool_choice",
-            "tool_choice_type": getattr(anthropic_tool_choice, "type", "unknown") if anthropic_tool_choice else None,
+            "tool_choice_type": getattr(anthropic_tool_choice, "type", "unknown")
+            if anthropic_tool_choice
+            else None,
             "error_message": str(e),
         }
 
-        asyncio.create_task(error_tracker.track_error(
-            error=e,
-            error_type=ErrorType.CONVERSION_ERROR,
-            request_id=request_id,
-            metadata=metadata,
-        ))
+        asyncio.create_task(
+            error_tracker.track_error(
+                error=e,
+                error_type=ErrorType.CONVERSION_ERROR,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        )
 
-        error(LogRecord(
-            event=LogEvent.CONVERSION_EVENT.value,
-            message=f"Failed to convert tool choice: {str(e)}",
-            request_id=request_id,
-            data=metadata,
-        ))
+        error(
+            LogRecord(
+                event=LogEvent.CONVERSION_EVENT.value,
+                message=f"Failed to convert tool choice: {str(e)}",
+                request_id=request_id,
+                data=metadata,
+            )
+        )
         raise
 
 
@@ -205,28 +221,44 @@ def convert_openai_to_anthropic_response(
         metadata = {
             "conversion_type": "openai_to_anthropic_response",
             "original_model": original_anthropic_model_name,
-            "openai_model": getattr(openai_response, "model", "unknown") if openai_response else None,
-            "finish_reason": getattr(openai_response.choices[0], "finish_reason", None) if openai_response and openai_response.choices else None,
+            "openai_model": getattr(openai_response, "model", "unknown")
+            if openai_response
+            else None,
+            "finish_reason": getattr(openai_response.choices[0], "finish_reason", None)
+            if openai_response and openai_response.choices
+            else None,
             "error_message": str(e),
             "error_type": type(e).__name__,
         }
 
         # Capture usage info if available
-        if openai_response and hasattr(openai_response, "usage") and openai_response.usage:
-            metadata["input_tokens"] = getattr(openai_response.usage, "prompt_tokens", None)
-            metadata["output_tokens"] = getattr(openai_response.usage, "completion_tokens", None)
+        if (
+            openai_response
+            and hasattr(openai_response, "usage")
+            and openai_response.usage
+        ):
+            metadata["input_tokens"] = getattr(
+                openai_response.usage, "prompt_tokens", None
+            )
+            metadata["output_tokens"] = getattr(
+                openai_response.usage, "completion_tokens", None
+            )
 
-        asyncio.create_task(error_tracker.track_error(
-            error=e,
-            error_type=ErrorType.CONVERSION_ERROR,
-            request_id=request_id,
-            metadata=metadata,
-        ))
+        asyncio.create_task(
+            error_tracker.track_error(
+                error=e,
+                error_type=ErrorType.CONVERSION_ERROR,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        )
 
-        error(LogRecord(
-            event=LogEvent.CONVERSION_EVENT.value,
-            message=f"Failed to convert OpenAI response to Anthropic format: {str(e)}",
-            request_id=request_id,
-            data=metadata,
-        ))
+        error(
+            LogRecord(
+                event=LogEvent.CONVERSION_EVENT.value,
+                message=f"Failed to convert OpenAI response to Anthropic format: {str(e)}",
+                request_id=request_id,
+                data=metadata,
+            )
+        )
         raise

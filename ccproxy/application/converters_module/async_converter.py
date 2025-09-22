@@ -34,6 +34,7 @@ class AsyncMessageConverter(BaseConverter):
         # This is here to satisfy the abstract base class requirement
         # Use convert_messages_async instead
         from .anthropic_to_openai import AnthropicToOpenAIConverter
+
         sync_converter = AnthropicToOpenAIConverter(self.context)
         return sync_converter.convert(source)
 
@@ -54,7 +55,11 @@ class AsyncMessageConverter(BaseConverter):
 
         # Add system message if provided
         if system:
-            system_content = system if isinstance(system, str) else self._serialize_system_content(system)
+            system_content = (
+                system
+                if isinstance(system, str)
+                else self._serialize_system_content(system)
+            )
             openai_messages.append({"role": "system", "content": system_content})
 
         # Convert messages in parallel
@@ -129,7 +134,9 @@ class AsyncMessageConverter(BaseConverter):
                 content.append({"type": "text", "text": text})
             for block in non_text_parts:
                 if block.type == "image":
-                    content.append(self.content_converter.convert_image_block_to_openai(block))
+                    content.append(
+                        self.content_converter.convert_image_block_to_openai(block)
+                    )
                 else:
                     # For other types, just skip or add as text
                     content.append({"type": "text", "text": str(block)})
@@ -142,7 +149,9 @@ class AsyncMessageConverter(BaseConverter):
             content = []
             for block in non_text_parts:
                 if block.type == "image":
-                    content.append(self.content_converter.convert_image_block_to_openai(block))
+                    content.append(
+                        self.content_converter.convert_image_block_to_openai(block)
+                    )
                 elif block.type == "tool_use":
                     # Tool use blocks should be handled separately, not in content
                     pass
@@ -162,6 +171,7 @@ class AsyncMessageConverter(BaseConverter):
         self, tool_calls: List[ContentBlockToolUse]
     ) -> List[Dict[str, Any]]:
         """Convert tool calls asynchronously with parallel JSON serialization."""
+
         async def serialize_tool_call(tool: ContentBlockToolUse) -> Dict[str, Any]:
             # Offload JSON serialization to thread pool for large inputs
             if isinstance(tool.input, dict) and len(str(tool.input)) > 1000:
@@ -192,7 +202,9 @@ class AsyncMessageConverter(BaseConverter):
         tool_calls = await self._convert_tool_calls_async(tool_uses)
         return {"role": role, "tool_calls": tool_calls}
 
-    def _convert_tool_result_message(self, tool_result: ContentBlockToolResult) -> Dict[str, Any]:
+    def _convert_tool_result_message(
+        self, tool_result: ContentBlockToolResult
+    ) -> Dict[str, Any]:
         """Convert tool result message (synchronous as it's simple)."""
         content = self.content_converter.serialize_tool_result_content(tool_result)
         return {
@@ -220,7 +232,7 @@ class AsyncMessageConverter(BaseConverter):
 
     def __del__(self):
         """Clean up thread pool executor."""
-        if hasattr(self, '_executor'):
+        if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
 
 
@@ -258,7 +270,7 @@ class AsyncResponseConverter:
 
         # Build usage
         usage = None
-        if hasattr(openai_response, 'usage') and openai_response.usage:
+        if hasattr(openai_response, "usage") and openai_response.usage:
             usage = Usage(
                 input_tokens=openai_response.usage.prompt_tokens,
                 output_tokens=openai_response.usage.completion_tokens,
@@ -283,12 +295,14 @@ class AsyncResponseConverter:
             content.append(ContentBlockText(type="text", text=message.content))
 
         # Handle tool calls
-        if hasattr(message, 'tool_calls') and message.tool_calls:
-            tool_blocks = await self._convert_tool_calls_to_blocks_async(message.tool_calls)
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            tool_blocks = await self._convert_tool_calls_to_blocks_async(
+                message.tool_calls
+            )
             content.extend(tool_blocks)
 
         # Handle refusal
-        if hasattr(message, 'refusal') and message.refusal:
+        if hasattr(message, "refusal") and message.refusal:
             content.append(ContentBlockText(type="text", text=message.refusal))
 
         # Ensure at least one content block
@@ -301,6 +315,7 @@ class AsyncResponseConverter:
         self, tool_calls: List[Any]
     ) -> List[ContentBlockToolUse]:
         """Convert OpenAI tool calls to Anthropic tool use blocks asynchronously."""
+
         async def parse_tool_call(tool_call: Any) -> ContentBlockToolUse:
             # Parse arguments asynchronously for large payloads
             args_str = tool_call.function.arguments
@@ -338,7 +353,7 @@ class AsyncResponseConverter:
 
     def __del__(self):
         """Clean up thread pool executor."""
-        if hasattr(self, '_executor'):
+        if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
 
 

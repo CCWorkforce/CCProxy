@@ -22,7 +22,9 @@ class PerformanceMetrics:
     p99_duration_ms: float = 0
     error_count: int = 0
     active_requests: int = 0
-    recent_durations: Deque[float] = field(default_factory=lambda: deque(maxlen=MONITORING_RECENT_DURATIONS_MAXLEN))
+    recent_durations: Deque[float] = field(
+        default_factory=lambda: deque(maxlen=MONITORING_RECENT_DURATIONS_MAXLEN)
+    )
 
 
 class PerformanceMonitor:

@@ -64,8 +64,9 @@ class OpenAIToAnthropicConverter(ResponseConverter):
 
         # Filter out any None or invalid content blocks
         anthropic_content = [
-            block for block in anthropic_content
-            if block is not None and hasattr(block, 'type')
+            block
+            for block in anthropic_content
+            if block is not None and hasattr(block, "type")
         ]
 
         # Ensure we have at least some content

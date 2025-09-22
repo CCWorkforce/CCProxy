@@ -8,7 +8,9 @@ from datetime import datetime
 from openai import RateLimitError, AuthenticationError
 
 from ccproxy.infrastructure.providers.openai_provider import (
-    OpenAIProvider, CircuitBreaker, CircuitState
+    OpenAIProvider,
+    CircuitBreaker,
+    CircuitState,
 )
 from ccproxy.config import Settings
 from ccproxy.application.error_tracker import ErrorType
@@ -37,7 +39,8 @@ def mock_settings():
 async def provider_with_monitoring(mock_settings):
     """Create an OpenAI provider with monitoring enabled."""
     import os
-    os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
+
+    os.environ["IS_LOCAL_DEPLOYMENT"] = "True"
     provider = OpenAIProvider(mock_settings)
     yield provider
     await provider.close()
@@ -91,7 +94,9 @@ class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_circuit_breaker_half_open_recovery(self):
         """Test circuit breaker recovery through half-open state."""
-        breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1, half_open_requests=2)
+        breaker = CircuitBreaker(
+            failure_threshold=2, recovery_timeout=0.1, half_open_requests=2
+        )
 
         async def func(should_fail=False):
             if should_fail:
@@ -154,15 +159,17 @@ class TestProviderMetrics:
     @pytest.mark.asyncio
     async def test_successful_request_metrics(self, provider_with_monitoring):
         """Test metrics update on successful requests."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.usage.total_tokens = 100
             mock_create.return_value = mock_response
 
             await provider_with_monitoring.create_chat_completion(
-                messages=[{"role": "user", "content": "test"}],
-                model="gpt-4"
+                messages=[{"role": "user", "content": "test"}], model="gpt-4"
             )
 
             metrics = await provider_with_monitoring.get_metrics()
@@ -175,17 +182,22 @@ class TestProviderMetrics:
     @pytest.mark.asyncio
     async def test_failed_request_metrics(self, provider_with_monitoring):
         """Test metrics update on failed requests."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.side_effect = Exception("Test error")
 
             # Bypass circuit breaker for this test
-            with patch.object(provider_with_monitoring._circuit_breaker, 'call',
-                            side_effect=Exception("Test error")):
+            with patch.object(
+                provider_with_monitoring._circuit_breaker,
+                "call",
+                side_effect=Exception("Test error"),
+            ):
                 with pytest.raises(Exception):
                     await provider_with_monitoring.create_chat_completion(
-                        messages=[{"role": "user", "content": "test"}],
-                        model="gpt-4"
+                        messages=[{"role": "user", "content": "test"}], model="gpt-4"
                     )
 
             metrics = await provider_with_monitoring.get_metrics()
@@ -198,8 +210,26 @@ class TestProviderMetrics:
         """Test latency percentile calculations."""
         # Simulate multiple requests with different latencies
         provider_with_monitoring._latency_history = [
-            10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
-            110, 120, 130, 140, 150, 160, 170, 180, 190, 200
+            10,
+            20,
+            30,
+            40,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            170,
+            180,
+            190,
+            200,
         ]
 
         async with provider_with_monitoring._metrics_lock:
@@ -210,8 +240,12 @@ class TestProviderMetrics:
             if len(provider_with_monitoring._latency_history) >= 10:
                 sorted_latencies = sorted(provider_with_monitoring._latency_history)
                 # For 20 items: index 18 (0-based) = 190, index 19 = 200
-                provider_with_monitoring._metrics.p95_latency_ms = sorted_latencies[18]  # 190
-                provider_with_monitoring._metrics.p99_latency_ms = sorted_latencies[19]  # 200
+                provider_with_monitoring._metrics.p95_latency_ms = sorted_latencies[
+                    18
+                ]  # 190
+                provider_with_monitoring._metrics.p99_latency_ms = sorted_latencies[
+                    19
+                ]  # 200
 
             provider_with_monitoring._update_health_score()
 
@@ -275,7 +309,9 @@ class TestHealthCheck:
         provider_with_monitoring._metrics.total_requests = 100
         provider_with_monitoring._metrics.successful_requests = 90  # 90% success rate
         provider_with_monitoring._metrics.p99_latency_ms = 6000  # High latency
-        provider_with_monitoring._metrics.last_failure_time = datetime.now()  # Recent failure
+        provider_with_monitoring._metrics.last_failure_time = (
+            datetime.now()
+        )  # Recent failure
         provider_with_monitoring._circuit_breaker.state = CircuitState.HALF_OPEN
 
         async with provider_with_monitoring._metrics_lock:
@@ -305,8 +341,26 @@ class TestAdaptiveTimeout:
         """Test adaptive timeout based on latency history."""
         # Simulate latency history (in ms)
         provider_with_monitoring._latency_history = [
-            100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
-            1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000
+            100,
+            200,
+            300,
+            400,
+            500,
+            600,
+            700,
+            800,
+            900,
+            1000,
+            1100,
+            1200,
+            1300,
+            1400,
+            1500,
+            1600,
+            1700,
+            1800,
+            1900,
+            2000,
         ]
 
         timeout = provider_with_monitoring.get_adaptive_timeout()
@@ -333,27 +387,31 @@ class TestRequestLogging:
     @pytest.mark.asyncio
     async def test_correlation_id_generation(self, provider_with_monitoring):
         """Test that correlation IDs are generated for requests."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.return_value = MagicMock()
 
-            with patch('uuid.uuid4', return_value='test-correlation-id'):
+            with patch("uuid.uuid4", return_value="test-correlation-id"):
                 await provider_with_monitoring.create_chat_completion(
-                    messages=[{"role": "user", "content": "test"}],
-                    model="gpt-4"
+                    messages=[{"role": "user", "content": "test"}], model="gpt-4"
                 )
 
             # Request log should be cleaned up after success
             assert len(provider_with_monitoring._request_log) == 0
 
     @pytest.mark.asyncio
-    async def test_request_logging_excludes_sensitive_data(self, provider_with_monitoring):
+    async def test_request_logging_excludes_sensitive_data(
+        self, provider_with_monitoring
+    ):
         """Test that sensitive data is excluded from request logs."""
         params = {
             "messages": [{"role": "user", "content": "secret"}],
             "model": "gpt-4",
             "api_key": "secret-key",
-            "temperature": 0.7
+            "temperature": 0.7,
         }
 
         provider_with_monitoring._log_request("test-id", params)
@@ -367,16 +425,21 @@ class TestRequestLogging:
     @pytest.mark.asyncio
     async def test_request_cleanup_on_failure(self, provider_with_monitoring):
         """Test that request logs are cleaned up even on failure."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.side_effect = Exception("Test error")
 
-            with patch.object(provider_with_monitoring._circuit_breaker, 'call',
-                            side_effect=Exception("Test error")):
+            with patch.object(
+                provider_with_monitoring._circuit_breaker,
+                "call",
+                side_effect=Exception("Test error"),
+            ):
                 with pytest.raises(Exception):
                     await provider_with_monitoring.create_chat_completion(
-                        messages=[{"role": "user", "content": "test"}],
-                        model="gpt-4"
+                        messages=[{"role": "user", "content": "test"}], model="gpt-4"
                     )
 
             # Request log should be cleaned up after failure
@@ -389,20 +452,23 @@ class TestErrorTracking:
     @pytest.mark.asyncio
     async def test_rate_limit_error_tracking(self, provider_with_monitoring):
         """Test rate limit errors are tracked correctly."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.side_effect = RateLimitError(
-                message="Rate limit exceeded",
-                response=Mock(),
-                body={}
+                message="Rate limit exceeded", response=Mock(), body={}
             )
 
-            with patch.object(provider_with_monitoring._error_tracker, 'track_error',
-                            new_callable=AsyncMock) as mock_track:
+            with patch.object(
+                provider_with_monitoring._error_tracker,
+                "track_error",
+                new_callable=AsyncMock,
+            ) as mock_track:
                 with pytest.raises(RateLimitError):
                     await provider_with_monitoring.create_chat_completion(
-                        messages=[{"role": "user", "content": "test"}],
-                        model="gpt-4"
+                        messages=[{"role": "user", "content": "test"}], model="gpt-4"
                     )
 
                 mock_track.assert_called_once()
@@ -412,20 +478,23 @@ class TestErrorTracking:
     @pytest.mark.asyncio
     async def test_auth_error_tracking(self, provider_with_monitoring):
         """Test authentication errors are tracked correctly."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.side_effect = AuthenticationError(
-                message="Invalid API key",
-                response=Mock(),
-                body={}
+                message="Invalid API key", response=Mock(), body={}
             )
 
-            with patch.object(provider_with_monitoring._error_tracker, 'track_error',
-                            new_callable=AsyncMock) as mock_track:
+            with patch.object(
+                provider_with_monitoring._error_tracker,
+                "track_error",
+                new_callable=AsyncMock,
+            ) as mock_track:
                 with pytest.raises(AuthenticationError):
                     await provider_with_monitoring.create_chat_completion(
-                        messages=[{"role": "user", "content": "test"}],
-                        model="gpt-4"
+                        messages=[{"role": "user", "content": "test"}], model="gpt-4"
                     )
 
                 mock_track.assert_called_once()
@@ -439,13 +508,15 @@ class TestPerformanceMonitoring:
     @pytest.mark.asyncio
     async def test_performance_monitor_tracks_requests(self, provider_with_monitoring):
         """Test that performance monitor tracks request lifecycle."""
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.return_value = MagicMock()
 
             await provider_with_monitoring.create_chat_completion(
-                messages=[{"role": "user", "content": "test"}],
-                model="gpt-4"
+                messages=[{"role": "user", "content": "test"}], model="gpt-4"
             )
 
             # Check performance monitor metrics
@@ -457,13 +528,16 @@ class TestPerformanceMonitoring:
     @pytest.mark.asyncio
     async def test_concurrent_request_tracking(self, provider_with_monitoring):
         """Test tracking of concurrent requests."""
+
         async def make_request():
-            with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                            new_callable=AsyncMock) as mock_create:
+            with patch.object(
+                provider_with_monitoring._openAIClient.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+            ) as mock_create:
                 mock_create.return_value = MagicMock()
                 await provider_with_monitoring.create_chat_completion(
-                    messages=[{"role": "user", "content": "test"}],
-                    model="gpt-4"
+                    messages=[{"role": "user", "content": "test"}], model="gpt-4"
                 )
 
         # Make concurrent requests
@@ -478,17 +552,21 @@ class TestPerformanceMonitoring:
     @pytest.mark.asyncio
     async def test_streaming_request_monitoring(self, provider_with_monitoring):
         """Test monitoring of streaming requests."""
+
         async def mock_stream():
             yield {"choices": [{"delta": {"content": "test"}}]}
 
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.return_value = mock_stream()
 
             await provider_with_monitoring.create_chat_completion(
                 messages=[{"role": "user", "content": "test"}],
                 model="gpt-4",
-                stream=True
+                stream=True,
             )
 
             metrics = await provider_with_monitoring.get_metrics()
@@ -502,28 +580,35 @@ class TestIntegration:
     async def test_full_monitoring_workflow(self, provider_with_monitoring):
         """Test complete monitoring workflow with multiple scenarios."""
         # Successful request
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.usage.total_tokens = 50
             mock_create.return_value = mock_response
 
             await provider_with_monitoring.create_chat_completion(
-                messages=[{"role": "user", "content": "test"}],
-                model="gpt-4"
+                messages=[{"role": "user", "content": "test"}], model="gpt-4"
             )
 
         # Failed request
-        with patch.object(provider_with_monitoring._openAIClient.chat.completions, 'create',
-                         new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            provider_with_monitoring._openAIClient.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
             mock_create.side_effect = Exception("Test failure")
 
-            with patch.object(provider_with_monitoring._circuit_breaker, 'call',
-                            side_effect=Exception("Test failure")):
+            with patch.object(
+                provider_with_monitoring._circuit_breaker,
+                "call",
+                side_effect=Exception("Test failure"),
+            ):
                 with pytest.raises(Exception):
                     await provider_with_monitoring.create_chat_completion(
-                        messages=[{"role": "user", "content": "test"}],
-                        model="gpt-4"
+                        messages=[{"role": "user", "content": "test"}], model="gpt-4"
                     )
 
         # Check comprehensive metrics

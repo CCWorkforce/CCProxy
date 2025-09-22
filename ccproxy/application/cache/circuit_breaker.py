@@ -44,7 +44,9 @@ class CacheCircuitBreaker:
                 self.consecutive_failures = self.max_consecutive_failures
 
             # Calculate disabled period with exponential backoff
-            backoff_multiplier = min(self.consecutive_failures / self.failure_threshold, 10)
+            backoff_multiplier = min(
+                self.consecutive_failures / self.failure_threshold, 10
+            )
             disabled_duration = self.reset_time * backoff_multiplier
             self.disabled_until = current_time + disabled_duration
 
@@ -94,5 +96,7 @@ class CacheCircuitBreaker:
             "consecutive_failures": self.consecutive_failures,
             "failure_threshold": self.failure_threshold,
             "disabled_until": self.disabled_until if is_open else None,
-            "time_until_reset": max(0, self.disabled_until - current_time) if is_open else 0,
+            "time_until_reset": max(0, self.disabled_until - current_time)
+            if is_open
+            else 0,
         }

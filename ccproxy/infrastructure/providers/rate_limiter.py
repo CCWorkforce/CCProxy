@@ -10,6 +10,7 @@ from enum import Enum
 
 class RateLimitStrategy(Enum):
     """Rate limiting strategies."""
+
     TOKEN_BUCKET = "token_bucket"
     SLIDING_WINDOW = "sliding_window"
     ADAPTIVE = "adaptive"
@@ -18,6 +19,7 @@ class RateLimitStrategy(Enum):
 @dataclass
 class RateLimitConfig:
     """Configuration for rate limiting."""
+
     requests_per_minute: int = 500
     tokens_per_minute: int = 90000
     burst_size: int = 100
@@ -30,6 +32,7 @@ class RateLimitConfig:
 @dataclass
 class RateLimitMetrics:
     """Metrics for rate limit tracking."""
+
     total_requests: int = 0
     total_tokens: int = 0
     rejected_requests: int = 0
@@ -60,7 +63,9 @@ class ClientRateLimiter:
 
         # Token buckets for requests and tokens
         self._request_semaphore = asyncio.Semaphore(config.burst_size)
-        self._token_semaphore = asyncio.Semaphore(config.burst_size * 1000)  # Rough token burst
+        self._token_semaphore = asyncio.Semaphore(
+            config.burst_size * 1000
+        )  # Rough token burst
 
         # Rate tracking
         self._request_times: list[float] = []
@@ -81,7 +86,9 @@ class ClientRateLimiter:
         if not self._running:
             self._running = True
             # Note: Background task for bucket refill not needed - using sliding window approach
-            logging.info(f"Client rate limiter started with {self._current_rpm_limit} RPM, {self._current_tpm_limit} TPM")
+            logging.info(
+                f"Client rate limiter started with {self._current_rpm_limit} RPM, {self._current_tpm_limit} TPM"
+            )
 
     async def stop(self) -> None:
         """Stop the rate limiter."""
@@ -107,8 +114,12 @@ class ClientRateLimiter:
             current_time = time.time()
 
             # Clean old entries (older than 1 minute)
-            self._request_times = [t for t in self._request_times if current_time - t < 60]
-            self._token_counts = [(t, c) for t, c in self._token_counts if current_time - t < 60]
+            self._request_times = [
+                t for t in self._request_times if current_time - t < 60
+            ]
+            self._token_counts = [
+                (t, c) for t, c in self._token_counts if current_time - t < 60
+            ]
 
             # Calculate current rates
             self.metrics.current_rpm = len(self._request_times)
@@ -117,12 +128,20 @@ class ClientRateLimiter:
             # Check if we're within limits
             if self.metrics.current_rpm >= self._current_rpm_limit:
                 self.metrics.rejected_requests += 1
-                logging.debug(f"Rate limit: RPM limit reached ({self.metrics.current_rpm}/{self._current_rpm_limit})")
+                logging.debug(
+                    f"Rate limit: RPM limit reached ({self.metrics.current_rpm}/{self._current_rpm_limit})"
+                )
                 return False
 
-            if estimated_tokens > 0 and self.metrics.current_tpm + estimated_tokens > self._current_tpm_limit:
+            if (
+                estimated_tokens > 0
+                and self.metrics.current_tpm + estimated_tokens
+                > self._current_tpm_limit
+            ):
                 self.metrics.rejected_requests += 1
-                logging.debug(f"Rate limit: TPM limit reached ({self.metrics.current_tpm + estimated_tokens}/{self._current_tpm_limit})")
+                logging.debug(
+                    f"Rate limit: TPM limit reached ({self.metrics.current_tpm + estimated_tokens}/{self._current_tpm_limit})"
+                )
                 return False
 
             # Record the request
@@ -165,8 +184,12 @@ class ClientRateLimiter:
                 old_rpm = self._current_rpm_limit
                 old_tpm = self._current_tpm_limit
 
-                self._current_rpm_limit = int(self._current_rpm_limit * self.config.backoff_multiplier)
-                self._current_tpm_limit = int(self._current_tpm_limit * self.config.backoff_multiplier)
+                self._current_rpm_limit = int(
+                    self._current_rpm_limit * self.config.backoff_multiplier
+                )
+                self._current_tpm_limit = int(
+                    self._current_tpm_limit * self.config.backoff_multiplier
+                )
 
                 # Ensure minimum limits
                 self._current_rpm_limit = max(10, self._current_rpm_limit)
@@ -194,20 +217,23 @@ class ClientRateLimiter:
                     old_rpm = self._current_rpm_limit
                     self._current_rpm_limit = min(
                         self.config.requests_per_minute,
-                        int(self._current_rpm_limit * self.config.recovery_multiplier)
+                        int(self._current_rpm_limit * self.config.recovery_multiplier),
                     )
-                    logging.info(f"Rate limit recovery: RPM {old_rpm} → {self._current_rpm_limit}")
+                    logging.info(
+                        f"Rate limit recovery: RPM {old_rpm} → {self._current_rpm_limit}"
+                    )
 
                 if self._current_tpm_limit < self.config.tokens_per_minute:
                     old_tpm = self._current_tpm_limit
                     self._current_tpm_limit = min(
                         self.config.tokens_per_minute,
-                        int(self._current_tpm_limit * self.config.recovery_multiplier)
+                        int(self._current_tpm_limit * self.config.recovery_multiplier),
                     )
-                    logging.info(f"Rate limit recovery: TPM {old_tpm} → {self._current_tpm_limit}")
+                    logging.info(
+                        f"Rate limit recovery: TPM {old_tpm} → {self._current_tpm_limit}"
+                    )
 
                 self.metrics.consecutive_successes = 0
-
 
     def get_metrics(self) -> Dict[str, Any]:
         """
@@ -243,5 +269,7 @@ class ClientRateLimiter:
                 # Need to wait for oldest request to fall out of window
                 wait_time = (oldest_request + time_window) - current_time
                 if wait_time > 0:
-                    logging.debug(f"Rate limiter waiting {wait_time:.2f}s to respect RPM limit")
+                    logging.debug(
+                        f"Rate limiter waiting {wait_time:.2f}s to respect RPM limit"
+                    )
                     await asyncio.sleep(wait_time)

@@ -160,7 +160,11 @@ class JSONFormatter(logging.Formatter):
         if isinstance(log_payload, LogRecord):
             detail = _sanitize_for_json(dataclasses.asdict(log_payload))
             # Limit data field size for performance
-            if isinstance(detail, dict) and detail.get("data") and isinstance(detail["data"], dict):
+            if (
+                isinstance(detail, dict)
+                and detail.get("data")
+                and isinstance(detail["data"], dict)
+            ):
                 for key, value in detail["data"].items():
                     if isinstance(value, str) and len(value) > 5000:
                         detail["data"][key] = value[:5000] + "...[truncated]"
@@ -176,7 +180,9 @@ class JSONFormatter(logging.Formatter):
                         "stack_trace": "".join(
                             traceback.format_exception(exc_type, exc_value, exc_tb)
                         ),
-                        "args": exc_value.args if exc_value and hasattr(exc_value, "args") else [],
+                        "args": exc_value.args
+                        if exc_value and hasattr(exc_value, "args")
+                        else [],
                     }
                 )
         return json.dumps(
@@ -202,7 +208,11 @@ class ConsoleJSONFormatter(JSONFormatter):
         log_payload = getattr(record, "log_record", None)
         if isinstance(log_payload, LogRecord):
             detail = _sanitize_for_json(dataclasses.asdict(log_payload))
-            if isinstance(detail, dict) and detail.get("error") and detail["error"].get("stack_trace"):
+            if (
+                isinstance(detail, dict)
+                and detail.get("error")
+                and detail["error"].get("stack_trace")
+            ):
                 detail["error"]["stack_trace"] = None
             header["detail"] = detail
         else:
@@ -213,7 +223,9 @@ class ConsoleJSONFormatter(JSONFormatter):
                     {
                         "name": exc_type.__name__ if exc_type else "UnknownError",
                         "message": str(exc_value),
-                        "args": exc_value.args if exc_value and hasattr(exc_value, "args") else [],
+                        "args": exc_value.args
+                        if exc_value and hasattr(exc_value, "args")
+                        else [],
                     }
                 )
         return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
@@ -334,7 +346,11 @@ def _log(level: int, record: LogRecord, exc: Optional[Exception] = None) -> None
         sanitized_args = None
         if hasattr(exc, "args"):
             sanitized = _sanitize_for_json(exc.args)
-            sanitized_args = tuple(sanitized) if isinstance(sanitized, (list, tuple)) else (sanitized,)
+            sanitized_args = (
+                tuple(sanitized)
+                if isinstance(sanitized, (list, tuple))
+                else (sanitized,)
+            )
 
         record.error = LogError(
             name=type(exc).__name__,

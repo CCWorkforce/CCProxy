@@ -23,17 +23,23 @@ from .converters_module import (
 )
 
 # Legacy internal functions (if needed by other modules)
-from .converters_module.content_converter import ContentConverter as _ContentConverterImpl
+from .converters_module.content_converter import (
+    ContentConverter as _ContentConverterImpl,
+)
 from .converters_module.tool_converter import ToolConverter as _ToolConverterImpl
 
 _content_converter = _ContentConverterImpl()
 _tool_converter = _ToolConverterImpl()
 
 # Expose internal functions for backward compatibility
-_serialize_tool_result_content_for_openai = _content_converter.serialize_tool_result_content
+_serialize_tool_result_content_for_openai = (
+    _content_converter.serialize_tool_result_content
+)
 
 # Expose cached functions for monitoring
-_serialize_tool_result_content_for_openai_cached = _content_converter._serialize_tool_result_cached
+_serialize_tool_result_content_for_openai_cached = (
+    _content_converter._serialize_tool_result_cached
+)
 _tools_cache = _tool_converter._convert_tools_cached
 _tool_choice_cache = _tool_converter._convert_tool_choice_cached
 

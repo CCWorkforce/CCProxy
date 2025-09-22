@@ -17,7 +17,11 @@ from ccproxy.domain.models import (
     ContentBlockImageSource,
 )
 from ccproxy.config import Settings
-from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessage,
+    ChatCompletionMessageToolCall,
+)
 from openai.types.chat.chat_completion import Choice
 from openai.types.completion_usage import CompletionUsage
 
@@ -29,14 +33,8 @@ class TestAsyncMessageConverter:
     async def test_convert_messages_async(self):
         """Test async message conversion."""
         messages = [
-            Message(
-                role="user",
-                content="Hello, how are you?"
-            ),
-            Message(
-                role="assistant",
-                content="I'm doing well, thank you!"
-            )
+            Message(role="user", content="Hello, how are you?"),
+            Message(role="assistant", content="I'm doing well, thank you!"),
         ]
 
         result = await convert_messages_async(messages, system="Be helpful")
@@ -53,9 +51,7 @@ class TestAsyncMessageConverter:
         """Test async message conversion with context."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
-            request_id="test-123",
-            target_model="gpt-4",
-            settings=settings
+            request_id="test-123", target_model="gpt-4", settings=settings
         )
 
         messages = [
@@ -66,12 +62,10 @@ class TestAsyncMessageConverter:
                     ContentBlockImage(
                         type="image",
                         source=ContentBlockImageSource(
-                            type="base64",
-                            media_type="image/jpeg",
-                            data="base64data"
-                        )
-                    )
-                ]
+                            type="base64", media_type="image/jpeg", data="base64data"
+                        ),
+                    ),
+                ],
             )
         ]
 
@@ -89,16 +83,11 @@ class TestAsyncMessageConverter:
         """Test that messages are processed in parallel."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
-            request_id="test-456",
-            target_model="gpt-4",
-            settings=settings
+            request_id="test-456", target_model="gpt-4", settings=settings
         )
 
         # Create multiple messages
-        messages = [
-            Message(role="user", content=f"Message {i}")
-            for i in range(10)
-        ]
+        messages = [Message(role="user", content=f"Message {i}") for i in range(10)]
 
         converter = AsyncMessageConverter(context=context)
         result = await converter.convert_messages_async(messages, system=None)
@@ -125,17 +114,14 @@ class TestAsyncResponseConverter:
                 Choice(
                     index=0,
                     message=ChatCompletionMessage(
-                        role="assistant",
-                        content="Hello! How can I help you today?"
+                        role="assistant", content="Hello! How can I help you today?"
                     ),
-                    finish_reason="stop"
+                    finish_reason="stop",
                 )
             ],
             usage=CompletionUsage(
-                prompt_tokens=10,
-                completion_tokens=8,
-                total_tokens=18
-            )
+                prompt_tokens=10, completion_tokens=8, total_tokens=18
+            ),
         )
 
         result = await convert_response_async(openai_response)
@@ -157,7 +143,7 @@ class TestAsyncResponseConverter:
         tool_call = ChatCompletionMessageToolCall(
             id="tool-1",
             type="function",
-            function={"name": "get_weather", "arguments": '{"location": "New York"}'}
+            function={"name": "get_weather", "arguments": '{"location": "New York"}'},
         )
 
         openai_response = ChatCompletion(
@@ -169,18 +155,14 @@ class TestAsyncResponseConverter:
                 Choice(
                     index=0,
                     message=ChatCompletionMessage(
-                        role="assistant",
-                        content=None,
-                        tool_calls=[tool_call]
+                        role="assistant", content=None, tool_calls=[tool_call]
                     ),
-                    finish_reason="tool_calls"
+                    finish_reason="tool_calls",
                 )
             ],
             usage=CompletionUsage(
-                prompt_tokens=15,
-                completion_tokens=20,
-                total_tokens=35
-            )
+                prompt_tokens=15, completion_tokens=20, total_tokens=35
+            ),
         )
 
         result = await convert_response_async(openai_response)
@@ -197,9 +179,7 @@ class TestAsyncResponseConverter:
         """Test async response conversion with context."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
-            request_id="test-789",
-            target_model="gpt-4",
-            settings=settings
+            request_id="test-789", target_model="gpt-4", settings=settings
         )
 
         openai_response = ChatCompletion(
@@ -211,17 +191,12 @@ class TestAsyncResponseConverter:
                 Choice(
                     index=0,
                     message=ChatCompletionMessage(
-                        role="assistant",
-                        content="Response with context"
+                        role="assistant", content="Response with context"
                     ),
-                    finish_reason="stop"
+                    finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(
-                prompt_tokens=5,
-                completion_tokens=3,
-                total_tokens=8
-            )
+            usage=CompletionUsage(prompt_tokens=5, completion_tokens=3, total_tokens=8),
         )
 
         converter = AsyncResponseConverter(context=context)
@@ -238,12 +213,7 @@ class TestAsyncConverterIntegration:
     async def test_end_to_end_conversion(self):
         """Test complete conversion flow."""
         # Input messages
-        messages = [
-            Message(
-                role="user",
-                content="What's the weather like?"
-            )
-        ]
+        messages = [Message(role="user", content="What's the weather like?")]
 
         # Convert to OpenAI format
         openai_messages = await convert_messages_async(messages)
@@ -263,23 +233,24 @@ class TestAsyncConverterIntegration:
                     index=0,
                     message=ChatCompletionMessage(
                         role="assistant",
-                        content="I'll need to check the weather for you."
+                        content="I'll need to check the weather for you.",
                     ),
-                    finish_reason="stop"
+                    finish_reason="stop",
                 )
             ],
             usage=CompletionUsage(
-                prompt_tokens=6,
-                completion_tokens=10,
-                total_tokens=16
-            )
+                prompt_tokens=6, completion_tokens=10, total_tokens=16
+            ),
         )
 
         # Convert back to Anthropic format
         anthropic_response = await convert_response_async(openai_response)
 
         assert isinstance(anthropic_response, MessagesResponse)
-        assert anthropic_response.content[0].text == "I'll need to check the weather for you."
+        assert (
+            anthropic_response.content[0].text
+            == "I'll need to check the weather for you."
+        )
         assert anthropic_response.usage.input_tokens == 6
         assert anthropic_response.usage.output_tokens == 10
 
