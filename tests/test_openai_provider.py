@@ -3,6 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import pytest
+import pytest_asyncio
 import httpx
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -30,12 +31,16 @@ def mock_settings():
     settings.referer_url = "http://localhost:11434"
     settings.app_name = "CCProxy"
     settings.app_version = "1.0.0"
+    settings.max_stream_seconds = 300  # Add missing attribute
     return settings
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def openai_provider(mock_settings):
     """Create an OpenAI provider instance for testing."""
+    import os
+    # Set to local mode for consistent testing
+    os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
     provider = OpenAIProvider(mock_settings)
     yield provider
     await provider.close()
@@ -188,16 +193,17 @@ class TestOpenAIProvider:
         """Test provider initialization with settings."""
         provider = OpenAIProvider(mock_settings)
 
-        assert provider._settings == mock_settings
-        assert provider._client is not None
-        assert isinstance(provider._client, AsyncOpenAI)
+        assert provider.settings == mock_settings
+        assert provider._openAIClient is not None
+        assert isinstance(provider._openAIClient, AsyncOpenAI)
+        assert provider._http_client is not None
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_create_chat_completion(self, openai_provider, sample_messages, mock_chat_completion):
         """Test creating a chat completion."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -223,7 +229,7 @@ class TestOpenAIProvider:
         self, openai_provider, sample_messages, sample_tools, mock_chat_completion
     ):
         """Test creating a chat completion with tools."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -251,7 +257,7 @@ class TestOpenAIProvider:
             for chunk in mock_stream_chunks:
                 yield chunk
 
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = async_generator()
 
@@ -274,7 +280,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_retry_on_rate_limit(self, openai_provider, sample_messages):
         """Test retry mechanism on rate limit errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             # First call raises rate limit error, second succeeds
             mock_create.side_effect = [
@@ -297,7 +303,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_authentication_error(self, openai_provider, sample_messages):
         """Test handling of authentication errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = httpx.HTTPStatusError(
                 "Unauthorized",
@@ -314,7 +320,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_network_error_handling(self, openai_provider, sample_messages):
         """Test handling of network errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = httpx.ConnectError("Connection failed")
 
@@ -327,7 +333,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_timeout_handling(self, openai_provider, sample_messages):
         """Test handling of timeout errors."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.side_effect = asyncio.TimeoutError("Request timed out")
 
@@ -342,36 +348,42 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_http2_configuration(self, mock_settings):
         """Test HTTP/2 configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Check that HTTP/2 is enabled in the client
-        assert provider._client._client._transport is not None
+        # Check that HTTP client is configured
+        assert provider._http_client is not None
+        assert provider._openAIClient is not None
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_custom_headers(self, mock_settings):
         """Test custom headers are set."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Headers should include referer and user-agent
-        default_headers = provider._client.default_headers
-        assert "Referer" in default_headers
-        assert default_headers["Referer"] == mock_settings.referer_url
+        # Headers should include referer and X-Title
+        default_headers = provider._openAIClient.default_headers
+        assert "HTTP-Referer" in default_headers
+        assert default_headers["HTTP-Referer"] == mock_settings.referer_url
+        assert "X-Title" in default_headers
+        assert default_headers["X-Title"] == mock_settings.app_name
 
         await provider.close()
 
     @pytest.mark.asyncio
     async def test_connection_pool_limits(self, mock_settings):
         """Test connection pool configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         provider = OpenAIProvider(mock_settings)
 
-        # Check connection pool settings
-        transport = provider._client._client._transport
-        if hasattr(transport, '_pool'):
-            pool = transport._pool
-            # Verify pool limits are configured
-            assert pool is not None
+        # Check that HTTP client is configured
+        assert provider._http_client is not None
+        # The actual pool limits are handled internally by the DefaultAsyncHttpxClient
 
         await provider.close()
 
@@ -387,7 +399,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_reasoning_effort_parameter(self, openai_provider, sample_messages):
         """Test reasoning effort parameter handling."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -404,11 +416,13 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_openrouter_specific_reasoning(self, mock_settings):
         """Test OpenRouter-specific reasoning configuration."""
+        import os
+        os.environ['IS_LOCAL_DEPLOYMENT'] = 'True'
         # Configure for OpenRouter
         mock_settings.base_url = "https://openrouter.ai/api/v1"
         provider = OpenAIProvider(mock_settings)
 
-        with patch.object(provider._client.chat.completions, 'create',
+        with patch.object(provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -431,7 +445,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_parameter_filtering(self, openai_provider, sample_messages):
         """Test filtering of unsupported parameters."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -456,7 +470,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_concurrent_requests(self, openai_provider, sample_messages, mock_chat_completion):
         """Test handling multiple concurrent requests."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = mock_chat_completion
 
@@ -478,7 +492,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_empty_messages_handling(self, openai_provider):
         """Test handling of empty messages list."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
@@ -493,7 +507,7 @@ class TestOpenAIProvider:
     @pytest.mark.asyncio
     async def test_model_validation(self, openai_provider):
         """Test model name validation and mapping."""
-        with patch.object(openai_provider._client.chat.completions, 'create',
+        with patch.object(openai_provider._openAIClient.chat.completions, 'create',
                          new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock()
 
