@@ -28,6 +28,29 @@ def mock_settings():
     settings.app_name = "CCProxy"
     settings.app_version = "1.0.0"
     settings.max_stream_seconds = 300  # Add missing attribute
+    # Circuit breaker settings
+    settings.circuit_breaker_failure_threshold = 5
+    settings.circuit_breaker_recovery_timeout = 60
+    settings.circuit_breaker_half_open_requests = 3
+    # Connection pool settings
+    settings.pool_max_keepalive_connections = 50
+    settings.pool_max_connections = 500
+    settings.pool_keepalive_expiry = 120
+    # HTTP timeout settings
+    settings.http_connect_timeout = 10.0
+    settings.http_write_timeout = 30.0
+    settings.http_pool_timeout = 10.0
+    # Tracing settings
+    settings.tracing_enabled = False
+    settings.tracing_exporter = "console"
+    settings.tracing_endpoint = ""
+    settings.tracing_service_name = "ccproxy"
+    # Client rate limiting settings
+    settings.client_rate_limit_enabled = False
+    settings.client_rate_limit_rpm = 500
+    settings.client_rate_limit_tpm = 90000
+    settings.client_rate_limit_burst = 100
+    settings.client_rate_limit_adaptive = True
     return settings
 
 

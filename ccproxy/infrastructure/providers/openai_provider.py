@@ -18,11 +18,24 @@ import uuid
 import statistics
 from datetime import datetime
 from dataclasses import dataclass
+from contextvars import ContextVar
 from enum import Enum
 
 from ...config import Settings
 from ...monitoring import PerformanceMonitor
 from ...application.error_tracker import ErrorTracker, ErrorType
+from .rate_limiter import ClientRateLimiter, RateLimitConfig
+
+# Import tracing if available
+try:
+    from ...tracing import get_tracing_manager
+    tracing_available = True
+except ImportError:
+    tracing_available = False
+    get_tracing_manager = None
+
+# Context variable for trace context propagation
+trace_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar("trace_context", default=None)
 
 
 def _safe_decode_response(response_bytes: bytes, context: str = "API response") -> str:
@@ -179,11 +192,11 @@ class OpenAIProvider:
         self._jitter = settings.provider_retry_jitter
         self._http_client = None  # Will be managed by OpenAI SDK
 
-        # Monitoring and resilience
+        # Monitoring and resilience with configurable parameters
         self._circuit_breaker = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60,
-            half_open_requests=3
+            failure_threshold=settings.circuit_breaker_failure_threshold,
+            recovery_timeout=settings.circuit_breaker_recovery_timeout,
+            half_open_requests=settings.circuit_breaker_half_open_requests
         )
         self._performance_monitor = PerformanceMonitor()
         self._error_tracker = ErrorTracker()  # Singleton, no parameters
@@ -191,6 +204,22 @@ class OpenAIProvider:
         self._request_log: Dict[str, Dict[str, Any]] = {}  # Correlation ID -> request details
         self._latency_history: List[float] = []  # For adaptive timeout
         self._metrics_lock = asyncio.Lock()
+
+        # Initialize client-side rate limiter
+        if settings.client_rate_limit_enabled:
+            rate_limit_config = RateLimitConfig(
+                requests_per_minute=settings.client_rate_limit_rpm,
+                tokens_per_minute=settings.client_rate_limit_tpm,
+                burst_size=settings.client_rate_limit_burst,
+                adaptive_enabled=settings.client_rate_limit_adaptive,
+            )
+            self._rate_limiter = ClientRateLimiter(rate_limit_config)
+            # Start rate limiter background tasks
+            asyncio.create_task(self._rate_limiter.start())
+            logging.info(f"Client rate limiter initialized: {settings.client_rate_limit_rpm} RPM, {settings.client_rate_limit_tpm} TPM")
+        else:
+            self._rate_limiter = None
+            logging.info("Client rate limiting disabled")
 
         try:
             # High-performance configuration
@@ -201,17 +230,21 @@ class OpenAIProvider:
 
             if is_local:
                 # Use httpx for local development (better debugging)
+                # Use local-specific defaults if not overridden
+                max_keepalive = settings.pool_max_keepalive_connections
+                max_connections = settings.pool_max_connections
+
                 http_client_kwargs = {
                     "limits": httpx.Limits(
-                        max_keepalive_connections=50,
-                        max_connections=500,
-                        keepalive_expiry=120,
+                        max_keepalive_connections=max_keepalive,
+                        max_connections=max_connections,
+                        keepalive_expiry=settings.pool_keepalive_expiry,
                     ),
                     "timeout": httpx.Timeout(
-                        connect=10.0,
+                        connect=settings.http_connect_timeout,
                         read=_read_timeout,
-                        write=30.0,
-                        pool=10.0,
+                        write=settings.http_write_timeout,
+                        pool=settings.http_pool_timeout,
                     ),
                     "verify": os.getenv("SSL_CERT_FILE", True),
                     "follow_redirects": True,
@@ -240,17 +273,21 @@ class OpenAIProvider:
                     # Fallback to optimized httpx client for production
                     # RuntimeError is raised when aiohttp extra is not installed
                     # Try with HTTP/2 first, fallback without if h2 not available
+                    # Use production-optimized values with higher limits
+                    max_keepalive = max(settings.pool_max_keepalive_connections, 100)
+                    max_connections = min(settings.pool_max_connections, 300)  # Cap at reasonable limit
+
                     http_client_kwargs = {
                         "limits": httpx.Limits(
-                            max_keepalive_connections=100,  # Higher for production
-                            max_connections=300,  # Reasonable limit to avoid resource exhaustion
-                            keepalive_expiry=120,
+                            max_keepalive_connections=max_keepalive,
+                            max_connections=max_connections,
+                            keepalive_expiry=settings.pool_keepalive_expiry,
                         ),
                         "timeout": httpx.Timeout(
-                            connect=10.0,
+                            connect=settings.http_connect_timeout,
                             read=_read_timeout,
-                            write=30.0,
-                            pool=10.0,
+                            write=settings.http_write_timeout,
+                            pool=settings.http_pool_timeout,
                         ),
                         "verify": os.getenv("SSL_CERT_FILE", True),
                         "follow_redirects": True,
@@ -355,8 +392,33 @@ class OpenAIProvider:
         correlation_id = str(uuid.uuid4())
         request_start = time.monotonic()
 
-        # Log request
-        self._log_request(correlation_id, params)
+        # Extract trace context if available
+        trace_info = trace_context.get()
+        trace_id = None
+
+        # Handle distributed tracing
+        if tracing_available and get_tracing_manager:
+            tracing_manager = get_tracing_manager()
+            if tracing_manager and tracing_manager.enabled:
+                # Get trace ID from context or generate new one
+                trace_id = trace_info.get("trace_id") if trace_info else tracing_manager.get_current_trace_id()
+
+                # Inject trace context into headers for OpenAI API calls
+                if trace_id:
+                    # Store trace headers to propagate with HTTP requests
+                    headers = {}
+                    tracing_manager.inject_context(headers)
+                    # Add custom trace ID header
+                    headers["X-Trace-ID"] = trace_id
+                    headers["X-Correlation-ID"] = correlation_id
+
+                    # Update params with additional headers if supported
+                    # Note: OpenAI SDK doesn't directly support custom headers in params
+                    # We'll need to use httpx interceptor or custom client for this
+                    params["extra_headers"] = headers
+
+        # Log request with trace context
+        self._log_request(correlation_id, params, trace_id)
 
         # Start performance monitoring
         await self._performance_monitor.start_request(correlation_id)
@@ -372,6 +434,25 @@ class OpenAIProvider:
                 async with self._metrics_lock:
                     self._metrics.failed_requests += 1
                 raise Exception("Service temporarily unavailable - circuit breaker is open")
+
+            # Apply client-side rate limiting
+            if self._rate_limiter:
+                # Estimate tokens based on message content (rough estimate)
+                estimated_tokens = self._estimate_tokens(params.get("messages", []))
+
+                # Wait if necessary to respect rate limits
+                await self._rate_limiter.wait_if_needed()
+
+                # Try to acquire rate limit permit
+                if not await self._rate_limiter.acquire(estimated_tokens):
+                    logging.warning(f"Request {correlation_id} blocked by client rate limiter")
+                    async with self._metrics_lock:
+                        self._metrics.failed_requests += 1
+                    raise openai.RateLimitError(
+                        message="Client-side rate limit exceeded",
+                        response=None,
+                        body=None
+                    )
 
             # Handle streaming case separately
             stream = params.get('stream', False)
@@ -405,6 +486,14 @@ class OpenAIProvider:
 
             # Update metrics and log success
             await self._on_request_success(correlation_id, request_start, response)
+
+            # Update rate limiter on success
+            if self._rate_limiter:
+                await self._rate_limiter.handle_success()
+                # Release with actual token count if available
+                if hasattr(response, 'usage') and response.usage:
+                    await self._rate_limiter.release(response.usage.total_tokens)
+
             return response
 
         except UnicodeDecodeError as e:
@@ -414,6 +503,10 @@ class OpenAIProvider:
             ) from e
         except openai.RateLimitError as e:
             await self._on_request_failure(correlation_id, request_start, e, ErrorType.RATE_LIMIT_ERROR)
+            # Update rate limiter on 429
+            if self._rate_limiter:
+                retry_after = getattr(e.response, 'headers', {}).get('retry-after')
+                await self._rate_limiter.handle_429_response(int(retry_after) if retry_after else None)
             raise
         except openai.AuthenticationError as e:
             await self._on_request_failure(correlation_id, request_start, e, ErrorType.AUTH_ERROR)
@@ -433,14 +526,22 @@ class OpenAIProvider:
                 ) from e
             raise
 
-    def _log_request(self, correlation_id: str, params: Dict[str, Any]) -> None:
-        """Log request with correlation ID."""
-        self._request_log[correlation_id] = {
+    def _log_request(self, correlation_id: str, params: Dict[str, Any], trace_id: Optional[str] = None) -> None:
+        """Log request with correlation ID and optional trace ID."""
+        request_info = {
             "timestamp": datetime.now().isoformat(),
-            "params": {k: v for k, v in params.items() if k not in ["api_key", "messages"]},
+            "params": {k: v for k, v in params.items() if k not in ["api_key", "messages", "extra_headers"]},
             "model": params.get("model", "unknown")
         }
-        logging.debug(f"Request {correlation_id}: model={params.get('model')}, stream={params.get('stream', False)}")
+        if trace_id:
+            request_info["trace_id"] = trace_id
+
+        self._request_log[correlation_id] = request_info
+
+        log_msg = f"Request {correlation_id}: model={params.get('model')}, stream={params.get('stream', False)}"
+        if trace_id:
+            log_msg += f", trace_id={trace_id}"
+        logging.debug(log_msg)
 
     async def _on_request_success(self, correlation_id: str, request_start: float, response: Any = None) -> None:
         """Handle successful request - update metrics and monitoring."""
@@ -586,8 +687,46 @@ class OpenAIProvider:
         logging.debug(f"Adaptive timeout: {adaptive_timeout_s:.2f}s (based on p95={p95_latency:.2f}ms)")
         return adaptive_timeout_s
 
+    def _estimate_tokens(self, messages: List[Dict[str, Any]]) -> int:
+        """
+        Estimate token count for messages.
+
+        This is a rough estimate. For accurate counts, use tiktoken.
+
+        Args:
+            messages: List of message dictionaries
+
+        Returns:
+            Estimated token count
+        """
+        if not messages:
+            return 0
+
+        # Rough estimation: ~4 characters per token
+        total_chars = 0
+        for message in messages:
+            content = message.get("content", "")
+            if isinstance(content, str):
+                total_chars += len(content)
+            # Handle tool calls, function calls, etc.
+            if "tool_calls" in message:
+                total_chars += len(str(message["tool_calls"]))
+
+        # Add overhead for message structure
+        total_chars += len(messages) * 10
+
+        return total_chars // 4
+
     async def close(self) -> None:
-        """Clean up the HTTP client when shutting down."""
+        """Clean up resources when shutting down."""
+        # Stop rate limiter if running
+        if self._rate_limiter:
+            try:
+                await self._rate_limiter.stop()
+                logging.info("Rate limiter stopped successfully")
+            except Exception as e:
+                logging.error(f"Error stopping rate limiter: {e}")
+
         # Properly close HTTP clients to avoid resource leaks
         if self._http_client:
             try:
