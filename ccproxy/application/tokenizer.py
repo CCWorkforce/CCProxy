@@ -3,7 +3,7 @@ import tiktoken
 import time
 import hashlib
 import asyncio
-from typing import Dict, List, Optional, Union, Tuple, Protocol
+from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
 from ..domain.models import (
     Message,
@@ -342,3 +342,106 @@ async def count_tokens_for_anthropic_request(
                 _token_count_cache.pop(evict_key, None)
 
     return total_tokens
+
+
+async def count_tokens_for_openai_request(
+    messages: List[Dict[str, Union[str, List]]],
+    model_name: str = "gpt-4",
+    tools: Optional[List[Dict[str, Any]]] = None,
+    request_id: Optional[str] = None
+) -> int:
+    """Calculate the total number of tokens for an OpenAI API request.
+
+    Args:
+        messages: List of OpenAI message dictionaries
+        model_name: The OpenAI model name for accurate encoding
+        tools: Optional list of tool/function definitions
+        request_id: Optional request identifier for logging
+
+    Returns:
+        int: Estimated total token count
+    """
+    try:
+        enc = get_token_encoder(model_name, request_id)
+        total_tokens = 0
+
+        # Count tokens in messages
+        for message in messages:
+            # Count role tokens
+            role = message.get("role", "")
+            if role:
+                total_tokens += len(enc.encode(role))
+
+            # Count content tokens
+            content = message.get("content", "")
+            if isinstance(content, str):
+                total_tokens += len(enc.encode(content))
+            elif isinstance(content, list):
+                # Handle multi-part content (e.g., text + images)
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        total_tokens += len(enc.encode(part.get("text", "")))
+                    elif isinstance(part, dict) and part.get("type") == "image_url":
+                        # Images have fixed token cost
+                        total_tokens += 85  # Base cost for image
+
+            # Count tool/function call tokens
+            if "tool_calls" in message:
+                for tool_call in message.get("tool_calls", []):
+                    if "function" in tool_call:
+                        func = tool_call["function"]
+                        total_tokens += len(enc.encode(func.get("name", "")))
+                        if "arguments" in func:
+                            total_tokens += len(enc.encode(func.get("arguments", "")))
+
+            # Legacy function_call support
+            if "function_call" in message:
+                func = message["function_call"]
+                total_tokens += len(enc.encode(func.get("name", "")))
+                if "arguments" in func:
+                    total_tokens += len(enc.encode(func.get("arguments", "")))
+
+        # Count tokens in tools/functions
+        if tools:
+            for tool in tools:
+                # Tool type and function wrapper
+                total_tokens += 10  # Overhead for tool structure
+
+                if "function" in tool:
+                    func = tool["function"]
+                    total_tokens += len(enc.encode(func.get("name", "")))
+                    if "description" in func:
+                        total_tokens += len(enc.encode(func.get("description", "")))
+                    if "parameters" in func:
+                        params_str = json.dumps(func["parameters"])
+                        total_tokens += len(enc.encode(params_str))
+
+        # Add message structure overhead (~3 tokens per message)
+        total_tokens += len(messages) * 3
+
+        debug(
+            LogRecord(
+                event=LogEvent.TOKEN_COUNT.value,
+                message=f"Counted {total_tokens} OpenAI tokens for model {model_name}",
+                data={"model": model_name, "token_count": total_tokens},
+                request_id=request_id,
+            )
+        )
+
+        return total_tokens
+
+    except Exception as e:
+        warning(
+            LogRecord(
+                event=LogEvent.TOKEN_COUNT.value,
+                message=f"Failed to count OpenAI tokens accurately, using rough estimate: {e}",
+                request_id=request_id,
+            )
+        )
+        # Fallback to rough estimate
+        total_chars = 0
+        for message in messages:
+            content = message.get("content", "")
+            if isinstance(content, str):
+                total_chars += len(content)
+        return max(1, total_chars // 4)  # ~4 chars per token

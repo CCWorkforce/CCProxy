@@ -436,8 +436,11 @@ class OpenAIProvider:
 
             # Apply client-side rate limiting
             if self._rate_limiter:
-                # Estimate tokens based on message content (rough estimate)
-                estimated_tokens = self._estimate_tokens(params.get("messages", []))
+                # Accurately count tokens using tiktoken
+                estimated_tokens = await self._estimate_tokens(
+                    params.get("messages", []),
+                    params.get("model")
+                )
 
                 # Wait if necessary to respect rate limits
                 await self._rate_limiter.wait_if_needed()
@@ -682,29 +685,46 @@ class OpenAIProvider:
         logging.debug(f"Adaptive timeout: {adaptive_timeout_s:.2f}s (based on p95={p95_latency:.2f}ms)")
         return adaptive_timeout_s
 
-    def _estimate_tokens(self, messages: List[Dict[str, Any]]) -> int:
+    async def _estimate_tokens(self, messages: List[Dict[str, Any]], model_name: str = None) -> int:
         """
-        Estimate token count for messages.
-
-        This is a rough estimate. For accurate counts, use tiktoken.
+        Accurately count tokens for messages using tiktoken.
 
         Args:
             messages: List of message dictionaries
+            model_name: Optional model name for accurate encoding
 
         Returns:
-            Estimated token count
+            Accurate token count
         """
         if not messages:
             return 0
 
-        # Rough estimation: ~4 characters per token
-        total_chars = 0
-        for message in messages:
-            content = message.get("content", "")
-            if isinstance(content, str):
-                total_chars += len(content)
+        try:
+            # Import tokenizer function
+            from ...application.tokenizer import count_tokens_for_openai_request
+
+            # Use the provided model or default from settings
+            model = model_name or self.settings.big_model_name
+
+            # Get accurate token count
+            token_count = await count_tokens_for_openai_request(
+                messages=messages,
+                model_name=model,
+                request_id=None  # Could pass correlation_id if available
+            )
+
+            return token_count
+        except Exception as e:
+            logging.warning(f"Failed to count tokens accurately, falling back to rough estimate: {e}")
+
+            # Fallback to rough estimation: ~4 characters per token
+            total_chars = 0
+            for message in messages:
+                content = message.get("content", "")
+                if isinstance(content, str):
+                    total_chars += len(content)
             # Handle tool calls, function calls, etc.
-            if "tool_calls" in message:
+            if "tool_calls" in messages[0] if messages else False:
                 total_chars += len(str(message["tool_calls"]))
 
         # Add overhead for message structure
