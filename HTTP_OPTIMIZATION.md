@@ -86,11 +86,11 @@ PROVIDER_MAX_RETRIES=3
 PROVIDER_RETRY_BASE_DELAY=1.0
 PROVIDER_RETRY_JITTER=0.5
 
-# Rate Limiting
+# Rate Limiting (Optimized for Agentic Coding Tools with Large Contexts)
 CLIENT_RATE_LIMIT_ENABLED=True
-CLIENT_RATE_LIMIT_RPM=3000
-CLIENT_RATE_LIMIT_TPM=1620000
-CLIENT_RATE_LIMIT_BURST=600
+CLIENT_RATE_LIMIT_RPM=120      # 2 requests/second for coding assistants
+CLIENT_RATE_LIMIT_TPM=6000000  # Supports ~50K tokens/req avg, allows 200K bursts
+CLIENT_RATE_LIMIT_BURST=30     # Handle rapid successive requests
 CLIENT_RATE_LIMIT_ADAPTIVE=True
 
 # Circuit Breaker
