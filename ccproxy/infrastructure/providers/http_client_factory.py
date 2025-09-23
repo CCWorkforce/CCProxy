@@ -104,7 +104,7 @@ class HttpClientFactory:
         # Try to use aiohttp client if available, fallback to httpx
         try:
             # Try to create aiohttp client - will fail if aiohttp extra not installed
-            client = DefaultAioHttpClient()
+            client = DefaultAioHttpClient(http2=True)
             logging.info("Using DefaultAioHttpClient for production deployment")
             return client
         except (ImportError, RuntimeError):
