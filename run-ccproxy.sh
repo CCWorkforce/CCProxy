@@ -93,8 +93,28 @@ while IFS='=' read -r key value; do
         continue
     fi
 
-    # Remove quotes from value if present
-    value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    # Remove inline comments (everything after #) from value
+    # But preserve # if it's inside quotes (for JSON values)
+    if [[ "$value" =~ ^[\{\[] ]]; then
+        # Looks like JSON, don't strip comments from JSON values
+        :
+    else
+        # Not JSON, safe to strip inline comments
+        value=$(echo "$value" | sed 's/#.*//')
+    fi
+
+    # Trim leading/trailing whitespace without removing quotes from JSON
+    value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    # Only remove surrounding quotes if they enclose the entire value
+    # and are not part of JSON structure
+    if [[ "$value" =~ ^\".*\"$ ]] && [[ ! "$value" =~ ^[\{\[] ]]; then
+        # Remove surrounding quotes from non-JSON strings
+        value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//')
+    elif [[ "$value" =~ ^\'.*\'$ ]] && [[ ! "$value" =~ ^[\{\[] ]]; then
+        # Remove surrounding single quotes from non-JSON strings
+        value=$(echo "$value" | sed -e "s/^'//" -e "s/'$//")
+    fi
 
     # Export the variable
     export "$key=$value"
