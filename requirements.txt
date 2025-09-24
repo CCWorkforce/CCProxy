@@ -7,7 +7,7 @@ uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
 # OpenAI client with aiohttp support for better performance
-openai[aiohttp]>=1.109.0
+openai[aiohttp]>=1.109.1
 httpx-aiohttp>=0.1.8
 
 # Data validation
@@ -50,4 +50,3 @@ locust
 starlette>=0.48.0
 standard>=1.0.3
 asyncio>=4.0.0
-
