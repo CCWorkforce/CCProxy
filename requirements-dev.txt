@@ -4,7 +4,7 @@
 # FastAPI framework
 fastapi>=0.117.1
 uvicorn[standard]>=0.37.0
-orjson>=3.11.3
+ujson>=5.11.0
 
 # OpenAI client with aiohttp support for better performance
 openai[aiohttp]>=1.109.1

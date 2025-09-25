@@ -4,7 +4,7 @@
 # FastAPI framework
 fastapi>=0.117.1
 uvicorn[standard]>=0.37.0
-orjson>=3.11.3
+ujson>=5.11.0
 
 # OpenAI client with aiohttp support for better performance
 openai[aiohttp]>=1.109.1
@@ -46,7 +46,7 @@ opentelemetry-exporter-jaeger-thrift>=1.21.0
 
 # Production server (optional, for better performance)
 gunicorn>=23.0.0
-locust==2.40.5
+locust==2.41.1
 starlette>=0.48.0
 standard>=1.0.3
 asyncio>=4.0.0
