@@ -27,6 +27,7 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
 
 OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
     {
+        "qwen/qwen3-235b-a22b-thinking-2507",
         "deepseek/deepseek-chat-v3.1",
         "deepseek/deepseek-v3.1-terminus",
         "x-ai/grok-code-fast-1",
