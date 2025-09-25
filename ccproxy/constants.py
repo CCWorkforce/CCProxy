@@ -52,7 +52,7 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset(
         "deepseek-reasoner",
         "openai/gpt-5",
         "openai/gpt-5-mini",
-        "qwen/qwen3-vl-235b-a22b-thinking"
+        "qwen/qwen3-vl-235b-a22b-thinking",
     }
 )
 
