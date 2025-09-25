@@ -21,7 +21,7 @@ from .metrics import (
     HealthMonitor,
     AdaptiveTimeoutCalculator,
 )
-from .http_client_factory import HttpClientFactory, HttpClientConfig
+from .http_client_factory import HttpClientFactory
 from .response_handlers import ResponseProcessor, ErrorResponseHandler
 from .request_logger import RequestLogger, PerformanceTracker
 
@@ -97,13 +97,13 @@ class OpenAIProvider:
         try:
             # Create HTTP client using factory
             self._http_client = HttpClientFactory.create_client(settings)
-            HttpClientConfig.log_client_configuration(self._http_client, settings)
+            HttpClientFactory.log_client_configuration(self._http_client, settings)
 
             # Initialize OpenAI client with the configured HTTP client
             self._openAIClient = AsyncOpenAI(
                 api_key=self.settings.openai_api_key,
                 base_url=self.settings.base_url,
-                default_headers=HttpClientConfig.get_default_headers(settings),
+                default_headers=HttpClientFactory.get_default_headers(settings),
                 timeout=float(settings.max_stream_seconds),
                 http_client=self._http_client,
                 max_retries=settings.provider_max_retries,
