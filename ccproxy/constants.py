@@ -32,6 +32,7 @@ OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
         "x-ai/grok-code-fast-1",
         "x-ai/grok-4-fast:free",
         "z-ai/glm-4.5",
+        "qwen/qwen3-vl-235b-a22b-thinking",
     }
 )
 
@@ -50,6 +51,7 @@ NO_SUPPORT_TEMPERATURE_MODELS: FrozenSet[str] = frozenset(
         "deepseek-reasoner",
         "openai/gpt-5",
         "openai/gpt-5-mini",
+        "qwen/qwen3-vl-235b-a22b-thinking"
     }
 )
 
@@ -107,6 +109,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("z-ai/glm-4.5", 131_072),
         ("moonshotai/kimi-k2-0905", 262_144),
         ("deepseek/deepseek-v3.1-terminus", 131_072),
+        ("qwen/qwen3-vl-235b-a22b-thinking", 131_072),
     }
 )
 
@@ -137,6 +140,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("z-ai/glm-4.5", 30_720),
         ("moonshotai/kimi-k2-0905", 30_720),
         ("deepseek/deepseek-v3.1-terminus", 65_536),
+        ("qwen/qwen3-vl-235b-a22b-thinking", 32_768),
     }
 )
 
