@@ -12,7 +12,7 @@ httpx-aiohttp>=0.1.8
 
 # Data validation
 pydantic>=2.11.9
-pydantic-settings>=2.10.1
+pydantic-settings>=2.11.0
 
 # Token counting
 tiktoken>=0.11.0
@@ -46,7 +46,7 @@ opentelemetry-exporter-jaeger-thrift>=1.21.0
 
 # Production server (optional, for better performance)
 gunicorn>=23.0.0
-locust
+locust==2.40.5
 starlette>=0.48.0
 standard>=1.0.3
 asyncio>=4.0.0
