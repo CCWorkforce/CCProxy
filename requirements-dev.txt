@@ -46,7 +46,7 @@ six>=1.17.0
 
 pytest>=8.4.2
 pytest-asyncio>=1.2.0
-ruff>=0.13.1
+ruff>=0.13.2
 mypy>=1.18.2
 starlette>=0.48.0
 standard>=1.0.3
