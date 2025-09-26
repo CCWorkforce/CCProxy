@@ -30,7 +30,7 @@ from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import UJSONResponse
+from fastapi.responses import ORJSONResponse
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -115,7 +115,7 @@ def create_app(settings: Settings) -> FastAPI:
         redoc_url=None,
         description="Routes Anthropic API requests to an OpenAI-compatible API, selecting models dynamically.",
         lifespan=lifespan,
-        default_response_class=UJSONResponse,
+        default_response_class=ORJSONResponse,
     )
     app.state.settings = settings
     try:
