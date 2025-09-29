@@ -1,9 +1,12 @@
+import pytest
+
 from ccproxy.application.tokenizer import truncate_request
 from ccproxy.domain.models import Message, ContentBlockText
 from ccproxy.config import TruncationConfig
 
 
-def test_utf8_preservation():
+@pytest.mark.asyncio
+async def test_utf8_preservation():
     # Create message with multi-byte UTF-8 characters
     messages = [
         Message(
@@ -30,7 +33,7 @@ def test_utf8_preservation():
     config = TruncationConfig()
 
     # Test truncation doesn't corrupt UTF-8
-    truncated_msgs, truncated_system = truncate_request(
+    truncated_msgs, truncated_system = await truncate_request(
         messages, system, "gpt-5", 10000, config, request_id="utf8_test"
     )
 
