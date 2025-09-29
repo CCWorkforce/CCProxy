@@ -32,13 +32,14 @@ check_ruff() {
         exit 1
     fi
 
-    # Use uv to ensure ruff is available
+    # Verify ruff availability without mutating dependencies
     if ! uv run --with ruff ruff --version &> /dev/null; then
-        echo -e "${YELLOW}📦 Installing ruff via uv...${NC}"
-        uv add --dev ruff
+        echo -e "${RED}❌ ruff is not available in the current environment${NC}"
+        echo -e "${YELLOW}Install dev dependencies first (e.g. 'uv pip install -r requirements-dev.txt').${NC}"
+        exit 1
     fi
 
-    echo -e "${GREEN}✅ ruff is available via uv${NC}"
+    echo -e "${GREEN}✅ ruff detected via uv${NC}"
     echo -e "${CYAN}uv version: $(uv --version)${NC}"
     echo -e "${CYAN}ruff version: $(uv run --with ruff ruff --version)${NC}"
 }

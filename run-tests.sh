@@ -32,13 +32,14 @@ check_pytest() {
         exit 1
     fi
 
-    # Use uv to ensure pytest is available
+    # Verify pytest availability without modifying the environment
     if ! uv run pytest --version &> /dev/null; then
-        echo -e "${YELLOW}📦 Installing pytest via uv...${NC}"
-        uv add --dev pytest pytest-asyncio pytest-cov pytest-mock respx
+        echo -e "${RED}❌ pytest is not available in the current environment${NC}"
+        echo -e "${YELLOW}Install dev dependencies first (e.g. 'uv pip install -r requirements-dev.txt').${NC}"
+        exit 1
     fi
 
-    echo -e "${GREEN}✅ pytest is available via uv${NC}"
+    echo -e "${GREEN}✅ pytest detected via uv${NC}"
     echo -e "${CYAN}uv version: $(uv --version)${NC}"
     echo -e "${CYAN}pytest version: $(uv run pytest --version)${NC}"
 }
@@ -153,8 +154,9 @@ run_tests_parallel() {
 
     # Check if pytest-xdist is installed
     if ! uv run pytest --version 2>&1 | grep -q "pytest-xdist"; then
-        echo -e "${YELLOW}📦 Installing pytest-xdist for parallel execution...${NC}"
-        uv add --dev pytest-xdist
+        echo -e "${RED}❌ pytest-xdist plugin not found${NC}"
+        echo -e "${YELLOW}Install it manually (e.g. 'uv pip install pytest-xdist') before using --parallel.${NC}"
+        return 1
     fi
 
     # Run tests in parallel using all available CPU cores
@@ -176,8 +178,9 @@ run_tests_watch() {
 
     # Check if pytest-watch is installed
     if ! uv run ptw --version &> /dev/null; then
-        echo -e "${YELLOW}📦 Installing pytest-watch...${NC}"
-        uv add --dev pytest-watch
+        echo -e "${RED}❌ pytest-watch (ptw) is not installed${NC}"
+        echo -e "${YELLOW}Install it manually (e.g. 'uv pip install pytest-watch') before using --watch.${NC}"
+        return 1
     fi
 
     echo -e "${CYAN}Watching for file changes... (Press Ctrl+C to stop)${NC}"
