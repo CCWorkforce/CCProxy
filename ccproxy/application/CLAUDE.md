@@ -6,7 +6,7 @@
 - `converters.py`: Message format conversion between Anthropic and OpenAI APIs (exports async converters)
 - `converters_module/`: Modular converter implementations with specialized processors
   - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Uses ThreadPoolExecutor for CPU-bound operations, optimized for high throughput
+  - Uses Asyncer library: `asyncify()` for CPU-bound operations, `create_task_group()` for concurrency
   - Provides `convert_messages_async()` and `convert_response_async()` functions
 - `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
 - `model_selection.py`: Model mapping logic (opus/sonnet→BIG, haiku→SMALL)

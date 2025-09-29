@@ -3,11 +3,13 @@ Optimized OpenAI provider with high-performance HTTP client configuration.
 Supports multiple HTTP client backends for maximum performance.
 """
 
-from openai import AsyncOpenAI
-from typing import Any, Optional, Dict, List
+import json
 import logging
 import time
+from typing import Any, Optional, Dict, List
+
 import openai
+from openai import AsyncOpenAI
 
 from ...config import Settings
 from ...monitoring import PerformanceMonitor
@@ -390,9 +392,25 @@ class OpenAIProvider:
                 content = message.get("content", "")
                 if isinstance(content, str):
                     total_chars += len(content)
-            # Handle tool calls, function calls, etc.
-            if "tool_calls" in messages[0] if messages else False:
-                total_chars += len(str(message["tool_calls"]))
+                elif isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "text":
+                                total_chars += len(part.get("text", ""))
+                            else:
+                                total_chars += len(json.dumps(part, ensure_ascii=False))
+                        else:
+                            total_chars += len(str(part))
+                elif content is not None:
+                    total_chars += len(str(content))
+
+                tool_calls = message.get("tool_calls") or []
+                if tool_calls:
+                    total_chars += len(json.dumps(tool_calls, ensure_ascii=False))
+
+                function_call = message.get("function_call")
+                if function_call:
+                    total_chars += len(json.dumps(function_call, ensure_ascii=False))
 
         # Add overhead for message structure
         total_chars += len(messages) * 10

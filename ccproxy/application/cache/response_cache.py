@@ -201,12 +201,12 @@ class ResponseCache:
         cache_key = self._generate_cache_key(request)
 
         # Check if request is pending and wait if requested
+        pending_event: Optional[asyncio.Event] = None
         if wait_for_pending:
             async with self._lock:
-                if cache_key in self._pending_requests:
-                    event = self._pending_requests[cache_key]
+                pending_event = self._pending_requests.get(cache_key)
 
-            if "event" in locals():
+            if pending_event is not None:
                 debug(
                     LogRecord(
                         event=LogEvent.CACHE_EVENT.value,
@@ -219,7 +219,9 @@ class ResponseCache:
                     )
                 )
                 try:
-                    await asyncio.wait_for(event.wait(), timeout=timeout_seconds)
+                    await asyncio.wait_for(
+                        pending_event.wait(), timeout=timeout_seconds
+                    )
                 except asyncio.TimeoutError:
                     debug(
                         LogRecord(

@@ -254,7 +254,7 @@ async def create_message_proxy(request: Request) -> Response:
         max_tokens = MODEL_MAX_OUTPUT_TOKEN_LIMIT_MAP.get(
             target_model, anthropic_request.max_tokens
         )
-        warning(
+        info(
             LogRecord(
                 LogEvent.STREAM_EVENT.value,
                 f"Model does not support reasoning; 'max_tokens' will be set to {max_tokens} for model {target_model}.",
@@ -268,7 +268,7 @@ async def create_message_proxy(request: Request) -> Response:
         )
         openai_params["max_tokens"] = max_tokens
     else:
-        warning(
+        info(
             LogRecord(
                 LogEvent.STREAM_EVENT.value,
                 f"Model supports reasoning; 'max_tokens' will be omitted for model {target_model}.",
@@ -282,7 +282,7 @@ async def create_message_proxy(request: Request) -> Response:
         )
     if anthropic_request.temperature is not None:
         if target_model in NO_SUPPORT_TEMPERATURE_MODELS:
-            warning(
+            info(
                 LogRecord(
                     LogEvent.STREAM_EVENT.value,
                     f"Model does not support 'temperature'; it will be omitted for model {target_model}.",
@@ -307,10 +307,8 @@ async def create_message_proxy(request: Request) -> Response:
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
-    if (
-        anthropic_request.thinking is not None
-        and target_model in SUPPORT_REASONING_EFFORT_MODELS
-    ):
+    thinking_config = anthropic_request.thinking
+    if thinking_config is not None and target_model in SUPPORT_REASONING_EFFORT_MODELS:
         reasoning_effort = (
             (
                 ReasoningEfforts.High.value
@@ -330,12 +328,8 @@ async def create_message_proxy(request: Request) -> Response:
 
         if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
             # Use OpenRouter reasoning format with effort and max_tokens
-            max_reasoning_tokens = min(
-                anthropic_request.thinking.max_tokens or 2000, 32000
-            )
-            max_reasoning_tokens = max(
-                max_reasoning_tokens, 1024
-            )  # Minimum 1024 tokens
+            requested_budget = thinking_config.budget_tokens
+            max_reasoning_tokens = max(min(requested_budget, 32000), 1024)
 
             reasoning_config = {
                 "effort": reasoning_effort,
@@ -345,7 +339,7 @@ async def create_message_proxy(request: Request) -> Response:
             }
             openai_params["reasoning"] = reasoning_config
 
-            warning(
+            info(
                 LogRecord(
                     LogEvent.STREAM_EVENT.value,
                     f"OpenRouter model supports reasoning; 'reasoning' config with effort '{reasoning_effort}' and max_tokens {max_reasoning_tokens} will be added for model {target_model}.",
@@ -357,7 +351,7 @@ async def create_message_proxy(request: Request) -> Response:
             # Use standard reasoning_effort for non-OpenRouter providers
             openai_params["reasoning_effort"] = reasoning_effort
 
-            warning(
+            info(
                 LogRecord(
                     LogEvent.STREAM_EVENT.value,
                     f"Model supports reasoning; 'reasoning_effort' with value {reasoning_effort} will be added for model {target_model}.",

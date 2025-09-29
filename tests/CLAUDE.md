@@ -13,7 +13,7 @@
 - `test_cache.py`: Cache implementation tests including circuit breaker (31 test cases)
 - `test_openai_provider.py`: OpenAI provider and HTTP/2 client tests (18 test cases)
 - `test_routes.py`: HTTP routes and middleware tests
-- `test_async_converters.py`: Async converter performance tests (8 test cases)
+- `test_async_converters.py`: Async converter tests using Asyncer library (8 test cases)
 - `test_cache_warmup.py`: Cache warmup manager tests (8 test cases)
 
 ## Testing Framework:

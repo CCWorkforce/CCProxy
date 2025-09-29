@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Project: CCProxy – OpenAI-compatible proxy for Anthropic Messages API
 
 Common commands
-- Install deps: uv pip install -r requirements.txt (includes aiofiles for async file I/O in cache warmup)
+- Install deps: uv pip install -r requirements.txt (includes asyncer for async operations and aiofiles for async file I/O)
 - Run dev (uvicorn): python main.py
 - Run via script (env checks): ./run-ccproxy.sh
 - Docker build/run (compose): ./docker-compose-run.sh up -d
@@ -62,7 +62,8 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI (exports async converters)
 - ccproxy/application/converters_module/: Modular converter implementations with specialized processors
   - async_converter.py: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Optimized for high-throughput with ThreadPoolExecutor for CPU-bound operations
+  - Uses Asyncer library for improved async operations (asyncify for CPU-bound, task groups for concurrency)
+  - Optimized for high-throughput with parallel message and tool call processing
 - ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); now includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
 - ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
 - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
