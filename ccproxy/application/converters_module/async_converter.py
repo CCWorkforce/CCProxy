@@ -225,6 +225,7 @@ class AsyncMessageConverter(BaseConverter):
                 parts.append(content.text)
         return "\n".join(parts)
 
+
 class AsyncResponseConverter:
     """Async-optimized response converter."""
 
@@ -335,6 +336,7 @@ class AsyncResponseConverter:
             "content_filter": "stop_sequence",
         }
         return mapping.get(openai_reason, "stop_sequence")
+
 
 # Async wrapper functions for backward compatibility
 async def convert_messages_async(
