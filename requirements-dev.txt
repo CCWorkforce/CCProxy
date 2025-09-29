@@ -56,3 +56,7 @@ opentelemetry-api>=1.37.0
 opentelemetry-sdk>=1.37.0
 opentelemetry-exporter-otlp-proto-grpc>=1.37.0
 opentelemetry-exporter-jaeger-thrift>=1.21.0
+
+# Async utilities for bridging sync/async code
+asyncer>=0.0.8
+anyio>=4.11.0

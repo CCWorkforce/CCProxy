@@ -185,7 +185,7 @@ dev = [
 requires-dist = [
     { name = "aiodns", marker = "extra == 'aiohttp'", specifier = ">=3.5.0" },
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.12.15" },
-    { name = "anyio", specifier = ">=4.0.0" },
+    { name = "anyio", specifier = ">=4.11.0" },
     { name = "asyncer", specifier = ">=0.0.8" },
     { name = "asyncio", specifier = ">=4.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.118.0" },
