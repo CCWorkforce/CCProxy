@@ -3,7 +3,6 @@
 import asyncio
 import json
 from typing import Any, Dict, List, Optional, Union
-from concurrent.futures import ThreadPoolExecutor
 
 from ...domain.models import (
     Message,
@@ -27,7 +26,6 @@ class AsyncMessageConverter(BaseConverter):
         super().__init__(context)
         self.content_converter = ContentConverter()
         self.tool_converter = ToolConverter()
-        self._executor = ThreadPoolExecutor(max_workers=4)
 
     def convert(self, source: Any) -> Any:
         """Synchronous convert method (not used, async version preferred)."""
@@ -175,10 +173,7 @@ class AsyncMessageConverter(BaseConverter):
         async def serialize_tool_call(tool: ContentBlockToolUse) -> Dict[str, Any]:
             # Offload JSON serialization to thread pool for large inputs
             if isinstance(tool.input, dict) and len(str(tool.input)) > 1000:
-                loop = asyncio.get_event_loop()
-                args_str = await loop.run_in_executor(
-                    self._executor, json.dumps, tool.input
-                )
+                args_str = await asyncio.to_thread(json.dumps, tool.input)
             else:
                 args_str = json.dumps(tool.input) if tool.input else "{}"
 
@@ -230,12 +225,6 @@ class AsyncMessageConverter(BaseConverter):
                 parts.append(content.text)
         return "\n".join(parts)
 
-    def __del__(self):
-        """Clean up thread pool executor."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=False)
-
-
 class AsyncResponseConverter:
     """Async-optimized response converter."""
 
@@ -244,7 +233,6 @@ class AsyncResponseConverter:
         self.context = context or ConversionContext()
         self.content_converter = ContentConverter()
         self.tool_converter = ToolConverter()
-        self._executor = ThreadPoolExecutor(max_workers=2)
 
     async def convert_response_async(
         self, openai_response: Any, request_id: Optional[str] = None
@@ -320,10 +308,7 @@ class AsyncResponseConverter:
             # Parse arguments asynchronously for large payloads
             args_str = tool_call.function.arguments
             if len(args_str) > 1000:
-                loop = asyncio.get_event_loop()
-                tool_input = await loop.run_in_executor(
-                    self._executor, json.loads, args_str
-                )
+                tool_input = await asyncio.to_thread(json.loads, args_str)
             else:
                 tool_input = json.loads(args_str) if args_str else {}
 
@@ -350,12 +335,6 @@ class AsyncResponseConverter:
             "content_filter": "stop_sequence",
         }
         return mapping.get(openai_reason, "stop_sequence")
-
-    def __del__(self):
-        """Clean up thread pool executor."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=False)
-
 
 # Async wrapper functions for backward compatibility
 async def convert_messages_async(
