@@ -1,3 +1,4 @@
+import pytest
 from ccproxy.application.tokenizer import (
     truncate_request,
     count_tokens_for_anthropic_request,
@@ -20,6 +21,7 @@ def create_test_messages(count: int, role: str = "user") -> list[Message]:
     ]
 
 
+@pytest.mark.asyncio
 async def test_truncate_oldest_first():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -37,6 +39,7 @@ async def test_truncate_oldest_first():
     assert len(truncated_msgs) < len(messages)
 
 
+@pytest.mark.asyncio
 async def test_truncate_newest_first():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -57,6 +60,7 @@ async def test_truncate_newest_first():
     assert len(truncated_msgs) < len(messages)
 
 
+@pytest.mark.asyncio
 async def test_truncate_system_priority():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -76,6 +80,7 @@ async def test_truncate_system_priority():
     assert truncated_system == "System prompt"
 
 
+@pytest.mark.asyncio
 async def test_truncate_below_limit():
     messages = create_test_messages(2)
     system = "System prompt"

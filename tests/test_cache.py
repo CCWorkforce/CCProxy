@@ -97,7 +97,7 @@ def cached_response(sample_response):
         response=sample_response,
         request_hash="test_hash_12345",
         timestamp=time.time(),
-        size_bytes=1024
+        size_bytes=1024,
     )
 
 
@@ -297,7 +297,7 @@ class TestMemoryManager:
                 response=MagicMock(),
                 request_hash=f"hash_{i}",
                 timestamp=time.time(),
-                size_bytes=1024
+                size_bytes=1024,
             )
             await memory_manager.add(f"key_{i}", response, f"req_{i}")
 
@@ -306,14 +306,12 @@ class TestMemoryManager:
             response=MagicMock(),
             request_hash="new_hash",
             timestamp=time.time(),
-            size_bytes=1024
+            size_bytes=1024,
         )
         success = await memory_manager.add("new_key", new_response, "req_new")
         assert success is True
         assert "new_key" in memory_manager.cache
-        assert (
-            "key_0" not in memory_manager.cache
-        )  # First one should be evicted
+        assert "key_0" not in memory_manager.cache  # First one should be evicted
 
     @pytest.mark.asyncio
     async def test_get_entry(self, memory_manager, cached_response):
@@ -620,7 +618,7 @@ class TestCachedResponse:
             response=sample_response,
             request_hash="test_hash_abc",
             timestamp=time.time(),
-            size_bytes=2048
+            size_bytes=2048,
         )
 
         assert cached.response == sample_response
@@ -636,11 +634,13 @@ class TestCachedResponse:
             response=sample_response,
             request_hash="test_hash_def",
             timestamp=past_time,
-            size_bytes=1024
+            size_bytes=1024,
         )
 
         # Check if expired with different TTLs
         # Calculate expected expiration based on the implementation
         current_time = time.time()
         assert (current_time - cached.timestamp) > 50  # Should be expired for 50s TTL
-        assert (current_time - cached.timestamp) < 150  # Should not be expired for 150s TTL
+        assert (
+            current_time - cached.timestamp
+        ) < 150  # Should not be expired for 150s TTL

@@ -6,7 +6,13 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from pathlib import Path
 from ccproxy.application.cache.warmup import CacheWarmupManager, CacheWarmupConfig
 from ccproxy.application.cache.response_cache import ResponseCache
-from ccproxy.domain.models import MessagesRequest, MessagesResponse, Usage, Message, ContentBlockText
+from ccproxy.domain.models import (
+    MessagesRequest,
+    MessagesResponse,
+    Usage,
+    Message,
+    ContentBlockText,
+)
 
 
 class TestCacheWarmupManager:
@@ -20,7 +26,12 @@ class TestCacheWarmupManager:
         cache.cache_response = AsyncMock(return_value=True)
         cache.set = AsyncMock(return_value=True)  # For warmup compatibility
         cache.get_stats = MagicMock(
-            return_value={"cache_hits": 0, "cache_misses": 0, "entries": 0, "memory_usage_mb": 0}
+            return_value={
+                "cache_hits": 0,
+                "cache_misses": 0,
+                "entries": 0,
+                "memory_usage_mb": 0,
+            }
         )
         return cache
 
@@ -87,8 +98,10 @@ class TestCacheWarmupManager:
         await manager._save_popular_items()
 
         # Verify file was created if any items met threshold
-        if any(count >= warmup_config.popularity_threshold
-               for count in manager._popular_items.values()):
+        if any(
+            count >= warmup_config.popularity_threshold
+            for count in manager._popular_items.values()
+        ):
             assert Path(warmup_config.warmup_file_path).exists()
 
     @pytest.mark.asyncio
@@ -131,7 +144,7 @@ class TestCacheWarmupManager:
                 "content": [{"type": "text", "text": "Hello!"}],
                 "usage": {"input_tokens": 5, "output_tokens": 3},
                 "stop_reason": "end_turn",
-                "type": "message"
+                "type": "message",
             },
         }
 
@@ -161,6 +174,7 @@ class TestCacheWarmupManager:
 
         # Wait for save to happen
         import asyncio
+
         await asyncio.sleep(0.2)
 
         # Stop the manager
@@ -227,9 +241,14 @@ class TestCacheWarmupManager:
         requests = [
             MessagesRequest(
                 model="claude-3-opus-20240229",
-                messages=[Message(role="user", content=[ContentBlockText(type="text", text=f"Question {i}")])],
+                messages=[
+                    Message(
+                        role="user",
+                        content=[ContentBlockText(type="text", text=f"Question {i}")],
+                    )
+                ],
                 max_tokens=100,
-                stream=False
+                stream=False,
             )
             for i in range(3)
         ]
@@ -242,7 +261,7 @@ class TestCacheWarmupManager:
                 model="claude-3-opus-20240229",
                 content=[ContentBlockText(type="text", text=f"Answer {i}")],
                 usage=Usage(input_tokens=10, output_tokens=10),
-                stop_reason="end_turn"
+                stop_reason="end_turn",
             )
             for i in range(3)
         ]
@@ -265,8 +284,13 @@ class TestCacheWarmupManager:
                 "data": {
                     "anthropic_request": {
                         "model": "claude-3-opus-20240229",
-                        "messages": [{"role": "user", "content": [{"type": "text", "text": "Test"}]}],
-                        "max_tokens": 100
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [{"type": "text", "text": "Test"}],
+                            }
+                        ],
+                        "max_tokens": 100,
                     },
                     "anthropic_response": {
                         "id": "msg_test",
@@ -275,16 +299,16 @@ class TestCacheWarmupManager:
                         "model": "claude-3-opus-20240229",
                         "content": [{"type": "text", "text": "Test response"}],
                         "usage": {"input_tokens": 5, "output_tokens": 5},
-                        "stop_reason": "end_turn"
+                        "stop_reason": "end_turn",
                     },
-                    "status_code": 200
-                }
+                    "status_code": 200,
+                },
             }
         ]
 
-        with open(log_file, 'w') as f:
+        with open(log_file, "w") as f:
             for entry in log_entries:
-                f.write(json.dumps(entry) + '\n')
+                f.write(json.dumps(entry) + "\n")
 
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 

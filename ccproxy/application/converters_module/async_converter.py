@@ -1,8 +1,9 @@
 """Async-optimized message converters for improved performance."""
 
-import asyncio
 import json
 from typing import Any, Dict, List, Optional, Union
+
+from asyncer import asyncify, create_task_group
 
 from ...domain.models import (
     Message,
@@ -62,8 +63,14 @@ class AsyncMessageConverter(BaseConverter):
 
         # Convert messages in parallel
         if len(messages) > 3:  # Only parallelize for multiple messages
-            tasks = [self._convert_single_message_async(msg) for msg in messages]
-            converted_messages = await asyncio.gather(*tasks)
+            async with create_task_group() as tg:
+                soon_values = []
+                for msg in messages:
+                    soon_values.append(
+                        tg.soonify(self._convert_single_message_async)(msg)
+                    )
+            # After task group completes, extract values
+            converted_messages = [sv.value for sv in soon_values]
             openai_messages.extend(converted_messages)
         else:
             # For small message counts, sequential is fine
@@ -173,7 +180,7 @@ class AsyncMessageConverter(BaseConverter):
         async def serialize_tool_call(tool: ContentBlockToolUse) -> Dict[str, Any]:
             # Offload JSON serialization to thread pool for large inputs
             if isinstance(tool.input, dict) and len(str(tool.input)) > 1000:
-                args_str = await asyncio.to_thread(json.dumps, tool.input)
+                args_str = await asyncify(json.dumps)(tool.input)
             else:
                 args_str = json.dumps(tool.input) if tool.input else "{}"
 
@@ -187,8 +194,9 @@ class AsyncMessageConverter(BaseConverter):
             }
 
         # Process tool calls in parallel
-        tasks = [serialize_tool_call(tool) for tool in tool_calls]
-        return await asyncio.gather(*tasks)
+        async with create_task_group() as tg:
+            soon_values = [tg.soonify(serialize_tool_call)(tool) for tool in tool_calls]
+        return [sv.value for sv in soon_values]
 
     async def _convert_tool_use_async(
         self, role: str, tool_uses: List[ContentBlockToolUse]
@@ -309,7 +317,7 @@ class AsyncResponseConverter:
             # Parse arguments asynchronously for large payloads
             args_str = tool_call.function.arguments
             if len(args_str) > 1000:
-                tool_input = await asyncio.to_thread(json.loads, args_str)
+                tool_input = await asyncify(json.loads)(args_str)
             else:
                 tool_input = json.loads(args_str) if args_str else {}
 
@@ -321,8 +329,9 @@ class AsyncResponseConverter:
             )
 
         # Process tool calls in parallel
-        tasks = [parse_tool_call(tc) for tc in tool_calls]
-        return await asyncio.gather(*tasks)
+        async with create_task_group() as tg:
+            soon_values = [tg.soonify(parse_tool_call)(tc) for tc in tool_calls]
+        return [sv.value for sv in soon_values]
 
     def _map_finish_reason(self, openai_reason: Optional[str]) -> str:
         """Map OpenAI finish reason to Anthropic stop reason."""
