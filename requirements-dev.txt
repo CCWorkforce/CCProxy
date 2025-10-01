@@ -7,7 +7,7 @@ uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
 # OpenAI client with aiohttp support for better performance
-openai[aiohttp]>=2.0.0
+openai[aiohttp]>=2.0.1
 httpx-aiohttp>=0.1.8
 
 # Data validation
@@ -58,7 +58,7 @@ opentelemetry-exporter-otlp-proto-grpc>=1.37.0
 opentelemetry-exporter-jaeger-thrift>=1.21.0
 
 # Async utilities for bridging sync/async code
-asyncer>=0.0.8
+asyncer>=0.0.9
 anyio>=4.11.0
 # System monitoring for thread pool management
 psutil>=7.1.0
