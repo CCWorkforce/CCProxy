@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 import time
 import aiofiles
+from asyncer import asyncify
+import anyio
 
 from ...domain.models import (
     MessagesRequest,
@@ -180,25 +182,25 @@ class CacheWarmupManager:
     async def _warmup_cache(self) -> None:
         """Warm up the cache with preloaded data."""
         try:
-            warmup_count = 0
+            warmup_items = []
 
             # Load common prompts if configured
             if self.config.preload_common_prompts:
-                for prompt_data in self._common_prompts:
-                    await self._load_warmup_item(prompt_data)
-                    warmup_count += 1
+                warmup_items.extend(self._common_prompts)
 
             # Load from warmup file if exists
-            warmup_file = Path(self.config.warmup_file_path)
-            if warmup_file.exists():
+            warmup_file = anyio.Path(self.config.warmup_file_path)
+            if await warmup_file.exists():
                 try:
-                    async with aiofiles.open(warmup_file, "r") as f:
-                        content = await f.read()
-                        warmup_data = json.loads(content)
+                    # Read file asynchronously
+                    content = await warmup_file.read_text()
 
-                    for item in warmup_data[: self.config.max_warmup_items]:
-                        await self._load_warmup_item(item)
-                        warmup_count += 1
+                    # Parse JSON asynchronously
+                    json_loads_async = asyncify(json.loads)
+                    warmup_data = await json_loads_async(content)
+
+                    # Add items from file
+                    warmup_items.extend(warmup_data[: self.config.max_warmup_items])
 
                 except Exception as e:
                     warning(
@@ -207,6 +209,19 @@ class CacheWarmupManager:
                             message=f"Failed to load warmup file: {e}",
                         )
                     )
+
+            # Load all warmup items in parallel for better performance
+            warmup_count = 0
+            if warmup_items:
+                from asyncer import create_task_group
+
+                async with create_task_group() as tg:
+                    soon_values = []
+                    for item in warmup_items:
+                        soon_values.append(tg.soonify(self._load_warmup_item)(item))
+
+                # Count successful loads (None return indicates success)
+                warmup_count = len(warmup_items)
 
             info(
                 LogRecord(
@@ -264,7 +279,7 @@ class CacheWarmupManager:
             )
 
             # Generate cache key
-            cache_key = self._generate_cache_key(request)
+            cache_key = await self._generate_cache_key(request)
 
             # Store in cache
             await self.cache.set(cache_key, response, request)
@@ -320,12 +335,18 @@ class CacheWarmupManager:
                 # For now, we'll just save the keys
                 warmup_data.append({"cache_key": cache_key})
 
-            # Save to file
-            warmup_file = Path(self.config.warmup_file_path)
-            warmup_file.parent.mkdir(parents=True, exist_ok=True)
+            # Save to file using anyio.Path
+            warmup_file = anyio.Path(self.config.warmup_file_path)
+            parent_dir = warmup_file.parent
+            if not await parent_dir.exists():
+                await parent_dir.mkdir(parents=True)
 
-            async with aiofiles.open(warmup_file, "w") as f:
-                await f.write(json.dumps(warmup_data, indent=2))
+            # Serialize JSON asynchronously
+            json_dumps_async = asyncify(json.dumps)
+            json_content = await json_dumps_async(warmup_data, indent=2)
+
+            # Write to file asynchronously
+            await warmup_file.write_text(json_content)
 
             info(
                 LogRecord(
@@ -349,16 +370,25 @@ class CacheWarmupManager:
 
         self._popular_items[cache_key] = self._popular_items.get(cache_key, 0) + 1
 
-    def _generate_cache_key(self, request: MessagesRequest) -> str:
+    async def _generate_cache_key(self, request: MessagesRequest) -> str:
         """Generate a cache key for a request."""
         # Simple key generation - in production would be more sophisticated
+        # Use asyncify for JSON serialization
+        json_dumps_async = asyncify(json.dumps)
+        messages_json = await json_dumps_async(
+            [msg.model_dump() for msg in request.messages]
+        )
+
         key_parts = [
             request.model,
             str(request.max_tokens),
-            json.dumps([msg.model_dump() for msg in request.messages]),
+            messages_json,
         ]
         key_string = "|".join(key_parts)
-        return hashlib.sha256(key_string.encode()).hexdigest()
+
+        # Hash computation asynchronously
+        hash_compute_async = asyncify(lambda s: hashlib.sha256(s.encode()).hexdigest())
+        return await hash_compute_async(key_string)
 
     async def preload_responses(
         self, requests: List[MessagesRequest], responses: List[MessagesResponse]
@@ -379,7 +409,7 @@ class CacheWarmupManager:
         preloaded = 0
         for request, response in zip(requests, responses):
             try:
-                cache_key = self._generate_cache_key(request)
+                cache_key = await self._generate_cache_key(request)
                 await self.cache.set(cache_key, response, request)
                 preloaded += 1
             except Exception as e:
