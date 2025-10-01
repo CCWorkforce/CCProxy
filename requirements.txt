@@ -7,7 +7,7 @@ uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
 # OpenAI client with aiohttp support for better performance
-openai[aiohttp]>=1.109.1
+openai[aiohttp]>=2.0.0
 httpx-aiohttp>=0.1.8
 
 # Data validation
