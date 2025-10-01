@@ -22,8 +22,8 @@ class RateLimitStrategy(Enum):
 class RateLimitConfig:
     """Configuration for rate limiting."""
 
-    requests_per_minute: int = 500
-    tokens_per_minute: int = 90000
+    requests_per_minute: int = 1500
+    tokens_per_minute: int = 270000
     burst_size: int = 100
     strategy: RateLimitStrategy = RateLimitStrategy.ADAPTIVE
     adaptive_enabled: bool = True
