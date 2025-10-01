@@ -6,16 +6,27 @@
 - `converters.py`: Message format conversion between Anthropic and OpenAI APIs (exports async converters)
 - `converters_module/`: Modular converter implementations with specialized processors
   - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Uses Asyncer library: `asyncify()` for CPU-bound operations, `create_task_group()` for concurrency
+  - Uses Asyncer library: `asyncify()` for CPU-bound operations (JSON serialization, base64 encoding)
+  - Uses `asyncio.gather()` for parallel message and tool call processing
   - Provides `convert_messages_async()` and `convert_response_async()` functions
-- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
+- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); uses `asyncio.gather()` for parallel token encoding with `asyncify()`-wrapped tiktoken operations; supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
 - `model_selection.py`: Model mapping logic (opus/sonnet→BIG, haiku→SMALL)
 - `request_validator.py`: Request validation with LRU cache (10,000 capacity) and cryptographic hashing
 - `response_cache.py`: Response caching abstraction (delegates to cache implementations)
 - `cache/`: Advanced caching with circuit breaker pattern, memory management, streaming de-duplication
   - `warmup.py`: CacheWarmupManager for preloading popular requests and common prompts on startup
+  - Uses `anyio.Path` for async file I/O operations and parallel warmup item loading
   - Tracks request popularity and auto-saves frequently used prompts
 - `error_tracker.py`: Comprehensive error tracking and monitoring system
+  - Uses `asyncify()` for async JSON serialization and redaction pattern processing
+  - Implements parallel redaction processing for dictionaries and lists
+- `thread_pool.py`: Intelligent thread pool management for CPU-bound operations
+  - Provides centralized `asyncify()` wrapper with configurable thread limits
+  - CPU-aware threshold calculation: automatically adjusts based on core count
+  - Per-core CPU monitoring for better contention detection
+  - Supports dynamic scaling based on actual CPU usage patterns
+  - Uses anyio's CapacityLimiter for precise thread pool control
+  - Default formula: threshold = min(90%, 60% + 2.5% × cores)
 - `type_utils.py`: Type utilities and helper functions for the application
 
 ## Guidelines:

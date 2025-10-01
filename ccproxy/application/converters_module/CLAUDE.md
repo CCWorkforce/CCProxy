@@ -11,8 +11,8 @@
 - `content_converter.py`: Content-specific conversion (text, images, tool use, tool results)
 - `tool_converter.py`: Tool choice mapping and tool result serialization
 - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Uses Asyncer's `asyncify()` for CPU-bound JSON operations
-  - Uses Asyncer's `create_task_group()` for concurrent async operations
+  - Uses Asyncer's `asyncify()` for CPU-bound operations (JSON serialization, base64 encoding)
+  - Uses `asyncio.gather()` for concurrent processing of messages and tool calls
   - Provides `convert_messages_async()` and `convert_response_async()` functions
   - Optimized for high-throughput message conversion with parallel execution
 

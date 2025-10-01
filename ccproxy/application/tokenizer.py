@@ -5,6 +5,8 @@ import hashlib
 import asyncio
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
+from .thread_pool import asyncify
+
 from ..domain.models import (
     Message,
     SystemContent,
@@ -80,7 +82,7 @@ def get_token_encoder(
     return _token_encoder_cache[cache_key]
 
 
-def _stable_hash_for_token_inputs(
+async def _stable_hash_for_token_inputs(
     messages: List[Message],
     system: Optional[Union[str, List[SystemContent]]],
     model_name: str,
@@ -108,8 +110,15 @@ def _stable_hash_for_token_inputs(
         else [s.model_dump(exclude_unset=True) for s in (system or [])],
         "tools": [t.model_dump(exclude_unset=True) for t in (tools or [])],
     }
-    j = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(j.encode("utf-8")).hexdigest()
+    # Offload JSON serialization to thread pool for large payloads
+    json_dumps_async = asyncify(json.dumps)
+    j = await json_dumps_async(payload, sort_keys=True, separators=(",", ":"))
+
+    # Hash computation is also CPU-intensive for large strings
+    hash_compute_async = asyncify(
+        lambda s: hashlib.sha256(s.encode("utf-8")).hexdigest()
+    )
+    return await hash_compute_async(j)
 
 
 def _truncate_text(
@@ -202,7 +211,7 @@ async def count_tokens_for_anthropic_request(
         max_entries = int(settings.cache_token_counts_max)
 
     if use_cache:
-        key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
+        key = await _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
         async with _token_lock:
             if key in _token_count_cache:
@@ -234,33 +243,48 @@ async def count_tokens_for_anthropic_request(
         _token_count_misses += 1
 
     enc = get_token_encoder(model_name, request_id)
-    total_tokens = 0
 
+    # Create async encode function
+    encode_async = asyncify(enc.encode)
+
+    # Helper function to encode text blocks
+    async def encode_text(text: str) -> int:
+        tokens = await encode_async(text)
+        return len(tokens)
+
+    # Process all encoding tasks
+    encoding_tasks = []
+    fixed_tokens = 0
+
+    # System prompt encoding
     if isinstance(system, str):
-        total_tokens += len(enc.encode(system))
+        encoding_tasks.append(("system", encode_text(system)))
     elif isinstance(system, list):
         for block in system:
             if isinstance(block, SystemContent) and block.type == "text":
-                total_tokens += len(enc.encode(block.text))
+                encoding_tasks.append(("system_block", encode_text(block.text)))
 
+    # Message encoding
     for msg in messages:
-        total_tokens += 4
+        fixed_tokens += 4  # Message structure overhead
         if msg.role:
-            total_tokens += len(enc.encode(msg.role))
+            encoding_tasks.append(("role", encode_text(msg.role)))
 
         if isinstance(msg.content, str):
-            total_tokens += len(enc.encode(msg.content))
+            encoding_tasks.append(("content", encode_text(msg.content)))
         elif isinstance(msg.content, list):
             for block in msg.content:
                 if isinstance(block, ContentBlockText):
-                    total_tokens += len(enc.encode(block.text))
+                    encoding_tasks.append(("text_block", encode_text(block.text)))
                 elif isinstance(block, ContentBlockImage):
-                    total_tokens += 768
+                    fixed_tokens += 768  # Fixed token count for images
                 elif isinstance(block, ContentBlockToolUse):
-                    total_tokens += len(enc.encode(block.name))
+                    encoding_tasks.append(("tool_name", encode_text(block.name)))
                     try:
-                        input_str = json.dumps(block.input)
-                        total_tokens += len(enc.encode(input_str))
+                        # Serialize tool input asynchronously
+                        json_dumps_async = asyncify(json.dumps)
+                        input_str = await json_dumps_async(block.input)
+                        encoding_tasks.append(("tool_input", encode_text(input_str)))
                     except Exception:
                         warning(
                             LogRecord(
@@ -276,6 +300,8 @@ async def count_tokens_for_anthropic_request(
                         if isinstance(block.content, str):
                             content_str = block.content
                         elif isinstance(block.content, list):
+                            # Build content string asynchronously
+                            json_dumps_async = asyncify(json.dumps)
                             for item in block.content:
                                 if (
                                     isinstance(item, dict)
@@ -283,10 +309,11 @@ async def count_tokens_for_anthropic_request(
                                 ):
                                     content_str += item.get("text", "")
                                 else:
-                                    content_str += json.dumps(item)
+                                    content_str += await json_dumps_async(item)
                         else:
-                            content_str = json.dumps(block.content)
-                        total_tokens += len(enc.encode(content_str))
+                            json_dumps_async = asyncify(json.dumps)
+                            content_str = await json_dumps_async(block.content)
+                        encoding_tasks.append(("tool_result", encode_text(content_str)))
                     except Exception:
                         warning(
                             LogRecord(
@@ -296,21 +323,37 @@ async def count_tokens_for_anthropic_request(
                             )
                         )
                 elif isinstance(block, ContentBlockThinking):
-                    total_tokens += len(enc.encode(block.thinking))
+                    encoding_tasks.append(("thinking", encode_text(block.thinking)))
                 elif isinstance(block, ContentBlockRedactedThinking):
                     # Redacted thinking blocks don't contribute to visible tokens
                     # but should still be counted as they represent computation
-                    total_tokens += 100  # Placeholder token count for redacted thinking
+                    fixed_tokens += 100  # Placeholder token count for redacted thinking
 
+    # Execute encoding tasks in parallel for better performance
+    total_tokens = fixed_tokens
+
+    if encoding_tasks:
+        # Process encoding tasks in parallel using task group
+        # Execute the coroutines directly since they're already created
+        task_results = await asyncio.gather(*[coro for _, coro in encoding_tasks])
+
+        # Sum up all token counts
+        for result in task_results:
+            total_tokens += result
+
+    # Process tool definitions
     if tools:
-        total_tokens += 2
+        fixed_tokens += 2  # Tools structure overhead
+        tool_tasks = []
+
         for tool in tools:
-            total_tokens += len(enc.encode(tool.name))
+            tool_tasks.append(("tool_name", encode_text(tool.name)))
             if tool.description:
-                total_tokens += len(enc.encode(tool.description))
+                tool_tasks.append(("tool_desc", encode_text(tool.description)))
             try:
-                schema_str = json.dumps(tool.input_schema)
-                total_tokens += len(enc.encode(schema_str))
+                json_dumps_async = asyncify(json.dumps)
+                schema_str = await json_dumps_async(tool.input_schema)
+                tool_tasks.append(("tool_schema", encode_text(schema_str)))
             except Exception:
                 warning(
                     LogRecord(
@@ -320,6 +363,15 @@ async def count_tokens_for_anthropic_request(
                         request_id=request_id,
                     )
                 )
+
+        # Process tool encoding tasks in parallel
+        if tool_tasks:
+            # Execute the coroutines directly
+            tool_results = await asyncio.gather(*[coro for _, coro in tool_tasks])
+
+            # Add tool token counts
+            for result in tool_results:
+                total_tokens += result
     debug(
         LogRecord(
             event=LogEvent.TOKEN_COUNT.value,
@@ -330,7 +382,7 @@ async def count_tokens_for_anthropic_request(
     )
 
     if use_cache:
-        key = _stable_hash_for_token_inputs(messages, system, model_name, tools)
+        key = await _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
         async with _token_lock:
             _token_count_cache[key] = (total_tokens, now)
@@ -363,61 +415,98 @@ async def count_tokens_for_openai_request(
     """
     try:
         enc = get_token_encoder(model_name, request_id)
-        total_tokens = 0
+
+        # Create async encode function
+        encode_async = asyncify(enc.encode)
+        json_dumps_async = asyncify(json.dumps)
+
+        # Helper function to encode text
+        async def encode_text(text: str) -> int:
+            tokens = await encode_async(text)
+            return len(tokens)
+
+        # Collect all encoding tasks
+        encoding_tasks = []
+        fixed_tokens = 0
 
         # Count tokens in messages
         for message in messages:
             # Count role tokens
             role = message.get("role", "")
             if role:
-                total_tokens += len(enc.encode(role))
+                encoding_tasks.append(("role", encode_text(role)))
 
             # Count content tokens
             content = message.get("content", "")
             if isinstance(content, str):
-                total_tokens += len(enc.encode(content))
+                encoding_tasks.append(("content", encode_text(content)))
             elif isinstance(content, list):
                 # Handle multi-part content (e.g., text + images)
                 for part in content:
                     if isinstance(part, dict) and part.get("type") == "text":
-                        total_tokens += len(enc.encode(part.get("text", "")))
+                        encoding_tasks.append(
+                            ("text_part", encode_text(part.get("text", "")))
+                        )
                     elif isinstance(part, dict) and part.get("type") == "image_url":
                         # Images have fixed token cost
-                        total_tokens += 85  # Base cost for image
+                        fixed_tokens += 85  # Base cost for image
 
             # Count tool/function call tokens
             if "tool_calls" in message:
                 for tool_call in message.get("tool_calls", []):
                     if "function" in tool_call:
                         func = tool_call["function"]
-                        total_tokens += len(enc.encode(func.get("name", "")))
+                        encoding_tasks.append(
+                            ("func_name", encode_text(func.get("name", "")))
+                        )
                         if "arguments" in func:
-                            total_tokens += len(enc.encode(func.get("arguments", "")))
+                            encoding_tasks.append(
+                                ("func_args", encode_text(func.get("arguments", "")))
+                            )
 
             # Legacy function_call support
             if "function_call" in message:
                 func = message["function_call"]
-                total_tokens += len(enc.encode(func.get("name", "")))
+                encoding_tasks.append(
+                    ("legacy_func_name", encode_text(func.get("name", "")))
+                )
                 if "arguments" in func:
-                    total_tokens += len(enc.encode(func.get("arguments", "")))
+                    encoding_tasks.append(
+                        ("legacy_func_args", encode_text(func.get("arguments", "")))
+                    )
 
         # Count tokens in tools/functions
         if tools:
             for tool in tools:
                 # Tool type and function wrapper
-                total_tokens += 10  # Overhead for tool structure
+                fixed_tokens += 10  # Overhead for tool structure
 
                 if "function" in tool:
                     func = tool["function"]
-                    total_tokens += len(enc.encode(func.get("name", "")))
+                    encoding_tasks.append(
+                        ("tool_func_name", encode_text(func.get("name", "")))
+                    )
                     if "description" in func:
-                        total_tokens += len(enc.encode(func.get("description", "")))
+                        encoding_tasks.append(
+                            ("tool_desc", encode_text(func.get("description", "")))
+                        )
                     if "parameters" in func:
-                        params_str = json.dumps(func["parameters"])
-                        total_tokens += len(enc.encode(params_str))
+                        params_str = await json_dumps_async(func["parameters"])
+                        encoding_tasks.append(("tool_params", encode_text(params_str)))
 
         # Add message structure overhead (~3 tokens per message)
-        total_tokens += len(messages) * 3
+        fixed_tokens += len(messages) * 3
+
+        # Execute all encoding tasks in parallel
+        total_tokens = fixed_tokens
+
+        if encoding_tasks:
+            # Execute the coroutines directly
+            task_results = await asyncio.gather(*[coro for _, coro in encoding_tasks])
+
+            # Sum up all token counts
+            for result in task_results:
+                total_tokens += result
 
         debug(
             LogRecord(

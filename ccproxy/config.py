@@ -258,6 +258,23 @@ class Settings(BaseSettings):
         default=True, validation_alias=AliasChoices("CLIENT_RATE_LIMIT_ADAPTIVE")
     )
 
+    # Thread pool configuration for async CPU-bound operations
+    thread_pool_max_workers: Optional[int] = Field(
+        default=None,  # None means use default (40 for anyio)
+        validation_alias=AliasChoices("THREAD_POOL_MAX_WORKERS"),
+        description="Maximum number of threads for CPU-bound operations. None uses default (40).",
+    )
+    thread_pool_high_cpu_threshold: Optional[int] = Field(
+        default=None,  # None means auto-calculate based on CPU count
+        validation_alias=AliasChoices("THREAD_POOL_HIGH_CPU_THRESHOLD"),
+        description="CPU percentage threshold to consider high contention. None = auto-calculate based on CPU count",
+    )
+    thread_pool_auto_scale: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("THREAD_POOL_AUTO_SCALE"),
+        description="Automatically scale thread pool based on CPU contention",
+    )
+
     @field_validator(
         "cors_allow_origins",
         "cors_allow_methods",

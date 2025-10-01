@@ -3,7 +3,9 @@
 import json
 from typing import Any, Dict, List, Optional, Union
 
-from asyncer import asyncify, create_task_group
+from asyncer import create_task_group
+
+from ..thread_pool import asyncify
 
 from ...domain.models import (
     Message,
@@ -61,8 +63,8 @@ class AsyncMessageConverter(BaseConverter):
             )
             openai_messages.append({"role": "system", "content": system_content})
 
-        # Convert messages in parallel
-        if len(messages) > 3:  # Only parallelize for multiple messages
+        # Always convert messages in parallel for consistent performance
+        if messages:
             async with create_task_group() as tg:
                 soon_values = []
                 for msg in messages:
@@ -72,11 +74,6 @@ class AsyncMessageConverter(BaseConverter):
             # After task group completes, extract values
             converted_messages = [sv.value for sv in soon_values]
             openai_messages.extend(converted_messages)
-        else:
-            # For small message counts, sequential is fine
-            for msg in messages:
-                converted = await self._convert_single_message_async(msg)
-                openai_messages.append(converted)
 
         return openai_messages
 
@@ -143,8 +140,10 @@ class AsyncMessageConverter(BaseConverter):
                         self.content_converter.convert_image_block_to_openai(block)
                     )
                 else:
-                    # For other types, just skip or add as text
-                    content.append({"type": "text", "text": str(block)})
+                    # For other types, convert to string asynchronously
+                    str_async = asyncify(str)
+                    text_repr = await str_async(block)
+                    content.append({"type": "text", "text": text_repr})
             openai_msg["content"] = content
         elif text_parts:
             # Only text
@@ -178,11 +177,9 @@ class AsyncMessageConverter(BaseConverter):
         """Convert tool calls asynchronously with parallel JSON serialization."""
 
         async def serialize_tool_call(tool: ContentBlockToolUse) -> Dict[str, Any]:
-            # Offload JSON serialization to thread pool for large inputs
-            if isinstance(tool.input, dict) and len(str(tool.input)) > 1000:
-                args_str = await asyncify(json.dumps)(tool.input)
-            else:
-                args_str = json.dumps(tool.input) if tool.input else "{}"
+            # Always offload JSON serialization to thread pool for consistency
+            json_dumps_async = asyncify(json.dumps)
+            args_str = await json_dumps_async(tool.input) if tool.input else "{}"
 
             return {
                 "id": tool.id,

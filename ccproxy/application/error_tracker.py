@@ -13,6 +13,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 from fastapi import Request, Response
+from asyncer import create_task_group
+from .thread_pool import asyncify
 
 from ..config import Settings
 from ..logging import debug, info, warning, LogRecord, LogEvent
@@ -203,8 +205,11 @@ class ErrorTracker:
             if not self._file_handle:
                 self._file_handle = open(self._settings.error_tracking_file, "a")
 
-            # Write JSON line
-            json_line = json.dumps(error_context.to_dict(), default=str)
+            # Serialize JSON asynchronously for large error contexts
+            json_dumps_async = asyncify(lambda obj: json.dumps(obj, default=str))
+            json_line = await json_dumps_async(error_context.to_dict())
+
+            # Write to file (could use aiofiles but keeping sync for simplicity here)
             self._file_handle.write(json_line + "\n")
             self._file_handle.flush()
 
@@ -280,8 +285,61 @@ class ErrorTracker:
         except Exception:
             pass  # Best effort cleanup
 
+    async def _redact_sensitive_data_async(self, data: Any) -> Any:
+        """Recursively redact sensitive data asynchronously."""
+        if isinstance(data, dict):
+            # Process dictionary values in parallel for better performance
+            redacted = {}
+            items_to_process = []
+
+            for key, value in data.items():
+                # Check if key contains sensitive keywords
+                if any(
+                    keyword in key.lower()
+                    for keyword in ["password", "secret", "token", "key", "auth"]
+                ):
+                    redacted[key] = "[REDACTED]"
+                else:
+                    items_to_process.append((key, value))
+
+            # Process remaining items asynchronously
+            if items_to_process:
+                async with create_task_group() as tg:
+                    soon_values = []
+                    for key, value in items_to_process:
+                        soon_values.append(
+                            (key, tg.soonify(self._redact_sensitive_data_async)(value))
+                        )
+
+                for key, sv in soon_values:
+                    redacted[key] = sv.value
+
+            return redacted
+        elif isinstance(data, list):
+            # Process list items in parallel
+            if data:
+                async with create_task_group() as tg:
+                    soon_values = [
+                        tg.soonify(self._redact_sensitive_data_async)(item)
+                        for item in data
+                    ]
+                return [sv.value for sv in soon_values]
+            return []
+        elif isinstance(data, str):
+            # Apply redaction patterns (CPU-intensive for large strings)
+            redact_func = asyncify(self._apply_redaction_patterns)
+            return await redact_func(data)
+        return data
+
+    def _apply_redaction_patterns(self, text: str) -> str:
+        """Apply redaction patterns to text."""
+        result = text
+        for pattern in self._redact_patterns:
+            result = pattern.sub("[REDACTED]", result)
+        return result
+
     def _redact_sensitive_data(self, data: Any) -> Any:
-        """Recursively redact sensitive data."""
+        """Synchronous version for backward compatibility."""
         if isinstance(data, dict):
             redacted = {}
             for key, value in data.items():
@@ -290,7 +348,7 @@ class ErrorTracker:
                     keyword in key.lower()
                     for keyword in ["password", "secret", "token", "key", "auth"]
                 ):
-                    redacted[key] = "***REDACTED***"
+                    redacted[key] = "[REDACTED]"
                 else:
                     redacted[key] = self._redact_sensitive_data(value)
             return redacted
@@ -298,13 +356,7 @@ class ErrorTracker:
             return [self._redact_sensitive_data(item) for item in data]
         elif isinstance(data, str):
             # Apply redaction patterns
-            result = data
-            for pattern in self._redact_patterns:
-                result = pattern.sub(
-                    lambda m: f"{m.group(1) if m.lastindex > 0 else ''}=***REDACTED***",
-                    result,
-                )
-            return result
+            return self._apply_redaction_patterns(data)
         return data
 
     def _truncate_large_data(self, data: Any, max_size: int = None) -> Any:

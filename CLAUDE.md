@@ -31,6 +31,10 @@ Optional
 - LOG_FILE_PATH (default log.jsonl)
 - ERROR_LOG_FILE_PATH (default error.jsonl)
 - WEB_CONCURRENCY (for Gunicorn)
+Thread Pool Configuration (all optional)
+- THREAD_POOL_MAX_WORKERS (default None - auto-calculates based on CPU cores, max 40)
+- THREAD_POOL_HIGH_CPU_THRESHOLD (default None - auto-calculates based on CPU count: 60% + 2.5% per core, max 90%)
+- THREAD_POOL_AUTO_SCALE (default False - enable dynamic scaling based on CPU contention)
 Cache Warmup (all optional)
 - CACHE_WARMUP_ENABLED (default False)
 - CACHE_WARMUP_FILE_PATH (default cache_warmup.json)
@@ -62,15 +66,20 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI (exports async converters)
 - ccproxy/application/converters_module/: Modular converter implementations with specialized processors
   - async_converter.py: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Uses Asyncer library for improved async operations (asyncify for CPU-bound, task groups for concurrency)
+  - Uses Asyncer library for improved async operations (asyncify for CPU-bound operations, asyncio.gather for parallel execution)
   - Optimized for high-throughput with parallel message and tool call processing
-- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); now includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
+- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); uses asyncio.gather for parallel token encoding with asyncified tiktoken operations; includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
 - ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
 - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
 - ccproxy/application/response_cache.py: Response caching abstraction (delegates to cache implementations)
 - ccproxy/application/cache/: Advanced caching with circuit breaker pattern, memory management, streaming de-duplication
-  - warmup.py: CacheWarmupManager for preloading popular requests and common prompts
-- ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system
+  - warmup.py: CacheWarmupManager for preloading popular requests and common prompts; uses anyio.Path for async file operations and parallel warmup item loading
+- ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system with async JSON serialization and parallel redaction processing using asyncer
+- ccproxy/application/thread_pool.py: Intelligent thread pool management for CPU-bound operations
+  - Auto-detects Gunicorn multi-worker deployment and adjusts accordingly
+  - Prevents resource exhaustion: reduces threads per worker in multi-worker mode
+  - Target total threads = CPU_count × 5 (distributed across workers)
+  - Single worker: up to 40 threads; Multi-worker: 4-20 threads per worker
 - ccproxy/application/type_utils.py: Type utilities and helper functions
 
 ## Infrastructure Layer (ccproxy/infrastructure/)
@@ -78,7 +87,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/infrastructure/providers/: Provider implementations for external services
   - base.py: ChatProvider protocol definition
   - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, tiktoken for precise token estimation in rate limiting (via tokenizer.py), and request correlation IDs for resilience and monitoring
-  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); integrates with openai_provider for token estimation and release.
+  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); uses asyncified list operations for non-blocking cleanup of request history; integrates with openai_provider for token estimation and release.
 
 ## Interface Layer (ccproxy/interfaces/)
 - External interfaces and delivery mechanisms
@@ -106,6 +115,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 
 Development notes for Claude Code
 - Always construct the FastAPI app through create_app(Settings); do not import globals directly
+- Thread pool automatically adjusts for Gunicorn deployment to prevent resource exhaustion
 - Follow hexagonal architecture principles: domain models should not depend on external concerns
 - Application layer orchestrates use cases; infrastructure layer handles external integrations
 - When adding parameters, ensure OpenAI parity: warn or omit unsupported fields; map tool_choice carefully

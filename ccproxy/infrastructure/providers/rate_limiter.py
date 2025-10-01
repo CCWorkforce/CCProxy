@@ -7,6 +7,8 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
 
+from ...application.thread_pool import asyncify
+
 
 class RateLimitStrategy(Enum):
     """Rate limiting strategies."""
@@ -20,8 +22,8 @@ class RateLimitStrategy(Enum):
 class RateLimitConfig:
     """Configuration for rate limiting."""
 
-    requests_per_minute: int = 500
-    tokens_per_minute: int = 90000
+    requests_per_minute: int = 1500
+    tokens_per_minute: int = 270000
     burst_size: int = 100
     strategy: RateLimitStrategy = RateLimitStrategy.ADAPTIVE
     adaptive_enabled: bool = True
@@ -113,17 +115,26 @@ class ClientRateLimiter:
         async with self._lock:
             current_time = time.time()
 
-            # Clean old entries (older than 1 minute)
-            self._request_times = [
-                t for t in self._request_times if current_time - t < 60
-            ]
-            self._token_counts = [
-                (t, c) for t, c in self._token_counts if current_time - t < 60
-            ]
+            # Offload list cleaning to thread pool for large lists
+            async_clean_requests = asyncify(
+                lambda times, cutoff: [t for t in times if current_time - t < cutoff]
+            )
+            async_clean_tokens = asyncify(
+                lambda counts, cutoff: [
+                    (t, c) for t, c in counts if current_time - t < cutoff
+                ]
+            )
+
+            # Clean old entries (older than 1 minute) in parallel
+            self._request_times = await async_clean_requests(self._request_times, 60)
+            self._token_counts = await async_clean_tokens(self._token_counts, 60)
+
+            # Calculate current rates using async operations
+            async_sum_tokens = asyncify(lambda counts: sum(c for _, c in counts))
 
             # Calculate current rates
             self.metrics.current_rpm = len(self._request_times)
-            self.metrics.current_tpm = sum(c for _, c in self._token_counts)
+            self.metrics.current_tpm = await async_sum_tokens(self._token_counts)
 
             # Check if we're within limits
             if self.metrics.current_rpm >= self._current_rpm_limit:

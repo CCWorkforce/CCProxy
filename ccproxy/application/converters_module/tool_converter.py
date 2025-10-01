@@ -107,10 +107,10 @@ class ToolConverter:
             request_id: Optional request ID for logging
 
         Returns:
-            OpenAI format tool choice (string or dict), or None
+            OpenAI format tool choice (string or dict), defaults to "auto" if None
         """
         if not anthropic_tool_choice:
-            return None
+            return "auto"  # Default to auto when no tool choice specified
 
         tool_choice_type = anthropic_tool_choice.type
         tool_name = (

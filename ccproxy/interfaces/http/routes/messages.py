@@ -329,7 +329,7 @@ async def create_message_proxy(request: Request) -> Response:
         if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
             # Use OpenRouter reasoning format with effort and max_tokens
             requested_budget = thinking_config.budget_tokens
-            max_reasoning_tokens = max(min(requested_budget, 32000), 1024)
+            max_reasoning_tokens = max(min(requested_budget, 65536), 32768)
 
             reasoning_config = {
                 "effort": reasoning_effort,

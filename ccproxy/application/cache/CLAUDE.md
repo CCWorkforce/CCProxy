@@ -11,6 +11,7 @@
 - `statistics.py`: Cache performance metrics and statistics tracking
 - `models.py`: Cache-related data models and configurations
 - `warmup.py`: CacheWarmupManager for preloading popular requests and common prompts
+  - Uses `anyio.Path` for async file I/O operations and parallel warmup item loading
   - Tracks request popularity and auto-saves frequently used prompts
   - Configurable via environment variables (CACHE_WARMUP_*)
   - Supports warmup from log files and predefined common prompts

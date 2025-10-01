@@ -50,6 +50,11 @@ class OpenAIToAnthropicConverter(ResponseConverter):
                 anthropic_content.append(
                     ContentBlockText(type="text", text=message.content)
                 )
+            # Handle refusal (OpenAI specific field)
+            elif hasattr(message, "refusal") and message.refusal:
+                anthropic_content.append(
+                    ContentBlockText(type="text", text=message.refusal)
+                )
 
             # Convert tool calls
             if message.tool_calls:
