@@ -147,7 +147,12 @@ class AnthropicToOpenAIConverter(MessageConverter):
         messages = []
 
         if role == "user" and openai_parts:
-            messages.append({"role": "user", "content": openai_parts})
+            # For simple text-only messages, use string format
+            if len(openai_parts) == 1 and openai_parts[0].get("type") == "text":
+                messages.append({"role": "user", "content": openai_parts[0]["text"]})
+            else:
+                # For multi-modal or complex content, use array format
+                messages.append({"role": "user", "content": openai_parts})
         elif role == "assistant":
             assistant_msg = {"role": "assistant"}
             if text_content:

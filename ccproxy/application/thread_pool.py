@@ -8,7 +8,7 @@ preventing event loop blocking.
 import os
 import psutil
 from typing import Optional, Any, TypeVar, Callable, Coroutine
-from functools import wraps
+from functools import wraps, partial
 from anyio import CapacityLimiter, to_thread
 from asyncer import asyncify as _asyncify_orig
 
@@ -215,7 +215,8 @@ def asyncify(func: Callable[..., T]) -> Callable[..., Coroutine[Any, Any, T]]:
 
         if limiter:
             # Run with our configured limiter using anyio's to_thread
-            return await to_thread.run_sync(func, *args, limiter=limiter, **kwargs)
+            # Use partial to bind args and kwargs to the function
+            return await to_thread.run_sync(partial(func, *args, **kwargs), limiter=limiter)
         else:
             # Fall back to default asyncify behavior
             return await async_func(*args, **kwargs)

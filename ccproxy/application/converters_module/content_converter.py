@@ -190,12 +190,19 @@ class ContentConverter:
         Returns:
             OpenAI format tool call dictionary
         """
+        # Handle JSON serialization errors gracefully
+        try:
+            arguments_json = json.dumps(block.input, ensure_ascii=False)
+        except (TypeError, ValueError):
+            # Fallback to string representation if JSON serialization fails
+            arguments_json = json.dumps({"error": "Failed to serialize tool input"})
+
         return {
             "id": block.id,
             "type": "function",
             "function": {
                 "name": block.name,
-                "arguments": json.dumps(block.input, ensure_ascii=False),
+                "arguments": arguments_json,
             },
             "index": tool_call_index,
         }

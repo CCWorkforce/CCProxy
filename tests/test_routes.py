@@ -24,6 +24,9 @@ def mock_settings():
     settings.app_name = "CCProxy"
     settings.app_version = "1.0.0"
     settings.log_level = "INFO"
+    settings.log_pretty_console = False
+    settings.log_file_path = None
+    settings.redact_log_fields = []
     settings.rate_limit_enabled = True
     settings.rate_limit_per_minute = 60
     settings.rate_limit_burst = 30
@@ -32,6 +35,34 @@ def mock_settings():
     settings.enable_cors = False
     settings.error_tracking_enabled = True
     settings.metrics_cache_enabled = True
+    # Circuit breaker settings
+    settings.circuit_breaker_failure_threshold = 5
+    settings.circuit_breaker_recovery_timeout = 60
+    settings.circuit_breaker_half_open_requests = 3
+    settings.circuit_breaker_expected_exception = None
+    # Provider settings
+    settings.request_timeout = 120.0
+    settings.max_retries = 3
+    settings.retry_delay = 1.0
+    settings.max_connections = 100
+    settings.max_keepalive = 100
+    settings.keepalive_expiry = 120
+    settings.http2_enabled = True
+    settings.provider_rate_limit_rpm = 5000
+    settings.provider_rate_limit_tpm = 100000
+    settings.provider_enable_rate_limit = True
+    settings.provider_rate_limit_auto_start = True
+    # Model mappings
+    settings.big_model = "gpt-4"
+    settings.small_model = "gpt-3.5-turbo"
+    # Cache settings
+    settings.cache_enabled = True
+    settings.cache_ttl_seconds = 3600
+    settings.cache_max_size_mb = 100
+    # Thread pool settings
+    settings.thread_pool_max_workers = None
+    settings.thread_pool_high_cpu_threshold = None
+    settings.thread_pool_auto_scale = False
     return settings
 
 
