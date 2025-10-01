@@ -12,6 +12,7 @@ from ...domain.models import AnthropicErrorType
 from ...application.response_cache import response_cache
 from ...application.error_tracker import error_tracker
 from ...application.cache.warmup import CacheWarmupManager, CacheWarmupConfig
+from ...application.thread_pool import initialize_thread_pool, get_pool_stats
 from .middleware import logging_middleware
 from .errors import (
     log_and_return_error_response,
@@ -49,6 +50,12 @@ def create_app(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Initialize thread pool for CPU-bound operations
+        logging.info("Initializing thread pool for CPU-bound operations")
+        initialize_thread_pool(settings)
+        pool_stats = get_pool_stats()
+        logging.info(f"Thread pool initialized: {pool_stats}")
+
         # Initialize distributed tracing if enabled
         if tracing_available and settings.tracing_enabled:
             logging.info("Initializing distributed tracing")

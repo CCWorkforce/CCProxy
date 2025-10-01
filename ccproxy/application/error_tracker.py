@@ -13,7 +13,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 from fastapi import Request, Response
-from asyncer import asyncify, create_task_group
+from asyncer import create_task_group
+from .thread_pool import asyncify
 
 from ..config import Settings
 from ..logging import debug, info, warning, LogRecord, LogEvent

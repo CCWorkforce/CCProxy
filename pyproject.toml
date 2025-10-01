@@ -25,6 +25,7 @@ dependencies = [
     "asyncio>=4.0.0",
     "asyncer>=0.0.8",
     "anyio>=4.11.0",
+    "psutil>=7.1.0",
     "orjson>=3.11.3",
     "opentelemetry-api>=1.37.0",
     "opentelemetry-sdk>=1.37.0",

@@ -20,6 +20,13 @@
 - `error_tracker.py`: Comprehensive error tracking and monitoring system
   - Uses `asyncify()` for async JSON serialization and redaction pattern processing
   - Implements parallel redaction processing for dictionaries and lists
+- `thread_pool.py`: Intelligent thread pool management for CPU-bound operations
+  - Provides centralized `asyncify()` wrapper with configurable thread limits
+  - CPU-aware threshold calculation: automatically adjusts based on core count
+  - Per-core CPU monitoring for better contention detection
+  - Supports dynamic scaling based on actual CPU usage patterns
+  - Uses anyio's CapacityLimiter for precise thread pool control
+  - Default formula: threshold = min(90%, 60% + 2.5% × cores)
 - `type_utils.py`: Type utilities and helper functions for the application
 
 ## Guidelines:

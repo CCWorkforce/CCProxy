@@ -5,7 +5,7 @@ import hashlib
 import asyncio
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
-from asyncer import asyncify
+from .thread_pool import asyncify
 
 from ..domain.models import (
     Message,

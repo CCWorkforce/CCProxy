@@ -222,6 +222,11 @@ echo "  METRICS_CACHE_ENABLED: ${METRICS_CACHE_ENABLED:-unset}"
 echo "  TRUNCATE_LONG_REQUESTS: ${TRUNCATE_LONG_REQUESTS:-unset}"
 echo "  TRUNCATION_CONFIG: ${TRUNCATION_CONFIG:-unset}"
 
+print_info "Thread Pool configuration:"
+echo "  THREAD_POOL_MAX_WORKERS: ${THREAD_POOL_MAX_WORKERS:-auto (CPU-based)}"
+echo "  THREAD_POOL_HIGH_CPU_THRESHOLD: ${THREAD_POOL_HIGH_CPU_THRESHOLD:-auto (60% + 2.5% per core)}"
+echo "  THREAD_POOL_AUTO_SCALE: ${THREAD_POOL_AUTO_SCALE:-False}"
+
 print_info "Provider retry configuration:"
 echo "  PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-unset}"
 echo "  PROVIDER_RETRY_BASE_DELAY: ${PROVIDER_RETRY_BASE_DELAY:-unset}"

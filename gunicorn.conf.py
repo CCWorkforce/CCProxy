@@ -15,7 +15,11 @@ backlog = 2048
 if os.getenv("IS_LOCAL_DEPLOYMENT", "False").lower() == "true":
     workers = 1
 else:
-    workers = multiprocessing.cpu_count() * 2 + 1
+    workers = int(os.getenv("WEB_CONCURRENCY", multiprocessing.cpu_count() * 2 + 1))
+
+# Export worker count for thread pool awareness
+os.environ["WEB_CONCURRENCY"] = str(workers)
+
 worker_class = "uvicorn.workers.UvicornWorker"  # Required for FastAPI
 worker_connections = 1000
 max_requests = 1000  # Restart workers after this many requests
@@ -56,6 +60,22 @@ def when_ready(server):
     """Called just after the master process is initialized."""
     server.log.info("Server is ready. Spawning workers")
 
+    # Calculate and log resource allocation
+    cpu_count = multiprocessing.cpu_count()
+    thread_pool_size = int(os.getenv("THREAD_POOL_MAX_WORKERS", 0))
+    if thread_pool_size == 0:
+        # Auto-calculated based on workers
+        if workers > 1:
+            target_total = cpu_count * 5
+            thread_pool_size = max(4, min(20, target_total // workers))
+        else:
+            thread_pool_size = min(40, max(4, cpu_count * 5))
+
+    total_threads = workers * thread_pool_size
+    server.log.info(
+        f"Resource allocation: {cpu_count} CPUs, {workers} workers, ~{thread_pool_size} threads/worker, ~{total_threads} total threads"
+    )
+
 
 def worker_int(worker):
     """Called just after a worker exited on SIGINT or SIGQUIT."""
@@ -70,6 +90,8 @@ def pre_fork(server, worker):
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
     server.log.info(f"Worker spawned (pid: {worker.pid})")
+    # Set environment variable so thread pool can detect Gunicorn
+    os.environ["SERVER_SOFTWARE"] = f"gunicorn/{worker.pid}"
 
 
 def worker_abort(worker):

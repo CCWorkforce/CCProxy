@@ -3,7 +3,9 @@
 import json
 from typing import Any, Dict, List, Optional, Union
 
-from asyncer import asyncify, create_task_group
+from asyncer import create_task_group
+
+from ..thread_pool import asyncify
 
 from ...domain.models import (
     Message,
