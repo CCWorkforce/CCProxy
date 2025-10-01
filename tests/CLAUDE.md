@@ -4,17 +4,17 @@
 
 ## Test Files:
 - `conftest.py`: Pytest configuration and shared fixtures
-- `test_tokenizer.py`: Tests for async-aware tokenization functionality
+- `test_tokenizer.py`: Tests for async-aware tokenization functionality with parallel token encoding using asyncio.gather
 - `test_streaming.py`: Tests for SSE streaming and real-time responses
 - `test_utf8.py`: UTF-8 handling and encoding validation tests
 - `test_benchmarks.py`: Performance and benchmarking tests
-- `test_error_tracker.py`: Comprehensive error tracking tests (18 test cases)
+- `test_error_tracker.py`: Comprehensive error tracking tests including async redaction and JSON serialization (18 test cases)
 - `test_converters.py`: Message converter tests with full coverage (24 test cases)
 - `test_cache.py`: Cache implementation tests including circuit breaker (31 test cases)
 - `test_openai_provider.py`: OpenAI provider and HTTP/2 client tests (18 test cases)
 - `test_routes.py`: HTTP routes and middleware tests
-- `test_async_converters.py`: Async converter tests using Asyncer library (8 test cases)
-- `test_cache_warmup.py`: Cache warmup manager tests (8 test cases)
+- `test_async_converters.py`: Async converter tests using Asyncer library with asyncify and parallel processing (8 test cases)
+- `test_cache_warmup.py`: Cache warmup manager tests including anyio.Path async file operations (8 test cases)
 
 ## Testing Framework:
 - **pytest**: Main testing framework (configured via pyproject.toml)

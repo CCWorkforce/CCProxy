@@ -8,7 +8,7 @@ The provider infrastructure has been refactored into specialized modules for bet
 ## Core Provider Files:
 - `base.py`: ChatProvider protocol definition and interface contracts
 - `openai_provider.py`: Orchestrates high-performance OpenAI API client (420 lines, reduced from 858) with modular components for resilience, metrics, logging, and HTTP client management
-- `rate_limiter.py`: Implements ClientRateLimiter with RateLimitStrategy (adaptive default); sliding window for rates, metrics for hits/rejections, handles 429 with backoff/recovery multipliers
+- `rate_limiter.py`: Implements ClientRateLimiter with RateLimitStrategy (adaptive default); sliding window for rates, metrics for hits/rejections, handles 429 with backoff/recovery multipliers; uses `asyncify()` for non-blocking list cleanup of request history
 
 ## Supporting Modules:
 - `resilience.py`: Circuit breaker pattern (CircuitBreaker), retry logic (RetryHandler), and unified resilient execution (ResilientExecutor) with exponential backoff and jitter
