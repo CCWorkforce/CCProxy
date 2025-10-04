@@ -217,14 +217,20 @@ def should_decrease_pool_size() -> bool:
         return False
 
     # Get shrink configuration from settings (with defaults)
-    shrink_threshold = getattr(_settings, 'thread_pool_shrink_threshold', 30)  # Default 30%
-    shrink_delay = getattr(_settings, 'thread_pool_shrink_delay_seconds', 60)  # Default 60s
+    shrink_threshold = getattr(
+        _settings, "thread_pool_shrink_threshold", 30
+    )  # Default 30%
+    shrink_delay = getattr(
+        _settings, "thread_pool_shrink_delay_seconds", 60
+    )  # Default 60s
 
     cpu_metrics = check_cpu_contention()
     current_time = time.time()
 
     # Check if CPU is below shrink threshold
-    if cpu_metrics["overall"] < shrink_threshold and cpu_metrics["max_core"] < (shrink_threshold + 10):
+    if cpu_metrics["overall"] < shrink_threshold and cpu_metrics["max_core"] < (
+        shrink_threshold + 10
+    ):
         # Track how long CPU has been low
         if _last_low_cpu_time is None:
             _last_low_cpu_time = current_time
@@ -234,7 +240,9 @@ def should_decrease_pool_size() -> bool:
         if (current_time - _last_low_cpu_time) >= shrink_delay:
             # Check pool utilization - only shrink if pool is underutilized
             if _thread_limiter:
-                utilization = _thread_limiter.borrowed_tokens / _thread_limiter.total_tokens
+                utilization = (
+                    _thread_limiter.borrowed_tokens / _thread_limiter.total_tokens
+                )
                 if utilization < 0.5:  # Less than 50% pool utilization
                     return True
     else:
@@ -317,7 +325,7 @@ def configure_for_high_load() -> None:
                 "cpu_overall": cpu_metrics["overall"],
                 "cpu_avg_core": cpu_metrics["average_core"],
                 "cpu_max_core": cpu_metrics["max_core"],
-                "utilization": utilization if _thread_limiter else 0
+                "utilization": utilization if _thread_limiter else 0,
             }
             _pool_resize_events.append(resize_event)
             info(
@@ -345,8 +353,9 @@ def configure_for_high_load() -> None:
                 "cpu_overall": cpu_metrics["overall"],
                 "cpu_avg_core": cpu_metrics["average_core"],
                 "cpu_max_core": cpu_metrics["max_core"],
-                "utilization": _thread_limiter.borrowed_tokens / _thread_limiter.total_tokens,
-                "shrink_event_count": _shrink_events
+                "utilization": _thread_limiter.borrowed_tokens
+                / _thread_limiter.total_tokens,
+                "shrink_event_count": _shrink_events,
             }
             _pool_resize_events.append(resize_event)
             info(
@@ -390,18 +399,26 @@ def get_pool_stats() -> dict:
         stats["max_workers"] = _thread_limiter.total_tokens
         stats["available_tokens"] = _thread_limiter.available_tokens
         stats["borrowed_tokens"] = _thread_limiter.borrowed_tokens
-        stats["utilization"] = _thread_limiter.borrowed_tokens / _thread_limiter.total_tokens
+        stats["utilization"] = (
+            _thread_limiter.borrowed_tokens / _thread_limiter.total_tokens
+        )
 
     # Add pool utilization statistics if we have history
     if _pool_utilization_history:
-        stats["avg_utilization"] = sum(_pool_utilization_history) / len(_pool_utilization_history)
+        stats["avg_utilization"] = sum(_pool_utilization_history) / len(
+            _pool_utilization_history
+        )
         stats["max_utilization"] = max(_pool_utilization_history)
         stats["min_utilization"] = min(_pool_utilization_history)
 
     # Add shrink configuration if available
     if _settings:
-        stats["shrink_threshold"] = getattr(_settings, 'thread_pool_shrink_threshold', 30)
-        stats["shrink_delay_seconds"] = getattr(_settings, 'thread_pool_shrink_delay_seconds', 60)
+        stats["shrink_threshold"] = getattr(
+            _settings, "thread_pool_shrink_threshold", 30
+        )
+        stats["shrink_delay_seconds"] = getattr(
+            _settings, "thread_pool_shrink_delay_seconds", 60
+        )
 
     return stats
 

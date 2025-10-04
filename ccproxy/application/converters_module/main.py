@@ -15,7 +15,7 @@ from ...domain.models import (
     ToolChoice,
     SystemContent,
 )
-from ...application.error_tracker import error_tracker, ErrorType
+from ...application.error_tracker import ErrorType
 from ...logging import error as log_error, LogRecord, LogEvent
 
 
@@ -40,7 +40,9 @@ def _fire_and_forget_error_tracking(
             data={
                 **metadata,
                 "error_type": error_type.value,
-            } if metadata else {"error_type": error_type.value},
+            }
+            if metadata
+            else {"error_type": error_type.value},
         )
     )
 

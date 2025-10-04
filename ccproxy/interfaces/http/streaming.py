@@ -2,7 +2,6 @@ import json
 import time
 import uuid
 from typing import AsyncGenerator, Dict, Optional, Literal
-import anyio
 
 import openai
 from openai.types.chat import ChatCompletionChunk

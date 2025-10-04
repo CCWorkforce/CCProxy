@@ -14,6 +14,7 @@ class ConfigurationError(Exception):
     (main.py, wsgi.py) to handle configuration errors gracefully
     without calling sys.exit().
     """
+
     pass
 
 
@@ -360,7 +361,9 @@ class Settings(BaseSettings):
             error_message = "\n".join(errors)
             # Raise ConfigurationError instead of sys.exit
             # This allows entry points to handle the error gracefully
-            raise ConfigurationError(f"Configuration validation failed:\n{error_message}")
+            raise ConfigurationError(
+                f"Configuration validation failed:\n{error_message}"
+            )
 
     def _validate_security(self) -> None:
         """Validates security configurations when RESTRICT_BASE_URL is enabled.
@@ -386,4 +389,6 @@ class Settings(BaseSettings):
         if errors:
             error_message = "\n".join(errors)
             # Raise ConfigurationError for consistent error handling
-            raise ConfigurationError(f"Security configuration validation failed:\n{error_message}")
+            raise ConfigurationError(
+                f"Security configuration validation failed:\n{error_message}"
+            )

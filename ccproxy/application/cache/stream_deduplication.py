@@ -1,7 +1,7 @@
 """Stream deduplication for handling concurrent identical streaming requests."""
 
 import anyio
-from anyio import create_memory_object_stream
+from anyio import WouldBlock, create_memory_object_stream
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
 from typing import Dict, List, Optional, Tuple
 
@@ -19,7 +19,9 @@ class StreamDeduplicator:
 
     def __init__(self, max_queue_size: int = 100):
         """Initialize stream deduplicator."""
-        self.subscribers: Dict[str, List[Tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]]] = {}
+        self.subscribers: Dict[
+            str, List[Tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]]
+        ] = {}
         self.lock = anyio.Lock()
         self.max_queue_size = max_queue_size
         self.active_streams: Dict[str, bool] = {}
@@ -30,7 +32,9 @@ class StreamDeduplicator:
         """Register a subscriber channel for the given stream key."""
 
         # Create a channel with the specified buffer size
-        send_stream, receive_stream = create_memory_object_stream(max_buffer_size=self.max_queue_size)
+        send_stream, receive_stream = create_memory_object_stream(
+            max_buffer_size=self.max_queue_size
+        )
 
         async with self.lock:
             is_primary = key not in self.subscribers
@@ -56,7 +60,9 @@ class StreamDeduplicator:
 
         return is_primary, receive_stream
 
-    async def unregister(self, key: str, receive_stream: MemoryObjectReceiveStream) -> None:
+    async def unregister(
+        self, key: str, receive_stream: MemoryObjectReceiveStream
+    ) -> None:
         """Remove a subscriber channel from the stream."""
 
         async with self.lock:
@@ -158,10 +164,10 @@ class StreamDeduplicator:
         async with self.lock:
             # Finalize all active streams
             for key in list(self.subscribers.keys()):
-                for queue in self.subscribers[key]:
+                for send_stream, _ in self.subscribers[key]:
                     try:
-                        queue.put_nowait(None)
-                    except QueueFull:
+                        send_stream.send_nowait(None)
+                    except WouldBlock:
                         pass
 
             self.subscribers.clear()

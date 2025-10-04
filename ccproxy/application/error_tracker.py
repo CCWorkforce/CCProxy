@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable, Union
+from typing import Any, Dict, List, Optional, Callable
 from fastapi import Request, Response
 from .thread_pool import asyncify
 
@@ -174,7 +174,7 @@ class ErrorTracker:
             # Signal shutdown by sending None through channel
             await self._write_send.send(None)
             # Close the task group
-            if hasattr(self, '_task_group'):
+            if hasattr(self, "_task_group"):
                 await self._task_group.__aexit__(None, None, None)
             self._writer_task = None
 

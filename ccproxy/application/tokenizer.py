@@ -62,8 +62,7 @@ def get_token_encoder(
             LogRecord(
                 event=LogEvent.TOKEN_COUNT.value,
                 message=(
-                    "Unknown model %s, falling back to cl100k_base encoder"
-                    % model_name
+                    "Unknown model %s, falling back to cl100k_base encoder" % model_name
                 ),
                 request_id=request_id,
             )
