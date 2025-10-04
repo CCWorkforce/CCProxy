@@ -1,4 +1,4 @@
-# Production-grade Dockerfile with Gunicorn and optimizations
+# Production-grade Dockerfile with Uvicorn and optimizations
 # Multi-stage build for minimal size and maximum performance
 # Supports both Alpine (smallest) and Debian slim (better compatibility)
 

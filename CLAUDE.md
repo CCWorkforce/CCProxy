@@ -110,12 +110,12 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 
 ## Entry Points
 - main.py: Development server (uvicorn with auto-reload)
-- wsgi.py: Production WSGI application for Gunicorn
+- wsgi.py: Production ASGI application for Uvicorn
 - App factory: ccproxy/interfaces/http/app.py:create_app(Settings) provides dependency injection
 
 Development notes for Claude Code
 - Always construct the FastAPI app through create_app(Settings); do not import globals directly
-- Thread pool automatically adjusts for Gunicorn deployment to prevent resource exhaustion
+- Thread pool automatically adjusts for multi-worker deployment to prevent resource exhaustion
 - Follow hexagonal architecture principles: domain models should not depend on external concerns
 - Application layer orchestrates use cases; infrastructure layer handles external integrations
 - When adding parameters, ensure OpenAI parity: warn or omit unsupported fields; map tool_choice carefully

@@ -54,7 +54,7 @@ That's it! The service is now running at `http://localhost:11434`
 | `OPENAI_BASE_URL` | OpenAI-compatible API endpoint | `https://api.openai.com/v1` |
 | `PORT` | Server port | `11434` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-| `WEB_CONCURRENCY` | Number of Gunicorn workers (CPU-based by default) | `(CPU cores × 2 + 1)` |
+| `WEB_CONCURRENCY` | Number of Uvicorn workers (CPU-based by default) | `(CPU cores × 2 + 1)` |
 
 ## Common Commands
 

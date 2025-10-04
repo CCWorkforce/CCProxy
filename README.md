@@ -208,7 +208,7 @@ graph TB
 - **Monitoring**: Performance metrics, health checks, cache statistics
 - **Error Tracking**: Centralized error monitoring and alerting
 
-## Quickstart (uv + .env + Gunicorn)
+## Quickstart (uv + .env + Uvicorn)
 
 1. Create your environment file from the template:
 
@@ -226,7 +226,7 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
-3. Start the server (pure Python with Gunicorn):
+3. Start the server (pure Python with Uvicorn):
 
 ```bash
 ./run-ccproxy.sh
