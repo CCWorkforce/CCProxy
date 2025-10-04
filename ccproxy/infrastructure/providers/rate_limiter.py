@@ -34,11 +34,17 @@ class RateLimitConfig:
 
     def __post_init__(self):
         if self.requests_per_minute < 1:
-            raise ValueError(f"requests_per_minute must be positive, got {self.requests_per_minute}")
+            raise ValueError(
+                f"requests_per_minute must be positive, got {self.requests_per_minute}"
+            )
         if self.tokens_per_minute < 1:
-            raise ValueError(f"tokens_per_minute must be positive, got {self.tokens_per_minute}")
+            raise ValueError(
+                f"tokens_per_minute must be positive, got {self.tokens_per_minute}"
+            )
         if self.burst_size < 1:
-            raise ValueError(f"burst_size must be positive, got {self.burst_size}")  # Increase limits by 10% during recovery
+            raise ValueError(
+                f"burst_size must be positive, got {self.burst_size}"
+            )  # Increase limits by 10% during recovery
 
 
 @dataclass

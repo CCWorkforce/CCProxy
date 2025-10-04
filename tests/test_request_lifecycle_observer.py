@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 
 from ccproxy.infrastructure.providers.request_lifecycle_observer import (
     RequestLifecycleObserver,
@@ -262,7 +262,7 @@ async def test_concurrent_mixed_success_failure(mock_components):
             cid,
             time.monotonic(),
             Exception(f"Error {i}"),
-            ErrorType.API_ERROR if i == 0 else ErrorType.TIMEOUT_ERROR
+            ErrorType.API_ERROR if i == 0 else ErrorType.TIMEOUT_ERROR,
         )
         for i, cid in enumerate(failure_ids)
     ]
@@ -290,18 +290,14 @@ async def test_concurrent_request_starts(mock_components):
         {
             "correlation_id": f"req-{i}",
             "params": {"model": f"model-{i}"},
-            "trace_id": f"trace-{i}"
+            "trace_id": f"trace-{i}",
         }
         for i in range(5)
     ]
 
     # Run concurrent request starts
     tasks = [
-        observer.on_request_start(
-            req["correlation_id"],
-            req["params"],
-            req["trace_id"]
-        )
+        observer.on_request_start(req["correlation_id"], req["params"], req["trace_id"])
         for req in requests
     ]
 
@@ -327,13 +323,13 @@ async def test_concurrent_with_varying_error_types(mock_components):
     observer = RequestLifecycleObserver(**mock_components)
 
     # Setup error classification
-    with patch.object(observer, 'classify_error') as mock_classify:
+    with patch.object(observer, "classify_error") as mock_classify:
         error_types = [
             ErrorType.API_ERROR,
             ErrorType.TIMEOUT_ERROR,
             ErrorType.CONVERSION_ERROR,
             ErrorType.RATE_LIMIT,
-            ErrorType.NETWORK_ERROR
+            ErrorType.NETWORK_ERROR,
         ]
 
         # Return different error types for different calls
@@ -342,10 +338,7 @@ async def test_concurrent_with_varying_error_types(mock_components):
         # Create failure tasks with different errors
         tasks = [
             observer.on_failure(
-                f"fail-{i}",
-                time.monotonic(),
-                Exception(f"Error {i}"),
-                error_type
+                f"fail-{i}", time.monotonic(), Exception(f"Error {i}"), error_type
             )
             for i, error_type in enumerate(error_types)
         ]

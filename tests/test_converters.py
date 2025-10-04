@@ -492,8 +492,7 @@ class TestConverterEdgeCases:
         # Approximate 10k+ tokens with repeated text
         large_text = "This is a test sentence. " * 2500  # ~10k+ tokens
         return Message(
-            role="user",
-            content=[ContentBlockText(type="text", text=large_text)]
+            role="user", content=[ContentBlockText(type="text", text=large_text)]
         )
 
     @pytest.fixture
@@ -506,7 +505,7 @@ class TestConverterEdgeCases:
                     type="tool_use",
                     id=f"tool_{i}",
                     name=f"function_{i}",
-                    input={"param": f"value_{i}"}
+                    input={"param": f"value_{i}"},
                 )
             )
         return Message(role="assistant", content=tool_calls)
@@ -546,11 +545,11 @@ class TestConverterEdgeCases:
                     source={
                         "type": "base64",
                         "media_type": "image/png",
-                        "data": "base64data"
-                    }
+                        "data": "base64data",
+                    },
                 ),
-                ContentBlockText(type="text", text="What do you see?")
-            ]
+                ContentBlockText(type="text", text="What do you see?"),
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([mixed_message])
@@ -568,7 +567,7 @@ class TestConverterEdgeCases:
                     "level3": {
                         "level4": {
                             "data": ["item1", "item2", "item3"],
-                            "meta": {"key": "value"}
+                            "meta": {"key": "value"},
                         }
                     }
                 }
@@ -582,9 +581,9 @@ class TestConverterEdgeCases:
                     type="tool_use",
                     id="nested_tool",
                     name="complex_function",
-                    input=nested_input
+                    input=nested_input,
                 )
-            ]
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([tool_message])
@@ -593,7 +592,11 @@ class TestConverterEdgeCases:
 
         # Verify nested structure is preserved
         args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
-        assert args["level1"]["level2"]["level3"]["level4"]["data"] == ["item1", "item2", "item3"]
+        assert args["level1"]["level2"]["level3"]["level4"]["data"] == [
+            "item1",
+            "item2",
+            "item3",
+        ]
 
     def test_empty_tool_input(self):
         """Test tool use with empty input."""
@@ -604,9 +607,9 @@ class TestConverterEdgeCases:
                     type="tool_use",
                     id="empty_tool",
                     name="no_params_function",
-                    input={}
+                    input={},
                 )
-            ]
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([tool_message])
@@ -624,9 +627,9 @@ class TestConverterEdgeCases:
             content=[
                 ContentBlockText(
                     type="text",
-                    text="Unicode: 你好世界 🌍 Émojis: 😀🎉 Special: \n\t\r"
+                    text="Unicode: 你好世界 🌍 Émojis: 😀🎉 Special: \n\t\r",
                 )
-            ]
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([unicode_message])
@@ -645,10 +648,10 @@ class TestConverterEdgeCases:
                     source={
                         "type": "base64",
                         "media_type": "image/jpeg",  # Valid but minimal
-                        "data": "test"  # Minimal data
-                    }
+                        "data": "test",  # Minimal data
+                    },
                 )
-            ]
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([minimal_image])
@@ -661,15 +664,25 @@ class TestConverterEdgeCases:
         """Test conversation with rapid role switching."""
         messages = [
             Message(role="user", content=[ContentBlockText(type="text", text="1")]),
-            Message(role="assistant", content=[ContentBlockText(type="text", text="2")]),
+            Message(
+                role="assistant", content=[ContentBlockText(type="text", text="2")]
+            ),
             Message(role="user", content=[ContentBlockText(type="text", text="3")]),
-            Message(role="assistant", content=[ContentBlockText(type="text", text="4")]),
-            Message(role="user", content=[ContentBlockText(type="text", text="5")])
+            Message(
+                role="assistant", content=[ContentBlockText(type="text", text="4")]
+            ),
+            Message(role="user", content=[ContentBlockText(type="text", text="5")]),
         ]
 
         result = convert_anthropic_to_openai_messages(messages)
         assert len(result) == 5
-        assert [msg["role"] for msg in result] == ["user", "assistant", "user", "assistant", "user"]
+        assert [msg["role"] for msg in result] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+            "user",
+        ]
         assert [msg["content"] for msg in result] == ["1", "2", "3", "4", "5"]
 
     def test_tool_result_with_error_content(self):
@@ -682,13 +695,12 @@ class TestConverterEdgeCases:
                     tool_use_id="failed_tool",
                     content=[
                         ContentBlockText(
-                            type="text",
-                            text="Error: API rate limit exceeded"
+                            type="text", text="Error: API rate limit exceeded"
                         )
                     ],
-                    is_error=True
+                    is_error=True,
                 )
-            ]
+            ],
         )
 
         result = convert_anthropic_to_openai_messages([error_result])
@@ -707,7 +719,7 @@ class TestConverterEdgeCases:
                 messages.append(
                     Message(
                         role="user" if i % 2 == 0 else "assistant",
-                        content=[ContentBlockText(type="text", text=f"Message {i}")]
+                        content=[ContentBlockText(type="text", text=f"Message {i}")],
                     )
                 )
             elif i % 3 == 1:
@@ -720,9 +732,9 @@ class TestConverterEdgeCases:
                                 type="tool_use",
                                 id=f"tool_{i}",
                                 name=f"function_{i}",
-                                input={"index": i}
+                                input={"index": i},
                             )
-                        ]
+                        ],
                     )
                 )
             else:
@@ -733,10 +745,12 @@ class TestConverterEdgeCases:
                         content=[
                             ContentBlockToolResult(
                                 type="tool_result",
-                                tool_use_id=f"tool_{i-1}",
-                                content=[ContentBlockText(type="text", text=f"Result {i}")]
+                                tool_use_id=f"tool_{i - 1}",
+                                content=[
+                                    ContentBlockText(type="text", text=f"Result {i}")
+                                ],
                             )
-                        ]
+                        ],
                     )
                 )
 

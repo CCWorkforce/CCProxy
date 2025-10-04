@@ -1,7 +1,6 @@
 """Integration tests for end-to-end API flow simulation."""
 
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
 import json
 from httpx import Response
 import respx
@@ -21,7 +20,7 @@ def test_settings():
         openai_base_url="https://api.openai.com/v1",
         host="127.0.0.1",
         port=8000,
-        log_level="INFO"
+        log_level="INFO",
     )
     return settings
 
@@ -48,18 +47,11 @@ class TestEndToEndIntegration:
             "choices": [
                 {
                     "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Hello from GPT-4!"
-                    },
-                    "finish_reason": "stop"
+                    "message": {"role": "assistant", "content": "Hello from GPT-4!"},
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 15,
-                "total_tokens": 25
-            }
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         }
 
         # Setup respx mock for OpenAI endpoint
@@ -71,15 +63,11 @@ class TestEndToEndIntegration:
             # Send request with opus model
             request_data = {
                 "model": "claude-3-opus-20240229",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ]
+                "messages": [{"role": "user", "content": "Hello"}],
             }
 
             response = await client.post(
-                "/v1/messages",
-                json=request_data,
-                headers={"x-api-key": "test-key"}
+                "/v1/messages", json=request_data, headers={"x-api-key": "test-key"}
             )
 
             assert response.status_code == 200
@@ -107,14 +95,11 @@ class TestEndToEndIntegration:
             "choices": [
                 {
                     "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Hello from GPT-3.5!"
-                    },
-                    "finish_reason": "stop"
+                    "message": {"role": "assistant", "content": "Hello from GPT-3.5!"},
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {"total_tokens": 20}
+            "usage": {"total_tokens": 20},
         }
 
         route = respx.post("https://api.openai.com/v1/chat/completions").mock(
@@ -124,15 +109,11 @@ class TestEndToEndIntegration:
         async with AsyncClient(app=test_app, base_url="http://test") as client:
             request_data = {
                 "model": "claude-3-sonnet-20240229",
-                "messages": [
-                    {"role": "user", "content": "Test message"}
-                ]
+                "messages": [{"role": "user", "content": "Test message"}],
             }
 
             response = await client.post(
-                "/v1/messages",
-                json=request_data,
-                headers={"x-api-key": "test-key"}
+                "/v1/messages", json=request_data, headers={"x-api-key": "test-key"}
             )
 
             assert response.status_code == 200
@@ -161,13 +142,13 @@ class TestEndToEndIntegration:
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": "Success after retry"
+                            "content": "Success after retry",
                         },
-                        "finish_reason": "stop"
+                        "finish_reason": "stop",
                     }
                 ],
-                "usage": {"total_tokens": 30}
-            }
+                "usage": {"total_tokens": 30},
+            },
         )
 
         route = respx.post("https://api.openai.com/v1/chat/completions").mock(
@@ -177,15 +158,11 @@ class TestEndToEndIntegration:
         async with AsyncClient(app=test_app, base_url="http://test") as client:
             request_data = {
                 "model": "claude-3-opus-20240229",
-                "messages": [
-                    {"role": "user", "content": "Test retry"}
-                ]
+                "messages": [{"role": "user", "content": "Test retry"}],
             }
 
             response = await client.post(
-                "/v1/messages",
-                json=request_data,
-                headers={"x-api-key": "test-key"}
+                "/v1/messages", json=request_data, headers={"x-api-key": "test-key"}
             )
 
             # Should eventually succeed after retry
@@ -198,6 +175,7 @@ class TestEndToEndIntegration:
     @respx.mock
     async def test_streaming_response_conversion(self, test_app):
         """Test streaming response conversion from OpenAI to Anthropic format."""
+
         # Create SSE chunks
         def create_sse_chunk(data):
             if data is None:
@@ -205,37 +183,43 @@ class TestEndToEndIntegration:
             return f"data: {json.dumps(data)}\n\n".encode()
 
         chunks = [
-            create_sse_chunk({
-                "id": "chatcmpl-stream",
-                "object": "chat.completion.chunk",
-                "model": "gpt-4",
-                "choices": [{
-                    "index": 0,
-                    "delta": {"content": "Hello "},
-                    "finish_reason": None
-                }]
-            }),
-            create_sse_chunk({
-                "id": "chatcmpl-stream",
-                "object": "chat.completion.chunk",
-                "model": "gpt-4",
-                "choices": [{
-                    "index": 0,
-                    "delta": {"content": "streaming!"},
-                    "finish_reason": None
-                }]
-            }),
-            create_sse_chunk({
-                "id": "chatcmpl-stream",
-                "object": "chat.completion.chunk",
-                "model": "gpt-4",
-                "choices": [{
-                    "index": 0,
-                    "delta": {},
-                    "finish_reason": "stop"
-                }]
-            }),
-            create_sse_chunk(None)  # [DONE] marker
+            create_sse_chunk(
+                {
+                    "id": "chatcmpl-stream",
+                    "object": "chat.completion.chunk",
+                    "model": "gpt-4",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"content": "Hello "},
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            ),
+            create_sse_chunk(
+                {
+                    "id": "chatcmpl-stream",
+                    "object": "chat.completion.chunk",
+                    "model": "gpt-4",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"content": "streaming!"},
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            ),
+            create_sse_chunk(
+                {
+                    "id": "chatcmpl-stream",
+                    "object": "chat.completion.chunk",
+                    "model": "gpt-4",
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                }
+            ),
+            create_sse_chunk(None),  # [DONE] marker
         ]
 
         async def stream_response():
@@ -246,7 +230,7 @@ class TestEndToEndIntegration:
             return_value=Response(
                 200,
                 content=stream_response(),
-                headers={"content-type": "text/event-stream"}
+                headers={"content-type": "text/event-stream"},
             )
         )
 
@@ -254,7 +238,7 @@ class TestEndToEndIntegration:
             request_data = {
                 "model": "claude-3-opus-20240229",
                 "messages": [{"role": "user", "content": "Stream test"}],
-                "stream": True
+                "stream": True,
             }
 
             # Stream the response
@@ -262,7 +246,7 @@ class TestEndToEndIntegration:
                 "POST",
                 "/v1/messages",
                 json=request_data,
-                headers={"x-api-key": "test-key"}
+                headers={"x-api-key": "test-key"},
             ) as response:
                 assert response.status_code == 200
 
@@ -296,15 +280,17 @@ class TestEndToEndIntegration:
                                 "type": "function",
                                 "function": {
                                     "name": "get_weather",
-                                    "arguments": json.dumps({"location": "San Francisco"})
-                                }
+                                    "arguments": json.dumps(
+                                        {"location": "San Francisco"}
+                                    ),
+                                },
                             }
-                        ]
+                        ],
                     },
-                    "finish_reason": "tool_calls"
+                    "finish_reason": "tool_calls",
                 }
             ],
-            "usage": {"total_tokens": 50}
+            "usage": {"total_tokens": 50},
         }
 
         route = respx.post("https://api.openai.com/v1/chat/completions").mock(
@@ -315,28 +301,22 @@ class TestEndToEndIntegration:
             # Send request with tool definition
             request_data = {
                 "model": "claude-3-opus-20240229",
-                "messages": [
-                    {"role": "user", "content": "What's the weather in SF?"}
-                ],
+                "messages": [{"role": "user", "content": "What's the weather in SF?"}],
                 "tools": [
                     {
                         "name": "get_weather",
                         "description": "Get weather for a location",
                         "input_schema": {
                             "type": "object",
-                            "properties": {
-                                "location": {"type": "string"}
-                            },
-                            "required": ["location"]
-                        }
+                            "properties": {"location": {"type": "string"}},
+                            "required": ["location"],
+                        },
                     }
-                ]
+                ],
             }
 
             response = await client.post(
-                "/v1/messages",
-                json=request_data,
-                headers={"x-api-key": "test-key"}
+                "/v1/messages", json=request_data, headers={"x-api-key": "test-key"}
             )
 
             assert response.status_code == 200

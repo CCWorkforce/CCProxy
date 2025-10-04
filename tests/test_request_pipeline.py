@@ -1,6 +1,5 @@
 import pytest
-import logging
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 import openai
 from openai import AsyncOpenAI
@@ -284,24 +283,20 @@ async def test_full_openai_response_utf8_decode_success(mock_components):
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": b"Hello world with \xc3\xa9motion"  # UTF-8 bytes for "émotion"
+                    "content": b"Hello world with \xc3\xa9motion",  # UTF-8 bytes for "émotion"
                 },
-                "finish_reason": "stop"
+                "finish_reason": "stop",
             },
             {
                 "index": 1,
                 "message": {
                     "role": "assistant",
-                    "content": b"Second \xc3\xa7hoice"  # UTF-8 bytes for "çhoice"
+                    "content": b"Second \xc3\xa7hoice",  # UTF-8 bytes for "çhoice"
                 },
-                "finish_reason": "stop"
-            }
+                "finish_reason": "stop",
+            },
         ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30
-        }
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
     }
 
     mock_components["circuit_breaker"].is_open = False
@@ -320,7 +315,9 @@ async def test_full_openai_response_utf8_decode_success(mock_components):
 
 
 @pytest.mark.asyncio
-async def test_full_openai_response_utf8_decode_error_with_replacement(mock_components, caplog):
+async def test_full_openai_response_utf8_decode_error_with_replacement(
+    mock_components, caplog
+):
     """Test full OpenAI response with UTF-8 decode error using replacement."""
     # Mock response with invalid UTF-8 bytes
     response_data = {
@@ -331,12 +328,12 @@ async def test_full_openai_response_utf8_decode_error_with_replacement(mock_comp
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": b"Invalid \xff\xfe bytes"  # Invalid UTF-8
+                    "content": b"Invalid \xff\xfe bytes",  # Invalid UTF-8
                 },
-                "finish_reason": "stop"
+                "finish_reason": "stop",
             }
         ],
-        "usage": {"total_tokens": 15}
+        "usage": {"total_tokens": 15},
     }
 
     mock_components["circuit_breaker"].is_open = False
@@ -367,8 +364,10 @@ async def test_streaming_response_with_rate_limit_per_chunk(mock_components):
             {"choices": [{"delta": {"content": "First"}}], "usage": None},
             {"choices": [{"delta": {"content": " chunk"}}], "usage": None},
             {"choices": [{"delta": {"content": " data"}}], "usage": None},
-            {"choices": [{"finish_reason": "stop"}],
-             "usage": {"total_tokens": 50}}  # Final chunk has usage
+            {
+                "choices": [{"finish_reason": "stop"}],
+                "usage": {"total_tokens": 50},
+            },  # Final chunk has usage
         ]
         for chunk in chunks:
             yield chunk
@@ -422,7 +421,9 @@ async def test_streaming_response_rate_limit_failure_mid_stream(mock_components)
                 raise Exception("Rate limit exceeded mid-stream")
 
     mock_components["circuit_breaker"].is_open = False
-    mock_components["rate_limiter"].acquire_token = AsyncMock(side_effect=mock_acquire_token)
+    mock_components["rate_limiter"].acquire_token = AsyncMock(
+        side_effect=mock_acquire_token
+    )
     mock_components["resilient_executor"].execute.return_value = mock_stream()
 
     pipeline = RequestPipeline(**mock_components)
@@ -446,8 +447,7 @@ async def test_streaming_with_total_tokens_release(mock_components):
     async def mock_stream():
         yield {"choices": [{"delta": {"content": "Test"}}]}
         yield {"choices": [{"delta": {"content": " stream"}}]}
-        yield {"choices": [{"finish_reason": "stop"}],
-               "usage": {"total_tokens": 100}}
+        yield {"choices": [{"finish_reason": "stop"}], "usage": {"total_tokens": 100}}
 
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"].acquire = AsyncMock(return_value=True)

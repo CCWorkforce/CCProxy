@@ -140,34 +140,74 @@ def test_create_rate_limiter_disabled(mock_settings):
     "create_method, invalid_attr, invalid_value, expected_error",
     [
         # Resilience component invalid values
-        ("create_resilience_components", "circuit_breaker_failure_threshold", -1, ValueError),
-        ("create_resilience_components", "circuit_breaker_failure_threshold", 0, ValueError),
-        ("create_resilience_components", "circuit_breaker_recovery_timeout", -1, ValueError),
-        ("create_resilience_components", "circuit_breaker_recovery_timeout", 0, ValueError),
-        ("create_resilience_components", "circuit_breaker_half_open_requests", 0, ValueError),
-        ("create_resilience_components", "circuit_breaker_half_open_requests", -1, ValueError),
+        (
+            "create_resilience_components",
+            "circuit_breaker_failure_threshold",
+            -1,
+            ValueError,
+        ),
+        (
+            "create_resilience_components",
+            "circuit_breaker_failure_threshold",
+            0,
+            ValueError,
+        ),
+        (
+            "create_resilience_components",
+            "circuit_breaker_recovery_timeout",
+            -1,
+            ValueError,
+        ),
+        (
+            "create_resilience_components",
+            "circuit_breaker_recovery_timeout",
+            0,
+            ValueError,
+        ),
+        (
+            "create_resilience_components",
+            "circuit_breaker_half_open_requests",
+            0,
+            ValueError,
+        ),
+        (
+            "create_resilience_components",
+            "circuit_breaker_half_open_requests",
+            -1,
+            ValueError,
+        ),
         ("create_resilience_components", "provider_max_retries", -1, ValueError),
         ("create_resilience_components", "provider_retry_base_delay", -0.5, ValueError),
         ("create_resilience_components", "provider_retry_base_delay", 0, ValueError),
         ("create_resilience_components", "provider_retry_jitter", -0.1, ValueError),
         ("create_resilience_components", "provider_retry_jitter", 1.5, ValueError),
-
         # Rate limiter invalid values
         ("create_rate_limiter", "client_rate_limit_rpm", 0, ValueError),
         ("create_rate_limiter", "client_rate_limit_tpm", 0, ValueError),
         ("create_rate_limiter", "client_rate_limit_rpm", -1, ValueError),
         ("create_rate_limiter", "client_rate_limit_tpm", -1, ValueError),
-        ("create_rate_limiter", "client_rate_limit_rpm", 0.5, ValueError),  # Fractional RPM
-        ("create_rate_limiter", "client_rate_limit_tpm", 1.5, ValueError),  # Fractional TPM
+        (
+            "create_rate_limiter",
+            "client_rate_limit_rpm",
+            0.5,
+            ValueError,
+        ),  # Fractional RPM
+        (
+            "create_rate_limiter",
+            "client_rate_limit_tpm",
+            1.5,
+            ValueError,
+        ),  # Fractional TPM
         ("create_rate_limiter", "client_rate_limit_burst", 0, ValueError),
         ("create_rate_limiter", "client_rate_limit_burst", -1, ValueError),
-
         # Monitoring component invalid values
         ("create_monitoring_components", "max_stream_seconds", -1.0, ValueError),
         ("create_monitoring_components", "max_stream_seconds", 0, ValueError),
     ],
 )
-def test_invalid_settings_raise_value_error(create_method, invalid_attr, invalid_value, expected_error):
+def test_invalid_settings_raise_value_error(
+    create_method, invalid_attr, invalid_value, expected_error
+):
     """Test that invalid settings raise appropriate errors in component creation."""
 
     settings = Mock()

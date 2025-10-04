@@ -2,7 +2,7 @@
 
 import json
 import os
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 import pytest
 
 from ccproxy.application.thread_pool import (
@@ -138,7 +138,7 @@ class TestThreadPool:
         result = await json_dumps_async(data, sort_keys=True, separators=(",", ":"))
         assert result == '{"a":1,"m":13,"z":26}'
 
-    @patch('psutil.cpu_percent')
+    @patch("psutil.cpu_percent")
     def test_cpu_load_detection_auto_scale(self, mock_cpu_percent, mock_settings):
         """Test CPU load detection with auto-scaling enabled."""
         mock_settings.thread_pool_auto_scale = True
@@ -150,7 +150,7 @@ class TestThreadPool:
         stats = get_pool_stats()
         assert "cpu_threshold" in stats
 
-    @patch('psutil.cpu_count')
+    @patch("psutil.cpu_count")
     @patch.dict(os.environ, {"WEB_CONCURRENCY": "4"})
     def test_multi_worker_thread_distribution(self, mock_cpu_count, mock_settings):
         """Test thread distribution in multi-worker mode."""
@@ -165,7 +165,7 @@ class TestThreadPool:
         assert stats["max_workers"] <= 20  # Should not exceed max per worker
         assert stats["max_workers"] >= 4  # Should have at least minimum
 
-    @patch('psutil.cpu_count')
+    @patch("psutil.cpu_count")
     def test_cpu_count_edge_cases(self, mock_cpu_count, mock_settings):
         """Test thread pool with various CPU counts."""
         # Test with very low CPU count
@@ -184,7 +184,9 @@ class TestThreadPool:
         stats = get_pool_stats()
         assert stats["max_workers"] <= 40  # Maximum threshold
 
-    @pytest.mark.skip(reason="Complex time-based testing - requires refactoring for proper mocking")
+    @pytest.mark.skip(
+        reason="Complex time-based testing - requires refactoring for proper mocking"
+    )
     def test_should_scale_down_detection(self, mock_settings):
         """Test detection of when to scale down threads."""
         # TODO: Refactor to properly mock time.time() which is imported locally
@@ -220,7 +222,7 @@ class TestThreadPool:
         assert limiter1 is not None
         assert limiter2 is not None
 
-    @patch('psutil.cpu_percent')
+    @patch("psutil.cpu_percent")
     def test_auto_scale_with_varying_load(self, mock_cpu_percent, mock_settings):
         """Test auto-scaling behavior with varying CPU load."""
         mock_settings.thread_pool_auto_scale = True

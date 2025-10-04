@@ -195,7 +195,10 @@ class ProviderComponentsFactory:
             return None
 
         # Validate rate limit settings
-        if not isinstance(settings.client_rate_limit_tpm, int) or settings.client_rate_limit_tpm <= 0:
+        if (
+            not isinstance(settings.client_rate_limit_tpm, int)
+            or settings.client_rate_limit_tpm <= 0
+        ):
             raise ValueError(
                 f"client_rate_limit_tpm must be a positive integer, got {settings.client_rate_limit_tpm}"
             )
