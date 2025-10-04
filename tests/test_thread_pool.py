@@ -100,13 +100,11 @@ class TestThreadPool:
         assert stats["max_workers"] > 0
         assert stats["cpu_threshold"] > 0  # Should be auto-calculated
 
-    def test_gunicorn_detection(self, mock_settings):
-        """Test detection of Gunicorn multi-worker mode."""
+    def test_uvicorn_multi_worker_detection(self, mock_settings):
+        """Test detection of Uvicorn multi-worker mode."""
         mock_settings.thread_pool_max_workers = None
 
-        with patch.dict(
-            "os.environ", {"SERVER_SOFTWARE": "gunicorn/12345", "WEB_CONCURRENCY": "4"}
-        ):
+        with patch.dict("os.environ", {"WEB_CONCURRENCY": "4"}):
             initialize_thread_pool(mock_settings)
 
             stats = get_pool_stats()
