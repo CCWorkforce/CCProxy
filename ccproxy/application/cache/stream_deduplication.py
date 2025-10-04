@@ -1,6 +1,6 @@
 """Stream deduplication for handling concurrent identical streaming requests."""
 
-import asyncio
+import anyio
 from typing import Dict, List, Optional, Tuple
 from asyncio import Queue, QueueFull
 
@@ -19,7 +19,7 @@ class StreamDeduplicator:
     def __init__(self, max_queue_size: int = 100):
         """Initialize stream deduplicator."""
         self.subscribers: Dict[str, List[Queue]] = {}
-        self.lock = asyncio.Lock()
+        self.lock = anyio.Lock()
         self.max_queue_size = max_queue_size
         self.active_streams: Dict[str, bool] = {}
 

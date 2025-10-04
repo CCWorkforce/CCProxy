@@ -1,6 +1,5 @@
 """Cache warmup and preloading functionality for improved performance."""
 
-import asyncio
 import hashlib
 import json
 from typing import Any, Dict, List, Optional
@@ -9,6 +8,7 @@ import time
 import aiofiles
 from asyncer import asyncify
 import anyio
+from anyio import create_task_group as anyio_create_task_group
 
 from ...domain.models import (
     MessagesRequest,
@@ -76,8 +76,7 @@ class CacheWarmupManager:
         self.cache = cache
         self.config = config or CacheWarmupConfig()
         self._popular_items: Dict[str, int] = {}
-        self._warmup_task: Optional[asyncio.Task] = None
-        self._save_task: Optional[asyncio.Task] = None
+        self._task_group = None
         self._common_prompts = self._get_common_prompts()
 
     def _get_common_prompts(self) -> List[Dict[str, Any]]:
@@ -150,30 +149,28 @@ class CacheWarmupManager:
             )
         )
 
+        # Start background tasks using anyio task group
+        self._task_group = anyio_create_task_group()
+        await self._task_group.__aenter__()
+
         # Start warmup on startup if configured
         if self.config.warmup_on_startup:
-            self._warmup_task = asyncio.create_task(self._warmup_cache())
+            self._task_group.start_soon(self._warmup_cache)
 
         # Start auto-save task if configured
         if self.config.auto_save_popular:
-            self._save_task = asyncio.create_task(self._auto_save_loop())
+            self._task_group.start_soon(self._auto_save_loop)
 
     async def stop(self) -> None:
         """Stop the cache warmup manager."""
         # Cancel background tasks
-        if self._warmup_task:
-            self._warmup_task.cancel()
+        if self._task_group:
+            self._task_group.cancel_scope.cancel()
             try:
-                await self._warmup_task
-            except asyncio.CancelledError:
+                await self._task_group.__aexit__(None, None, None)
+            except Exception:
                 pass
-
-        if self._save_task:
-            self._save_task.cancel()
-            try:
-                await self._save_task
-            except asyncio.CancelledError:
-                pass
+            self._task_group = None
 
         # Save popular items before shutdown
         if self.config.auto_save_popular:
@@ -303,9 +300,9 @@ class CacheWarmupManager:
         """Periodically save popular items for warmup."""
         while True:
             try:
-                await asyncio.sleep(self.config.save_interval_seconds)
+                await anyio.sleep(self.config.save_interval_seconds)
                 await self._save_popular_items()
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 break
             except Exception as e:
                 warning(

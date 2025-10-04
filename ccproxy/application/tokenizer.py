@@ -2,7 +2,7 @@ import json
 import tiktoken
 import time
 import hashlib
-import asyncio
+import anyio
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
 from .thread_pool import asyncify
@@ -33,7 +33,7 @@ _token_count_cache: Dict[str, Tuple[int, float]] = {}
 _token_count_lru_order: List[str] = []
 _token_count_hits = 0
 _token_count_misses = 0
-_token_lock = asyncio.Lock()
+_token_lock = anyio.Lock()
 
 
 def get_token_encoder(
@@ -333,12 +333,20 @@ async def count_tokens_for_anthropic_request(
     total_tokens = fixed_tokens
 
     if encoding_tasks:
-        # Process encoding tasks in parallel using task group
-        # Execute the coroutines directly since they're already created
-        task_results = await asyncio.gather(*[coro for _, coro in encoding_tasks])
+        # Process encoding tasks in parallel using anyio task group
+        task_results = []
+        async with anyio.create_task_group() as tg:
 
-        # Sum up all token counts
-        for result in task_results:
+            async def run_task(coro, idx):
+                result = await coro
+                task_results.append((idx, result))
+
+            for idx, (_, coro) in enumerate(encoding_tasks):
+                tg.start_soon(run_task, coro, idx)
+
+        # Sort results by original index and sum up token counts
+        task_results.sort(key=lambda x: x[0])
+        for _, result in task_results:
             total_tokens += result
 
     # Process tool definitions
@@ -366,11 +374,20 @@ async def count_tokens_for_anthropic_request(
 
         # Process tool encoding tasks in parallel
         if tool_tasks:
-            # Execute the coroutines directly
-            tool_results = await asyncio.gather(*[coro for _, coro in tool_tasks])
+            # Execute the coroutines using anyio task group
+            tool_results = []
+            async with anyio.create_task_group() as tg:
 
-            # Add tool token counts
-            for result in tool_results:
+                async def run_tool_task(coro, idx):
+                    result = await coro
+                    tool_results.append((idx, result))
+
+                for idx, (_, coro) in enumerate(tool_tasks):
+                    tg.start_soon(run_tool_task, coro, idx)
+
+            # Sort results by original index and add tool token counts
+            tool_results.sort(key=lambda x: x[0])
+            for _, result in tool_results:
                 total_tokens += result
     debug(
         LogRecord(
@@ -501,11 +518,20 @@ async def count_tokens_for_openai_request(
         total_tokens = fixed_tokens
 
         if encoding_tasks:
-            # Execute the coroutines directly
-            task_results = await asyncio.gather(*[coro for _, coro in encoding_tasks])
+            # Execute the coroutines using anyio task group
+            task_results = []
+            async with anyio.create_task_group() as tg:
 
-            # Sum up all token counts
-            for result in task_results:
+                async def run_encode_task(coro, idx):
+                    result = await coro
+                    task_results.append((idx, result))
+
+                for idx, (_, coro) in enumerate(encoding_tasks):
+                    tg.start_soon(run_encode_task, coro, idx)
+
+            # Sort results by original index and sum up token counts
+            task_results.sort(key=lambda x: x[0])
+            for _, result in task_results:
                 total_tokens += result
 
         debug(

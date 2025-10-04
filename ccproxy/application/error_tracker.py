@@ -1,10 +1,13 @@
 """Comprehensive error tracking system for debugging and monitoring."""
 
-import asyncio
+import anyio
+from asyncer import create_task_group
+from asyncio import Queue, create_task
 import json
 import re
 import traceback
 import uuid
+import inspect
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -13,7 +16,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 from fastapi import Request, Response
-from asyncer import create_task_group
 from .thread_pool import asyncify
 
 from ..config import Settings
@@ -95,7 +97,7 @@ class ErrorTracker:
     """
 
     _instance = None
-    _lock = asyncio.Lock()
+    _lock = anyio.Lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -108,7 +110,7 @@ class ErrorTracker:
         self._initialized = True
         self._settings: Optional[Settings] = None
         self._file_handle = None
-        self._write_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._write_queue: Queue = Queue(maxsize=1000)
         self._writer_task = None
         self._redact_patterns: List[re.Pattern] = []
         self._setup_redaction_patterns()
@@ -148,7 +150,7 @@ class ErrorTracker:
 
         # Start background writer
         if not self._writer_task:
-            self._writer_task = asyncio.create_task(self._writer_loop())
+            self._writer_task = create_task(self._writer_loop())
 
         info(
             LogRecord(
@@ -569,7 +571,7 @@ class ErrorTracker:
                     return func(*args, **kwargs)
                 except Exception as e:
                     # For sync functions, try to queue error tracking
-                    asyncio.create_task(
+                    create_task(
                         self.track_error(
                             error=e,
                             error_type=error_type,
@@ -578,7 +580,7 @@ class ErrorTracker:
                     )
                     raise
 
-            return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+            return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
 
         return decorator
 
