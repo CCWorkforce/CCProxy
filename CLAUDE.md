@@ -30,7 +30,7 @@ Optional
 - LOG_LEVEL (default INFO)
 - LOG_FILE_PATH (default log.jsonl)
 - ERROR_LOG_FILE_PATH (default error.jsonl)
-- WEB_CONCURRENCY (for Gunicorn)
+- WEB_CONCURRENCY (for multi-worker Uvicorn deployments)
 Thread Pool Configuration (all optional)
 - THREAD_POOL_MAX_WORKERS (default None - auto-calculates based on CPU cores, max 40)
 - THREAD_POOL_HIGH_CPU_THRESHOLD (default None - auto-calculates based on CPU count: 60% + 2.5% per core, max 90%)
@@ -48,7 +48,7 @@ Scripts create .env.example and validate env where helpful.
 
 Run options
 - Local dev: python main.py (FastAPI with uvicorn; auto-reload per Settings.reload)
-- Gunicorn (prod): gunicorn --config gunicorn.conf.py wsgi:app
+- Production: ./run-ccproxy.sh (Uvicorn with multi-worker support; workers = CPU × 2 + 1)
 - Docker: docker build -t ccproxy:latest -f Dockerfile .; docker-compose up -d
 Health/metrics
 - Health: GET / (root) returns {status: ok}
@@ -76,7 +76,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
   - warmup.py: CacheWarmupManager for preloading popular requests and common prompts; uses anyio.Path for async file operations and parallel warmup item loading
 - ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system with async JSON serialization and parallel redaction processing using asyncer
 - ccproxy/application/thread_pool.py: Intelligent thread pool management for CPU-bound operations
-  - Auto-detects Gunicorn multi-worker deployment and adjusts accordingly
+  - Auto-detects multi-worker deployment via WEB_CONCURRENCY and adjusts accordingly
   - Prevents resource exhaustion: reduces threads per worker in multi-worker mode
   - Target total threads = CPU_count × 5 (distributed across workers)
   - Single worker: up to 40 threads; Multi-worker: 4-20 threads per worker

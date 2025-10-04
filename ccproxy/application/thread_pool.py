@@ -39,15 +39,16 @@ def initialize_thread_pool(settings: Settings) -> None:
 
     _settings = settings
 
-    # Check if running under Gunicorn (multiple workers)
+    # Check if running with multiple workers (Uvicorn)
     worker_count = 1
-    if os.environ.get("SERVER_SOFTWARE", "").startswith("gunicorn"):
-        # Gunicorn sets this, or we can check for WEB_CONCURRENCY
-        worker_count = int(os.environ.get("WEB_CONCURRENCY", _cpu_count * 2 + 1))
+    web_concurrency = os.environ.get("WEB_CONCURRENCY")
+    if web_concurrency and int(web_concurrency) > 1:
+        # Multiple workers detected via WEB_CONCURRENCY
+        worker_count = int(web_concurrency)
         info(
             LogRecord(
                 event="thread_pool_init",
-                message=f"Running under Gunicorn with {worker_count} workers",
+                message=f"Running with {worker_count} workers (multi-worker mode)",
                 data={"worker_count": worker_count},
             )
         )
@@ -216,7 +217,9 @@ def asyncify(func: Callable[..., T]) -> Callable[..., Coroutine[Any, Any, T]]:
         if limiter:
             # Run with our configured limiter using anyio's to_thread
             # Use partial to bind args and kwargs to the function
-            return await to_thread.run_sync(partial(func, *args, **kwargs), limiter=limiter)
+            return await to_thread.run_sync(
+                partial(func, *args, **kwargs), limiter=limiter
+            )
         else:
             # Fall back to default asyncify behavior
             return await async_func(*args, **kwargs)

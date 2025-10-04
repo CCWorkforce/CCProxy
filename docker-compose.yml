@@ -1,5 +1,5 @@
 services:
-  # Production service with Gunicorn
+  # Production service with Uvicorn
   ccproxy:
     build:
       context: .

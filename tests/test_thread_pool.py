@@ -1,7 +1,6 @@
 """Tests for thread pool management module."""
 
 import json
-import asyncio
 from unittest.mock import patch, MagicMock
 import pytest
 
@@ -55,6 +54,7 @@ class TestThreadPool:
     @pytest.mark.asyncio
     async def test_asyncify_with_positional_args(self):
         """Test asyncify with positional arguments."""
+
         def add(a, b):
             return a + b
 
@@ -65,15 +65,13 @@ class TestThreadPool:
     @pytest.mark.asyncio
     async def test_asyncify_with_mixed_args(self):
         """Test asyncify with both positional and keyword arguments."""
+
         def format_string(template, name, age=0, city="Unknown"):
             return template.format(name=name, age=age, city=city)
 
         async_format = asyncify(format_string)
         result = await async_format(
-            "{name} is {age} years old from {city}",
-            "Alice",
-            age=30,
-            city="NYC"
+            "{name} is {age} years old from {city}", "Alice", age=30, city="NYC"
         )
         assert result == "Alice is 30 years old from NYC"
 
@@ -106,17 +104,18 @@ class TestThreadPool:
         """Test detection of Gunicorn multi-worker mode."""
         mock_settings.thread_pool_max_workers = None
 
-        with patch.dict("os.environ", {
-            "SERVER_SOFTWARE": "gunicorn/12345",
-            "WEB_CONCURRENCY": "4"
-        }):
+        with patch.dict(
+            "os.environ", {"SERVER_SOFTWARE": "gunicorn/12345", "WEB_CONCURRENCY": "4"}
+        ):
             initialize_thread_pool(mock_settings)
 
             stats = get_pool_stats()
             # With 4 workers, should reduce threads per worker
             # The exact value depends on CPU count, but should be less than single-worker mode
             assert stats["max_workers"] > 0
-            assert stats["max_workers"] <= 20  # Max allowed per worker in multi-worker mode
+            assert (
+                stats["max_workers"] <= 20
+            )  # Max allowed per worker in multi-worker mode
 
     @pytest.mark.asyncio
     async def test_json_dumps_async_compatibility(self):

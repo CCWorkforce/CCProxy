@@ -40,13 +40,6 @@ fi
 # Print uv version
 print_info "uv version: $(uv --version)"
 
-# Check if Python 3 is available through uv
-print_info "Checking Python availability via uv..."
-if ! uv python list | grep -q "python"; then
-    print_error "No Python installation found via uv. Installing Python..."
-    uv python install
-fi
-
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
@@ -238,11 +231,6 @@ if [ ! -f "wsgi.py" ]; then
     print_info "Please ensure you're running this script from the CCProxy root directory."
     exit 1
 fi
-if [ ! -f "gunicorn.conf.py" ]; then
-    print_error "gunicorn.conf.py not found in $SCRIPT_DIR"
-    print_info "Please ensure gunicorn.conf.py is present in the project root."
-    exit 1
-fi
 
 # Check Python dependencies via uv
 print_info "Checking Python dependencies via uv..."
@@ -254,7 +242,7 @@ if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
 else
     print_info "No requirements.txt or pyproject.toml found - will install minimal dependencies"
     # Ensure basic dependencies are available
-    uv add fastapi uvicorn openai pydantic tiktoken httpx gunicorn --dev
+    uv add fastapi uvicorn openai pydantic tiktoken httpx --dev
     print_info "uv version after add: $(uv --version)"
 fi
 
@@ -281,12 +269,40 @@ echo "==================================================="
 echo ""
 
 # Run the application
-print_info "Launching Gunicorn server..."
+print_info "Launching Uvicorn server..."
+
+# Calculate worker count based on CPU cores
+CPU_COUNT=$(python3 -c "import os; print(os.cpu_count() or 4)")
+WORKER_COUNT=$((CPU_COUNT * 2 + 1))
+
+# Convert LOG_LEVEL to lowercase for uvicorn (it expects lowercase values)
+UVICORN_LOG_LEVEL=$(echo "${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]')
 
 # Check if this is a local deployment (single worker)
 if [ "${IS_LOCAL_DEPLOYMENT}" = "True" ] || [ "${IS_LOCAL_DEPLOYMENT}" = "true" ]; then
     print_info "Local deployment detected - using single worker process"
-    exec uv run gunicorn --config gunicorn.conf.py --workers 1 wsgi:app
+    print_info "Starting Uvicorn with 1 worker on ${HOST:-127.0.0.1}:${PORT:-11434}"
+    exec uv run uvicorn wsgi:app \
+        --host "${HOST:-127.0.0.1}" \
+        --port "${PORT:-11434}" \
+        --workers 1 \
+        --loop uvloop \
+        --http httptools \
+        --timeout-keep-alive 5 \
+        --timeout-graceful-shutdown 30 \
+        --log-level "${UVICORN_LOG_LEVEL}"
 else
-    exec uv run gunicorn --config gunicorn.conf.py wsgi:app
+    print_info "Production deployment - using ${WORKER_COUNT} workers (${CPU_COUNT} CPUs × 2 + 1)"
+    print_info "Starting Uvicorn with ${WORKER_COUNT} workers on ${HOST:-127.0.0.1}:${PORT:-11434}"
+    # Set WEB_CONCURRENCY for thread pool detection
+    export WEB_CONCURRENCY="${WORKER_COUNT}"
+    exec uv run uvicorn wsgi:app \
+        --host "${HOST:-127.0.0.1}" \
+        --port "${PORT:-11434}" \
+        --workers "${WORKER_COUNT}" \
+        --loop uvloop \
+        --http httptools \
+        --timeout-keep-alive 5 \
+        --timeout-graceful-shutdown 30 \
+        --log-level "${UVICORN_LOG_LEVEL}"
 fi
