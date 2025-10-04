@@ -1,8 +1,8 @@
 import json
 import time
 import uuid
-import asyncio
 from typing import AsyncGenerator, Dict, Optional, Literal
+import anyio
 
 import openai
 from openai.types.chat import ChatCompletionChunk
@@ -351,13 +351,12 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             metadata["provider_details"] = provider_err_details.model_dump()
 
         # Track the streaming error
-        asyncio.create_task(
-            error_tracker.track_error(
-                error=e,
-                error_type=ErrorType.STREAM_ERROR,
-                request_id=request_id,
-                metadata=metadata,
-            )
+        # We're in an async generator context, we can just await directly
+        await error_tracker.track_error(
+            error=e,
+            error_type=ErrorType.STREAM_ERROR,
+            request_id=request_id,
+            metadata=metadata,
         )
 
         error(

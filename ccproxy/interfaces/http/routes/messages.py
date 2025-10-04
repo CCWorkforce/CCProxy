@@ -4,7 +4,7 @@ import time
 import uuid
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from asyncio import create_task
+import anyio
 import openai
 
 from ccproxy.constants import (
@@ -431,7 +431,13 @@ async def create_message_proxy(request: Request) -> Response:
                         finally:
                             await response_cache.finalize_stream(key)
 
-                    create_task(fanout())
+                    # Start fanout in background
+                    # Since we need fire-and-forget, we'll use the approach of starting
+                    # a task group and not waiting for it
+                    tg = anyio.create_task_group()
+                    await tg.__aenter__()
+                    tg.start_soon(fanout)
+                    # Don't await the task group exit - let it run in background
 
                 return StreamingResponse(
                     stream_iterator, media_type="text/event-stream"

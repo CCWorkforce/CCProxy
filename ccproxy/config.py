@@ -1,4 +1,3 @@
-import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AliasChoices, field_validator
 from typing import Optional, List, Union, Any
@@ -6,6 +5,16 @@ from typing import Optional, List, Union, Any
 from urllib.parse import urlparse
 
 from ccproxy.enums import TruncationConfig
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration validation fails.
+
+    This exception should be caught by the application entry points
+    (main.py, wsgi.py) to handle configuration errors gracefully
+    without calling sys.exit().
+    """
+    pass
 
 
 class Settings(BaseSettings):
@@ -274,6 +283,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("THREAD_POOL_AUTO_SCALE"),
         description="Automatically scale thread pool based on CPU contention",
     )
+    thread_pool_shrink_threshold: int = Field(
+        default=30,
+        validation_alias=AliasChoices("THREAD_POOL_SHRINK_THRESHOLD"),
+        description="CPU percentage below which to consider shrinking the pool (default 30%)",
+    )
+    thread_pool_shrink_delay_seconds: int = Field(
+        default=60,
+        validation_alias=AliasChoices("THREAD_POOL_SHRINK_DELAY_SECONDS"),
+        description="Seconds of sustained low CPU before shrinking pool (default 60s)",
+    )
 
     @field_validator(
         "cors_allow_origins",
@@ -339,11 +358,9 @@ class Settings(BaseSettings):
 
         if errors:
             error_message = "\n".join(errors)
-            # Use logging instead of print to ensure proper error handling
-            import logging
-
-            logging.error(f"Configuration Error:\n{error_message}\n")
-            sys.exit(1)
+            # Raise ConfigurationError instead of sys.exit
+            # This allows entry points to handle the error gracefully
+            raise ConfigurationError(f"Configuration validation failed:\n{error_message}")
 
     def _validate_security(self) -> None:
         """Validates security configurations when RESTRICT_BASE_URL is enabled.
@@ -368,8 +385,5 @@ class Settings(BaseSettings):
                 errors.append("OPENAI_BASE_URL is invalid.")
         if errors:
             error_message = "\n".join(errors)
-            # Use logging instead of print to ensure proper error handling
-            import logging
-
-            logging.error(f"Security Configuration Error:\n{error_message}\n")
-            sys.exit(1)
+            # Raise ConfigurationError for consistent error handling
+            raise ConfigurationError(f"Security configuration validation failed:\n{error_message}")

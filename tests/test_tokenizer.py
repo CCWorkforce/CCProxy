@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import pytest
 from ccproxy.application.tokenizer import (
     truncate_request,
@@ -92,3 +95,20 @@ async def test_truncate_below_limit():
 
     assert len(truncated_msgs) == 2
     assert truncated_system == system
+
+
+def test_tokenizer_import_without_event_loop() -> None:
+    """Importing tokenizer in a fresh interpreter should not require a loop."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import ccproxy.application.tokenizer"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        pytest.fail(
+            "Importing ccproxy.application.tokenizer raised unexpectedly without an event loop:\n"
+            f"stdout: {result.stdout}\n"
+            f"stderr: {result.stderr}"
+        )

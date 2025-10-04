@@ -67,16 +67,17 @@ def mock_settings():
 
 
 @pytest.fixture
-async def test_app(mock_settings):
+def test_app(mock_settings):
     """Create test FastAPI app."""
-    app = await create_app(mock_settings)
+    app = create_app(mock_settings)
     return app
 
 
 @pytest.fixture
 def test_client(test_app):
-    """Create test client."""
-    return TestClient(test_app)
+    """Yield a TestClient and ensure proper cleanup after each test."""
+    with TestClient(test_app) as client:
+        yield client
 
 
 @pytest.fixture
@@ -242,9 +243,8 @@ class TestMessagesRoute:
         data = response.json()
         assert data["type"] == "error"
 
-    @pytest.mark.asyncio
-    async def test_messages_endpoint_streaming(
-        self, test_client, sample_anthropic_request
+    def test_messages_endpoint_streaming(
+        self, test_app, sample_anthropic_request
     ):
         """Test streaming response."""
         sample_anthropic_request["stream"] = True
@@ -260,16 +260,16 @@ class TestMessagesRoute:
                 return_value=mock_stream()
             )
 
-            response = test_client.post(
-                "/v1/messages",
-                json=sample_anthropic_request,
-                headers={"Content-Type": "application/json"},
-            )
+            with TestClient(test_app) as streamed_client:
+                response = streamed_client.post(
+                    "/v1/messages",
+                    json=sample_anthropic_request,
+                    headers={"Content-Type": "application/json"},
+                )
 
             # Streaming returns SSE format
             assert response.status_code == 200
             assert "text/event-stream" in response.headers.get("content-type", "")
-
 
 class TestMiddleware:
     """Test middleware functionality."""
