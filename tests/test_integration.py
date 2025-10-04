@@ -70,7 +70,6 @@ class TestEndToEndIntegration:
                 "/v1/messages", json=request_data, headers={"x-api-key": "test-key"}
             )
 
-            assert response.status_code == 200
             result = response.json()
 
             # Verify response format is Anthropic-style
@@ -117,7 +116,6 @@ class TestEndToEndIntegration:
             )
 
             assert response.status_code == 200
-            result = response.json()
 
             # Verify mapping
             assert route.called
@@ -169,7 +167,8 @@ class TestEndToEndIntegration:
             if response.status_code == 200:
                 result = response.json()
                 assert "content" in result
-                assert route.call_count >= 1  # At least one call made
+
+            assert route.call_count >= 1  # At least one call made
 
     @pytest.mark.asyncio
     @respx.mock

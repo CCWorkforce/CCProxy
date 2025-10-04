@@ -238,6 +238,6 @@ class TestThreadPool:
 
             # Check scaling decisions
             if load > 90:  # Very high load
-                assert should_increase_pool_size() == True
+                assert should_increase_pool_size()
             elif load < 50:  # Low load
-                assert should_decrease_pool_size() == True
+                assert should_decrease_pool_size()
