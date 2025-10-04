@@ -99,7 +99,9 @@ class ClientRateLimiter:
         self._running = False
         logging.info("Client rate limiter stopped")
 
-    async def acquire(self, request_payload: Optional[Dict[str, Any]] = None, priority: int = 0) -> bool:
+    async def acquire(
+        self, request_payload: Optional[Dict[str, Any]] = None, priority: int = 0
+    ) -> bool:
         """
         Acquire permission to make an API request.
 
@@ -121,12 +123,16 @@ class ClientRateLimiter:
                 try:
                     model = request_payload.get("model", self.config.model_name)
                     messages = request_payload.get("messages", [])
-                    tools = request_payload.get("tools", request_payload.get("functions", []))
+                    tools = request_payload.get(
+                        "tools", request_payload.get("functions", [])
+                    )
                     estimated_tokens = await count_tokens_for_openai_request(
                         messages, model_name=model, tools=tools, request_id=None
                     )
                 except Exception as e:
-                    logging.warning(f"Token estimation failed: {e}, using rough estimate")
+                    logging.warning(
+                        f"Token estimation failed: {e}, using rough estimate"
+                    )
                     messages = request_payload.get("messages", [])
                     total_chars = 0
                     for msg in messages:
@@ -135,7 +141,10 @@ class ClientRateLimiter:
                             total_chars += len(content)
                         elif isinstance(content, list):
                             for part in content:
-                                if isinstance(part, dict) and part.get("type") == "text":
+                                if (
+                                    isinstance(part, dict)
+                                    and part.get("type") == "text"
+                                ):
                                     total_chars += len(part.get("text", ""))
                     estimated_tokens = max(1, total_chars // 4)
             else:

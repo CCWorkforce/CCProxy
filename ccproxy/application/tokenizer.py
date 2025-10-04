@@ -44,6 +44,7 @@ class CacheEntry:
 
     Preserves count and insertion time for LRU eviction and TTL expiration checks.
     """
+
     count: int
     timestamp: float
 
@@ -454,18 +455,22 @@ async def count_tokens_for_anthropic_request(
         async with lock:
             acquire_time = time.time() - start_time
             # Optional logging for lock contention if acquire time exceeds threshold
-            lock_contention_threshold = 0.01  # Default 10ms threshold for contention logging
+            lock_contention_threshold = (
+                0.01  # Default 10ms threshold for contention logging
+            )
             if acquire_time > lock_contention_threshold:
                 try:
                     await track_error(
-                        Exception(f"Token cache lock contention detected: {acquire_time:.3f}s"),
+                        Exception(
+                            f"Token cache lock contention detected: {acquire_time:.3f}s"
+                        ),
                         ErrorType.INTERNAL_ERROR,
                         request_id=request_id,
                         metadata={
                             "contention_location": "cache_write",
                             "acquire_time": acquire_time,
-                            "context": "Storing new token count entry"
-                        }
+                            "context": "Storing new token count entry",
+                        },
                     )
                 except Exception:
                     # Ignore logging failures to avoid disrupting core functionality

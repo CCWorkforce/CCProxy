@@ -12,20 +12,13 @@ import openai
 from openai import AsyncOpenAI
 
 from ...config import Settings
-from ...monitoring import PerformanceMonitor
-from ...application.error_tracker import ErrorTracker, ErrorType
-from .rate_limiter import ClientRateLimiter, RateLimitConfig
+from ...application.error_tracker import ErrorType
 
-from .resilience import CircuitBreaker, RetryHandler, ResilientExecutor
-from .metrics import (
-    ProviderMetrics,
-    MetricsCollector,
-    HealthMonitor,
-    AdaptiveTimeoutCalculator,
-)
+from .provider_components_factory import ProviderComponentsFactory
+from .request_pipeline import RequestPipeline
+from .request_lifecycle_observer import RequestLifecycleObserver
 from .http_client_factory import HttpClientFactory
-from .response_handlers import ResponseProcessor, ErrorResponseHandler
-from .request_logger import RequestLogger, PerformanceTracker
+from .metrics import ProviderMetrics
 
 
 class OpenAIProvider:
@@ -39,86 +32,81 @@ class OpenAIProvider:
     - Request/response logging with correlation IDs
     - Adaptive timeout based on performance
     - Health monitoring and scoring
+
+    This class has been refactored to use modular components for better
+    maintainability and testability.
     """
 
     def __init__(self, settings: Settings):
+        """
+        Initialize the OpenAI provider with modular components.
+
+        Args:
+            settings: Application settings
+        """
         self.settings = settings
         self._openAIClient: Optional[AsyncOpenAI] = None
-        self._http_client = None  # Will be managed by OpenAI SDK
+        self._http_client = None
 
-        # Initialize resilience components
-        self._circuit_breaker = CircuitBreaker(
-            failure_threshold=settings.circuit_breaker_failure_threshold,
-            recovery_timeout=settings.circuit_breaker_recovery_timeout,
-            half_open_requests=settings.circuit_breaker_half_open_requests,
+        # Create components using factory
+        self._resilience = ProviderComponentsFactory.create_resilience_components(
+            settings
         )
-        self._retry_handler = RetryHandler(
-            max_retries=settings.provider_max_retries,
-            base_delay=settings.provider_retry_base_delay,
-            jitter=settings.provider_retry_jitter,
+        self._monitoring = ProviderComponentsFactory.create_monitoring_components(
+            settings
         )
-        self._resilient_executor = ResilientExecutor(
-            circuit_breaker=self._circuit_breaker,
-            retry_handler=self._retry_handler,
+        self._logging = ProviderComponentsFactory.create_logging_components()
+        self._processing = ProviderComponentsFactory.create_processing_components()
+        self._rate_limiter = ProviderComponentsFactory.create_rate_limiter(settings)
+
+        # Initialize HTTP and OpenAI clients
+        self._initialize_clients()
+
+        # Create request pipeline
+        self._pipeline = RequestPipeline(
+            client=self._openAIClient,
+            circuit_breaker=self._resilience.circuit_breaker,
+            resilient_executor=self._resilience.resilient_executor,
+            rate_limiter=self._rate_limiter,
+            request_logger=self._logging.request_logger,
+            response_processor=self._processing.response_processor,
         )
 
-        # Initialize monitoring components
-        self._metrics_collector = MetricsCollector()
-        self._health_monitor = HealthMonitor(self._metrics_collector)
-        self._timeout_calculator = AdaptiveTimeoutCalculator(
-            self._metrics_collector,
-            max_timeout=float(settings.max_stream_seconds),
+        # Create lifecycle observer
+        self._lifecycle_observer = RequestLifecycleObserver(
+            performance_monitor=self._monitoring.performance_monitor,
+            performance_tracker=self._logging.performance_tracker,
+            metrics_collector=self._monitoring.metrics_collector,
+            error_tracker=self._monitoring.error_tracker,
+            circuit_breaker=self._resilience.circuit_breaker,
+            request_logger=self._logging.request_logger,
+            response_processor=self._processing.response_processor,
         )
-        self._performance_monitor = PerformanceMonitor()
-        self._error_tracker = ErrorTracker()  # Singleton, no parameters
 
-        # Initialize logging components
-        self._request_logger = RequestLogger()
-        self._performance_tracker = PerformanceTracker()
-
-        # Initialize response processors
-        self._response_processor = ResponseProcessor()
-        self._error_handler = ErrorResponseHandler()
-
-        # Initialize client-side rate limiter
-        if settings.client_rate_limit_enabled:
-            rate_limit_config = RateLimitConfig(
-                requests_per_minute=settings.client_rate_limit_rpm,
-                tokens_per_minute=settings.client_rate_limit_tpm,
-                burst_size=settings.client_rate_limit_burst,
-                adaptive_enabled=settings.client_rate_limit_adaptive,
-            )
-            self._rate_limiter = ClientRateLimiter(rate_limit_config)
-            logging.info(
-                f"Client rate limiter initialized: {settings.client_rate_limit_rpm} RPM, {settings.client_rate_limit_tpm} TPM"
-            )
-        else:
-            self._rate_limiter = None
-            logging.info("Client rate limiting disabled")
-
+    def _initialize_clients(self) -> None:
+        """Initialize HTTP and OpenAI clients."""
         try:
             # Create HTTP client using factory
-            self._http_client = HttpClientFactory.create_client(settings)
-            HttpClientFactory.log_client_configuration(self._http_client, settings)
+            self._http_client = HttpClientFactory.create_client(self.settings)
+            HttpClientFactory.log_client_configuration(self._http_client, self.settings)
 
             # Initialize OpenAI client with the configured HTTP client
             self._openAIClient = AsyncOpenAI(
                 api_key=self.settings.openai_api_key,
                 base_url=self.settings.base_url,
-                default_headers=HttpClientFactory.get_default_headers(settings),
-                timeout=float(settings.max_stream_seconds),
+                default_headers=HttpClientFactory.get_default_headers(self.settings),
+                timeout=float(self.settings.max_stream_seconds),
                 http_client=self._http_client,
-                max_retries=settings.provider_max_retries,
+                max_retries=self.settings.provider_max_retries,
             )
         except Exception:
             # Clean up if initialization fails
             self._http_client = None
             raise
 
-    # Retry logic is now handled by RetryHandler in resilience.py
-
     async def create_chat_completion(self, **params: Any) -> Any:
-        """Create a chat completion with monitoring and resilience.
+        """
+        Create a chat completion with monitoring and resilience.
 
         Args:
             **params: Parameters to pass to the OpenAI chat completion API
@@ -129,148 +117,80 @@ class OpenAIProvider:
 
         Raises:
             openai.APIError: If there are issues with the API call after retries
-            Exception: If circuit breaker is open
+            Exception: If circuit breaker is open or rate limit exceeded
         """
-
         if not self._openAIClient:
             raise ValueError("OpenAI client not properly initialized")
 
-        # Generate correlation ID for request tracking
-        correlation_id = self._request_logger.generate_correlation_id()
+        # Generate correlation ID
+        correlation_id = self._logging.request_logger.generate_correlation_id()
         request_start = time.monotonic()
 
-        # Extract trace context and prepare headers
-        trace_headers = self._request_logger.prepare_trace_headers(correlation_id)
-        trace_id = None
-        if trace_headers:
-            params["extra_headers"] = trace_headers
-            trace_id = trace_headers.get("X-Trace-ID")
+        # Extract trace context
+        trace_headers = self._logging.request_logger.prepare_trace_headers(
+            correlation_id
+        )
+        trace_id = trace_headers.get("X-Trace-ID") if trace_headers else None
 
-        # Log request with trace context
-        self._request_logger.log_request(correlation_id, params, trace_id)
-
-        # Start performance monitoring
-        await self._performance_monitor.start_request(correlation_id)
-        await self._performance_tracker.start_request(correlation_id)
+        # Start lifecycle tracking
+        await self._lifecycle_observer.on_request_start(
+            correlation_id, params, trace_id
+        )
 
         try:
-            # Check circuit breaker
-            if self._circuit_breaker.is_open:
-                logging.warning(
-                    f"Request {correlation_id} blocked by open circuit breaker"
-                )
-                await self._metrics_collector.record_failure(
-                    0, self._circuit_breaker.consecutive_failures
-                )
-                raise Exception(
-                    "Service temporarily unavailable - circuit breaker is open"
-                )
+            # Process request through pipeline
+            response = await self._pipeline.process_request(params, correlation_id)
 
-            # Apply client-side rate limiting
-            if self._rate_limiter:
-                # Pass full params to limiter for precise token estimation
-                if not await self._rate_limiter.acquire(request_payload=params):
-                    logging.warning(
-                        f"Request {correlation_id} blocked by client rate limiter"
-                    )
-                    await self._metrics_collector.record_failure(
-                        0, self._circuit_breaker.consecutive_failures
-                    )
-                    raise Exception(
-                        "Client-side rate limit exceeded. Please retry after a short delay."
-                    )
-
-            # Handle streaming case separately
-            stream = params.get("stream", False)
-            if stream:
-                # For streaming, use resilient executor
-                response = await self._resilient_executor.execute(
-                    self._openAIClient.chat.completions.create,
-                    **params,
-                )
-                await self._on_request_success(correlation_id, request_start)
+            # Handle streaming case
+            if params.get("stream", False):
+                await self._lifecycle_observer.on_success(correlation_id, request_start)
                 return response
 
-            # Non-streaming case with additional UTF-8 handling
-            response = await self._resilient_executor.execute(
-                self._openAIClient.chat.completions.create,
-                **params,
+            # Handle non-streaming case
+            await self._lifecycle_observer.on_success(
+                correlation_id, request_start, response
             )
-
-            # Ensure any remaining byte content is safely decoded
-            if hasattr(response, "choices") and response.choices:
-                for choice in response.choices:
-                    if (hasattr(choice, "message") and hasattr(choice.message, "content") and
-                        isinstance(choice.message.content, bytes)):
-                        try:
-                            choice.message.content = safe_decode_response(
-                                choice.message.content, "non-streaming message content"
-                            )
-                        except UnicodeDecodeError as decode_err:
-                            await self._error_tracker.track_error(
-                                error=decode_err,
-                                error_type=ErrorType.CONVERSION_ERROR,
-                                request_id=correlation_id,
-                                metadata={"context": "non-streaming content decode recovery"}
-                            )
-                            # Fall back to replaced decoding
-                            choice.message.content = choice.message.content.decode("utf-8", errors="replace")
-
-            # Update metrics and log success
-            await self._on_request_success(correlation_id, request_start, response)
-
-            # Update rate limiter on success
-            if self._rate_limiter:
-                await self._rate_limiter.handle_success()
-                # Release tokens based on processed response
-                usage_info = self._response_processor.extract_usage_info(response)
-                if usage_info:
-                    await self._rate_limiter.release(usage_info["total_tokens"])
+            await self._pipeline.release_tokens_on_success(response)
 
             return response
 
         except UnicodeDecodeError as e:
-            # Attempt recovery for JSON/byte deserialization errors
-            await self._on_request_failure(
+            # Handle Unicode errors
+            await self._lifecycle_observer.on_failure(
                 correlation_id, request_start, e, ErrorType.CONVERSION_ERROR
             )
-            logging.warning(f"Recovered from decode error in {correlation_id} with partial replacement")
-            # Re-raise as APIError for upstream handling, but with recovery attempted
+            logging.warning(
+                f"Recovered from decode error in {correlation_id} with partial replacement"
+            )
             raise openai.APIError(
                 message=f"Partial decode recovery applied: {str(e)}",
                 status_code=500,
-                body={"error": {"message": "Response partially recovered from encoding error"}}
+                body={
+                    "error": {
+                        "message": "Response partially recovered from encoding error"
+                    }
+                },
             ) from e
+
         except openai.RateLimitError as e:
-            await self._on_request_failure(
+            await self._lifecycle_observer.on_failure(
                 correlation_id, request_start, e, ErrorType.RATE_LIMIT_ERROR
             )
-            # Update rate limiter on 429
-            if self._rate_limiter:
-                retry_after = getattr(e.response, "headers", {}).get("retry-after")
-                await self._rate_limiter.handle_429_response(
-                    int(retry_after) if retry_after else None
-                )
+            await self._pipeline.handle_rate_limit_response(e)
             raise
+
         except openai.AuthenticationError as e:
-            await self._on_request_failure(
+            await self._lifecycle_observer.on_failure(
                 correlation_id, request_start, e, ErrorType.AUTH_ERROR
             )
             raise
-        except Exception as e:
-            # Use error handler to classify error
-            error_category = self._error_handler.classify_error(e)
-            error_type_map = {
-                "conversion_error": ErrorType.CONVERSION_ERROR,
-                "timeout_error": ErrorType.TIMEOUT_ERROR,
-                "rate_limit_error": ErrorType.RATE_LIMIT_ERROR,
-                "auth_error": ErrorType.AUTH_ERROR,
-                "network_error": ErrorType.API_ERROR,
-                "api_error": ErrorType.API_ERROR,
-            }
-            error_type = error_type_map.get(error_category, ErrorType.API_ERROR)
 
-            await self._on_request_failure(correlation_id, request_start, e, error_type)
+        except Exception as e:
+            # Classify and handle other errors
+            error_type = self._lifecycle_observer.classify_error(e)
+            await self._lifecycle_observer.on_failure(
+                correlation_id, request_start, e, error_type
+            )
 
             if error_type == ErrorType.CONVERSION_ERROR:
                 raise ValueError(
@@ -278,91 +198,42 @@ class OpenAIProvider:
                 ) from e
             raise
 
-    # Request logging is now handled by RequestLogger in request_logger.py
-
-    async def _on_request_success(
-        self, correlation_id: str, request_start: float, response: Any = None
-    ) -> None:
-        """Handle successful request - update metrics and monitoring."""
-        latency_ms = (time.monotonic() - request_start) * 1000
-
-        # Update performance monitor
-        await self._performance_monitor.end_request(correlation_id, success=True)
-
-        # Update performance tracker
-        await self._performance_tracker.end_request(correlation_id)
-
-        # Extract token usage
-        tokens = 0
-        usage_info = self._response_processor.extract_usage_info(response)
-        if usage_info:
-            tokens = usage_info["total_tokens"]
-
-        # Update metrics collector
-        await self._metrics_collector.record_success(latency_ms, tokens)
-
-        # Update circuit state in metrics
-        await self._metrics_collector.update_circuit_state(self._circuit_breaker.state)
-
-        # Log response
-        self._request_logger.log_response(
-            correlation_id, latency_ms, success=True, response=response
-        )
-
-    async def _on_request_failure(
-        self,
-        correlation_id: str,
-        request_start: float,
-        error: Exception,
-        error_type: ErrorType,
-    ) -> None:
-        """Handle failed request - update metrics and error tracking."""
-        latency_ms = (time.monotonic() - request_start) * 1000
-
-        # Update performance monitor
-        await self._performance_monitor.end_request(correlation_id, success=False)
-
-        # Update performance tracker
-        await self._performance_tracker.end_request(correlation_id)
-
-        # Track error
-        await self._error_tracker.track_error(error=error, error_type=error_type)
-
-        # Update metrics collector
-        await self._metrics_collector.record_failure(
-            latency_ms, self._circuit_breaker.consecutive_failures
-        )
-
-        # Update circuit state in metrics
-        await self._metrics_collector.update_circuit_state(self._circuit_breaker.state)
-
-        # Log response
-        self._request_logger.log_response(
-            correlation_id, latency_ms, success=False, error=error
-        )
-
-    # Health score calculation is now handled by HealthMonitor in metrics.py
-
     async def get_metrics(self) -> ProviderMetrics:
-        """Get current metrics snapshot."""
-        metrics = await self._metrics_collector.get_snapshot()
-        # Update circuit state
-        await self._metrics_collector.update_circuit_state(self._circuit_breaker.state)
+        """
+        Get current metrics snapshot.
+
+        Returns:
+            Current provider metrics
+        """
+        metrics = await self._monitoring.metrics_collector.get_snapshot()
+        await self._monitoring.metrics_collector.update_circuit_state(
+            self._resilience.circuit_breaker.state
+        )
         return metrics
 
     async def health_check(self) -> Dict[str, Any]:
-        """Perform health check and return status."""
-        return await self._health_monitor.get_health_check(
-            circuit_state=self._circuit_breaker.state,
-            active_requests=self._performance_monitor.metrics.active_requests,
+        """
+        Perform health check and return status.
+
+        Returns:
+            Health check status dictionary
+        """
+        return await self._monitoring.health_monitor.get_health_check(
+            circuit_state=self._resilience.circuit_breaker.state,
+            active_requests=self._monitoring.performance_monitor.metrics.active_requests,
         )
 
     def get_adaptive_timeout(self) -> float:
-        """Calculate adaptive timeout based on recent performance."""
-        return self._timeout_calculator.calculate_timeout()
+        """
+        Calculate adaptive timeout based on recent performance.
+
+        Returns:
+            Calculated timeout in seconds
+        """
+        return self._monitoring.timeout_calculator.calculate_timeout()
 
     async def _estimate_tokens(
-        self, messages: List[Dict[str, Any]], model_name: str = None
+        self, messages: List[Dict[str, Any]], model_name: Optional[str] = None
     ) -> int:
         """
         Accurately count tokens for messages using tiktoken.
@@ -392,6 +263,7 @@ class OpenAIProvider:
             )
 
             return token_count
+
         except Exception as e:
             logging.warning(
                 f"Failed to count tokens accurately, falling back to rough estimate: {e}"
@@ -423,10 +295,10 @@ class OpenAIProvider:
                 if function_call:
                     total_chars += len(json.dumps(function_call, ensure_ascii=False))
 
-        # Add overhead for message structure
-        total_chars += len(messages) * 10
+            # Add overhead for message structure
+            total_chars += len(messages) * 10
 
-        return total_chars // 4
+            return total_chars // 4
 
     async def close(self) -> None:
         """Clean up resources when shutting down."""
@@ -444,6 +316,7 @@ class OpenAIProvider:
         self._openAIClient = None
 
     async def __aenter__(self) -> "OpenAIProvider":
+        """Async context manager entry."""
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
