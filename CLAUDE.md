@@ -87,7 +87,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/infrastructure/providers/: Provider implementations for external services
   - base.py: ChatProvider protocol definition
   - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, tiktoken for precise token estimation in rate limiting (via tokenizer.py), and request correlation IDs for resilience and monitoring
-  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); uses asyncified list operations for non-blocking cleanup of request history; integrates with openai_provider for token estimation and release.
+  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); uses asyncified list operations for non-blocking cleanup of request history; integrates with openai_provider for token estimation and release via precise count_tokens_for_openai_request for TPM accuracy.
 
 ## Interface Layer (ccproxy/interfaces/)
 - External interfaces and delivery mechanisms
@@ -134,7 +134,7 @@ Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
 - For async tests, use pytest-asyncio; respx is available for httpx mocking
 - Test runner script: ./run-tests.sh (supports parallel execution, coverage, watch mode)
-- Comprehensive test coverage for error_tracker, converters, cache, routes, and async components
+- Comprehensive test coverage for error_tracker, converters, cache, routes, async components, and rate_limiter
 
 CI/CD and tooling
 - Ruff and mypy configured in pyproject.toml (strict type checking enabled)

@@ -14,7 +14,7 @@
 - `test_openai_provider.py`: OpenAI provider and HTTP/2 client tests (18 test cases)
 - `test_routes.py`: HTTP routes and middleware tests
 - `test_async_converters.py`: Async converter tests using Asyncer library with asyncify and parallel processing (8 test cases)
-- `test_cache_warmup.py`: Cache warmup manager tests including anyio.Path async file operations (8 test cases)
+- `test_rate_limiter.py`: Tests for ClientRateLimiter token estimation integration (5 test cases)
 
 ## Testing Framework:
 - **pytest**: Main testing framework (configured via pyproject.toml)
