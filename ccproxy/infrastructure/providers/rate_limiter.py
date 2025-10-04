@@ -1,6 +1,6 @@
 """Client-side rate limiter for proactive OpenAI API rate limiting."""
 
-import asyncio
+import anyio
 import time
 import logging
 from typing import Optional, Dict, Any
@@ -64,8 +64,8 @@ class ClientRateLimiter:
         self.metrics = RateLimitMetrics()
 
         # Token buckets for requests and tokens
-        self._request_semaphore = asyncio.Semaphore(config.burst_size)
-        self._token_semaphore = asyncio.Semaphore(
+        self._request_semaphore = anyio.Semaphore(config.burst_size)
+        self._token_semaphore = anyio.Semaphore(
             config.burst_size * 1000
         )  # Rough token burst
 
@@ -78,7 +78,7 @@ class ClientRateLimiter:
         self._current_tpm_limit = config.tokens_per_minute
 
         # Lock for thread-safe operations
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
         # Rate limiter state
         self._running = False
@@ -212,7 +212,7 @@ class ClientRateLimiter:
                 )
 
         if retry_after:
-            await asyncio.sleep(retry_after)
+            await anyio.sleep(retry_after)
 
     async def handle_success(self) -> None:
         """Handle a successful API response for adaptive rate limiting."""
@@ -283,4 +283,4 @@ class ClientRateLimiter:
                     logging.debug(
                         f"Rate limiter waiting {wait_time:.2f}s to respect RPM limit"
                     )
-                    await asyncio.sleep(wait_time)
+                    await anyio.sleep(wait_time)

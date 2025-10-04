@@ -1,7 +1,7 @@
 """Performance monitoring utilities."""
 
 import time
-import asyncio
+import anyio
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from collections import deque
@@ -42,7 +42,7 @@ class PerformanceMonitor:
         safely handle concurrent requests in an async environment.
         """
         self.metrics = PerformanceMetrics()
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
         self._request_start_times: Dict[str, float] = {}
 
     async def start_request(self, request_id: str) -> float:

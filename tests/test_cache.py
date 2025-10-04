@@ -1,6 +1,6 @@
 """Comprehensive test suite for cache implementation."""
 
-import asyncio
+import anyio
 import time
 from unittest.mock import MagicMock
 import pytest
@@ -104,7 +104,7 @@ def cached_response(sample_response):
 class TestResponseCache:
     """Test cases for ResponseCache class."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cache_initialization(self, response_cache):
         """Test cache initialization."""
         assert response_cache._ttl_seconds == 60
@@ -114,7 +114,7 @@ class TestResponseCache:
         assert response_cache._circuit_breaker is not None
         assert response_cache._stream_deduplicator is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_set_cache(self, response_cache, sample_request, sample_response):
         """Test basic cache get and set operations."""
         # Initially cache should be empty
@@ -131,7 +131,7 @@ class TestResponseCache:
         assert result.id == sample_response.id
         assert result.content[0].text == "I'm doing well, thank you!"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cache_ttl_expiration(self, sample_request, sample_response):
         """Test cache TTL expiration."""
         # Create cache with very short TTL
@@ -146,7 +146,7 @@ class TestResponseCache:
         assert result is not None
 
         # Wait for TTL to expire and cleanup to run
-        await asyncio.sleep(0.3)
+        await anyio.sleep(0.3)
 
         # Value should be expired after cleanup
         result = await cache.get_cached_response(sample_request)
@@ -155,7 +155,7 @@ class TestResponseCache:
 
         await cache.stop_cleanup_task()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cache_deduplication(
         self, response_cache, sample_request, sample_response
     ):
@@ -171,19 +171,27 @@ class TestResponseCache:
             if result is None:
                 # First one to get here does the actual fetch
                 # Simulate a slow fetch
-                await asyncio.sleep(0.1)
+                await anyio.sleep(0.1)
                 await response_cache.cache_response(sample_request, sample_response)
                 await response_cache.clear_pending_request(sample_request)
                 return sample_response
             return result
 
         # Launch multiple concurrent requests
-        results = await asyncio.gather(*[get_or_fetch() for _ in range(5)])
+        async with anyio.create_task_group() as tg:
+            results = []
+
+            async def fetch_and_append():
+                result = await get_or_fetch()
+                results.append(result)
+
+            for _ in range(5):
+                tg.start_soon(fetch_and_append)
 
         # All results should be the same
         assert all(r.id == sample_response.id for r in results)
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cache_statistics(
         self, response_cache, sample_request, sample_response
     ):
@@ -206,7 +214,7 @@ class TestResponseCache:
         stats = response_cache.get_stats()
         assert stats["cache_hits"] == initial_hits + 1
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cache_clear(self, response_cache, sample_request, sample_response):
         """Test cache clearing."""
         # Create different requests for testing
@@ -234,7 +242,7 @@ class TestResponseCache:
             result = await response_cache.get_cached_response(req)
             assert result is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_streaming_response_handling(self, response_cache, sample_request):
         """Test handling of streaming responses."""
         # Subscribe to stream (returns tuple: is_primary, iterator, key)
@@ -257,7 +265,7 @@ class TestResponseCache:
 class TestMemoryManager:
     """Test cases for CacheMemoryManager class."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_memory_manager_initialization(self, memory_manager):
         """Test memory manager initialization."""
         assert memory_manager.max_memory_bytes == 1 * 1024 * 1024  # 1MB
@@ -265,7 +273,7 @@ class TestMemoryManager:
         assert memory_manager.memory_usage_bytes == 0
         assert len(memory_manager.cache) == 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_add_entry(self, memory_manager, cached_response):
         """Test adding entry to memory manager."""
         success = await memory_manager.add("test_key", cached_response, "req_123")
@@ -273,7 +281,7 @@ class TestMemoryManager:
         assert memory_manager.memory_usage_bytes == 1024
         assert "test_key" in memory_manager.cache
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_memory_limit_enforcement(self, memory_manager, cached_response):
         """Test memory limit enforcement."""
         # Create a large cached response
@@ -288,7 +296,7 @@ class TestMemoryManager:
         assert success is False
         assert "large_key" not in memory_manager.cache
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_lru_eviction(self, memory_manager):
         """Test LRU eviction when size limit is reached."""
         # Add entries up to the limit
@@ -313,7 +321,7 @@ class TestMemoryManager:
         assert "new_key" in memory_manager.cache
         assert "key_0" not in memory_manager.cache  # First one should be evicted
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_entry(self, memory_manager, cached_response):
         """Test getting entry from memory manager."""
         await memory_manager.add("test_key", cached_response, "req_789")
@@ -327,7 +335,7 @@ class TestMemoryManager:
         entry = await memory_manager.get("non_existent")
         assert entry is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_remove_entry(self, memory_manager, cached_response):
         """Test removing entry from memory manager."""
         await memory_manager.add("test_key", cached_response, "req_abc")
@@ -344,7 +352,7 @@ class TestMemoryManager:
         removed = await memory_manager.remove("non_existent")
         assert removed is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_clear_all(self, memory_manager, cached_response):
         """Test clearing all entries."""
         # Add multiple entries
@@ -358,7 +366,7 @@ class TestMemoryManager:
         assert memory_manager.memory_usage_bytes == 0
         assert len(memory_manager.cache) == 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_statistics(self, memory_manager, cached_response):
         """Test getting memory statistics."""
         # Add some entries
@@ -438,7 +446,7 @@ class TestCircuitBreaker:
 class TestStreamDeduplicator:
     """Test cases for StreamDeduplicator class."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_register_stream(self, stream_deduplicator):
         """Test registering a new stream."""
         stream_id = "stream_123"
@@ -457,7 +465,7 @@ class TestStreamDeduplicator:
         assert is_primary2 is False  # Not primary since stream already exists
         assert queue2 is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_subscribe_to_stream(self, stream_deduplicator):
         """Test subscribing to a stream."""
         stream_id = "stream_456"
@@ -465,7 +473,7 @@ class TestStreamDeduplicator:
         async def sample_stream():
             for i in range(3):
                 yield f"chunk_{i}"
-                await asyncio.sleep(0.01)
+                await anyio.sleep(0.01)
 
         # Register stream as primary
         is_primary, primary_queue = await stream_deduplicator.register(stream_id)
@@ -505,7 +513,7 @@ class TestStreamDeduplicator:
         assert data1 == ["chunk_0", "chunk_1", "chunk_2"]
         assert data2 == ["chunk_0", "chunk_1", "chunk_2"]
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_stream_cleanup(self, stream_deduplicator):
         """Test stream cleanup after completion."""
         stream_id = "cleanup_test"

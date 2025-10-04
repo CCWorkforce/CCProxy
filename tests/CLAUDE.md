@@ -4,7 +4,7 @@
 
 ## Test Files:
 - `conftest.py`: Pytest configuration and shared fixtures
-- `test_tokenizer.py`: Tests for async-aware tokenization functionality with parallel token encoding using asyncio.gather
+- `test_tokenizer.py`: Tests for async-aware tokenization functionality with parallel token encoding using anyio.create_task_group
 - `test_streaming.py`: Tests for SSE streaming and real-time responses
 - `test_utf8.py`: UTF-8 handling and encoding validation tests
 - `test_benchmarks.py`: Performance and benchmarking tests
@@ -18,7 +18,7 @@
 
 ## Testing Framework:
 - **pytest**: Main testing framework (configured via pyproject.toml)
-- **pytest-asyncio**: For async function testing
+- **pytest-anyio**: For async function testing (migrating from pytest-asyncio)
 - **respx**: For httpx mocking and HTTP simulation
 
 ## Guidelines:

@@ -1,9 +1,8 @@
 """Comprehensive test suite for OpenAI provider and HTTP/2 client."""
 
-import asyncio
+import anyio
 from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import pytest
-import pytest_asyncio
 import openai
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -54,7 +53,7 @@ def mock_settings():
     return settings
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def openai_provider(mock_settings):
     """Create an OpenAI provider instance for testing."""
     import os
@@ -206,7 +205,7 @@ def mock_stream_chunks():
 class TestOpenAIProvider:
     """Test cases for OpenAI provider."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_provider_initialization(self, mock_settings):
         """Test provider initialization with settings."""
         provider = OpenAIProvider(mock_settings)
@@ -218,7 +217,7 @@ class TestOpenAIProvider:
 
         await provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_create_chat_completion(
         self, openai_provider, sample_messages, mock_chat_completion
     ):
@@ -244,7 +243,7 @@ class TestOpenAIProvider:
             assert call_args.kwargs["temperature"] == 0.7
             assert call_args.kwargs["max_tokens"] == 100
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_create_chat_completion_with_tools(
         self, openai_provider, sample_messages, sample_tools, mock_chat_completion
     ):
@@ -271,7 +270,7 @@ class TestOpenAIProvider:
             assert call_args.kwargs["tools"] == sample_tools
             assert call_args.kwargs["tool_choice"] == "auto"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_create_streaming_completion(
         self, openai_provider, sample_messages, mock_stream_chunks
     ):
@@ -302,7 +301,7 @@ class TestOpenAIProvider:
             assert chunks[1].choices[0].delta.content == "The weather is "
             assert chunks[2].choices[0].finish_reason == "stop"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_retry_on_rate_limit(self, openai_provider, sample_messages):
         """Test retry mechanism on rate limit errors."""
         # Test the retry mechanism through RetryHandler
@@ -329,7 +328,7 @@ class TestOpenAIProvider:
 
             mock_create.side_effect = mock_func
 
-            with patch("asyncio.sleep", new_callable=AsyncMock):  # Skip actual sleep
+            with patch("anyio.sleep", new_callable=AsyncMock):  # Skip actual sleep
                 # Test through retry_handler directly
                 result = await openai_provider._retry_handler.execute_with_retry(
                     mock_create, messages=sample_messages, model="gpt-5"
@@ -338,7 +337,7 @@ class TestOpenAIProvider:
             assert result == mock_response
             assert call_count[0] == 2  # Initial + 1 retry
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_authentication_error(self, openai_provider, sample_messages):
         """Test handling of authentication errors."""
         with patch.object(
@@ -355,7 +354,7 @@ class TestOpenAIProvider:
                     messages=sample_messages, model="gpt-5"
                 )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_network_error_handling(self, openai_provider, sample_messages):
         """Test handling of network errors."""
         with patch.object(
@@ -372,7 +371,7 @@ class TestOpenAIProvider:
                     messages=sample_messages, model="gpt-5"
                 )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_timeout_handling(self, openai_provider, sample_messages):
         """Test handling of timeout errors."""
         with patch.object(
@@ -387,7 +386,7 @@ class TestOpenAIProvider:
                     messages=sample_messages, model="gpt-5"
                 )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_http2_configuration(self, mock_settings):
         """Test HTTP/2 configuration."""
         import os
@@ -401,7 +400,7 @@ class TestOpenAIProvider:
 
         await provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_custom_headers(self, mock_settings):
         """Test custom headers are set."""
         import os
@@ -418,7 +417,7 @@ class TestOpenAIProvider:
 
         await provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_connection_pool_limits(self, mock_settings):
         """Test connection pool configuration."""
         import os
@@ -432,7 +431,7 @@ class TestOpenAIProvider:
 
         await provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_provider_close(self, openai_provider):
         """Test provider cleanup on close."""
         # Close should not raise errors
@@ -441,7 +440,7 @@ class TestOpenAIProvider:
         # Multiple closes should be safe
         await openai_provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_reasoning_effort_parameter(self, openai_provider, sample_messages):
         """Test reasoning effort parameter handling."""
         with patch.object(
@@ -459,7 +458,7 @@ class TestOpenAIProvider:
             call_args = mock_create.call_args
             assert call_args.kwargs.get("reasoning_effort") == "high"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_openrouter_specific_reasoning(self, mock_settings):
         """Test OpenRouter-specific reasoning configuration."""
         import os
@@ -486,7 +485,7 @@ class TestOpenAIProvider:
 
         await provider.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_parameter_filtering(self, openai_provider, sample_messages):
         """Test that all parameters are passed through to OpenAI client."""
         with patch.object(
@@ -513,7 +512,7 @@ class TestOpenAIProvider:
             assert "custom_param" in call_args.kwargs
             assert "another_param" in call_args.kwargs
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_concurrent_requests(
         self, openai_provider, sample_messages, mock_chat_completion
     ):
@@ -526,20 +525,23 @@ class TestOpenAIProvider:
             mock_create.return_value = mock_chat_completion
 
             # Launch multiple concurrent requests
-            tasks = [
-                openai_provider.create_chat_completion(
-                    messages=sample_messages, model="gpt-5"
-                )
-                for _ in range(10)
-            ]
+            async with anyio.create_task_group() as tg:
+                results = []
 
-            results = await asyncio.gather(*tasks)
+                async def make_request():
+                    result = await openai_provider.create_chat_completion(
+                        messages=sample_messages, model="gpt-5"
+                    )
+                    results.append(result)
+
+                for _ in range(10):
+                    tg.start_soon(make_request)
 
             assert len(results) == 10
             assert all(r == mock_chat_completion for r in results)
             assert mock_create.call_count == 10
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_empty_messages_handling(self, openai_provider):
         """Test handling of empty messages list."""
         with patch.object(
@@ -554,7 +556,7 @@ class TestOpenAIProvider:
 
             mock_create.assert_called_once()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_model_validation(self, openai_provider):
         """Test model name validation and mapping."""
         with patch.object(

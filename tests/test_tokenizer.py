@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import pytest
 from ccproxy.application.tokenizer import (
     truncate_request,
@@ -21,7 +24,7 @@ def create_test_messages(count: int, role: str = "user") -> list[Message]:
     ]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_truncate_oldest_first():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -39,7 +42,7 @@ async def test_truncate_oldest_first():
     assert len(truncated_msgs) < len(messages)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_truncate_newest_first():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -60,7 +63,7 @@ async def test_truncate_newest_first():
     assert len(truncated_msgs) < len(messages)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_truncate_system_priority():
     messages = create_test_messages(5)
     system = "System prompt"
@@ -80,7 +83,7 @@ async def test_truncate_system_priority():
     assert truncated_system == "System prompt"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_truncate_below_limit():
     messages = create_test_messages(2)
     system = "System prompt"
@@ -92,3 +95,20 @@ async def test_truncate_below_limit():
 
     assert len(truncated_msgs) == 2
     assert truncated_system == system
+
+
+def test_tokenizer_import_without_event_loop() -> None:
+    """Importing tokenizer in a fresh interpreter should not require a loop."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import ccproxy.application.tokenizer"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        pytest.fail(
+            "Importing ccproxy.application.tokenizer raised unexpectedly without an event loop:\n"
+            f"stdout: {result.stdout}\n"
+            f"stderr: {result.stderr}"
+        )

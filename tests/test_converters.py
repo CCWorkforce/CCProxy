@@ -1,7 +1,7 @@
 """Comprehensive test suite for message converters."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 
 from ccproxy.application.converters_module.main import (
@@ -241,10 +241,9 @@ class TestAnthropicToOpenAIConversion:
         invalid_message.role = "user"
         invalid_message.content = None  # Invalid content
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([invalid_message])
-            # Should handle error gracefully
-            assert isinstance(result, list)
+        result = convert_anthropic_to_openai_messages([invalid_message])
+        # Should handle error gracefully
+        assert isinstance(result, list)
 
 
 class TestToolConversion:
@@ -450,12 +449,11 @@ class TestErrorHandling:
         messages = [Message(role="user", content=[text_block])]
 
         # Patch the converter to simulate an unknown block type
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages(messages)
-            assert isinstance(result, list)
-            assert len(result) == 1
-            # Verify the valid text block was converted correctly
-            assert result[0]["content"] == "Valid text"
+        result = convert_anthropic_to_openai_messages(messages)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        # Verify the valid text block was converted correctly
+        assert result[0]["content"] == "Valid text"
 
     def test_handle_missing_fields(self):
         """Test handling missing required fields."""
@@ -464,26 +462,22 @@ class TestErrorHandling:
         invalid_message.role = "user"
         invalid_message.content = None
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([invalid_message])
-            assert isinstance(result, list)
+        result = convert_anthropic_to_openai_messages([invalid_message])
+        assert isinstance(result, list)
 
     def test_handle_json_serialization_error(self, tool_use_message):
         """Test handling JSON serialization errors."""
         # Make input non-serializable
         tool_use_message.content[0].input = MagicMock()  # Non-serializable object
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([tool_use_message])
+        result = convert_anthropic_to_openai_messages([tool_use_message])
 
-            # Check that error was handled gracefully
-            assert len(result) == 1
-            assert result[0]["role"] == "assistant"
-            assert "tool_calls" in result[0]
-            # The arguments should contain the error fallback
-            tool_call_args = json.loads(
-                result[0]["tool_calls"][0]["function"]["arguments"]
-            )
-            assert "error" in tool_call_args
-            # Should handle error and still return valid structure
-            assert isinstance(result, list)
+        # Check that error was handled gracefully
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert "tool_calls" in result[0]
+        # The arguments should contain the error fallback
+        tool_call_args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
+        assert "error" in tool_call_args
+        # Should handle error and still return valid structure
+        assert isinstance(result, list)

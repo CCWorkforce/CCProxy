@@ -7,9 +7,9 @@
 - `converters_module/`: Modular converter implementations with specialized processors
   - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
   - Uses Asyncer library: `asyncify()` for CPU-bound operations (JSON serialization, base64 encoding)
-  - Uses `asyncio.gather()` for parallel message and tool call processing
+  - Uses `anyio.create_task_group()` for parallel message and tool call processing
   - Provides `convert_messages_async()` and `convert_response_async()` functions
-- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); uses `asyncio.gather()` for parallel token encoding with `asyncify()`-wrapped tiktoken operations; supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
+- `tokenizer.py`: Advanced async-aware token counting with TTL-based cache (300s expiry); uses `anyio.create_task_group()` for parallel token encoding with `asyncify()`-wrapped tiktoken operations; supports both Anthropic and OpenAI request formats via count_tokens_for_anthropic_request and count_tokens_for_openai_request functions
 - `model_selection.py`: Model mapping logic (opus/sonnet→BIG, haiku→SMALL)
 - `request_validator.py`: Request validation with LRU cache (10,000 capacity) and cryptographic hashing
 - `response_cache.py`: Response caching abstraction (delegates to cache implementations)

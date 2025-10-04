@@ -210,3 +210,5 @@ __marimo__/
 
 *error.jsonl
 *log.jsonl
+*.DS_Store
+*.claude/

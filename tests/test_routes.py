@@ -19,6 +19,7 @@ def mock_settings():
     settings = MagicMock(spec=Settings)
     settings.openai_api_key = "test-api-key"
     settings.base_url = "https://api.openai.com/v1"
+    settings.tracing_enabled = False
     settings.host = "127.0.0.1"
     settings.port = 11434
     settings.app_name = "CCProxy"
@@ -47,14 +48,39 @@ def mock_settings():
     settings.max_connections = 100
     settings.max_keepalive = 100
     settings.keepalive_expiry = 120
+    # Additional pool settings
+    settings.pool_max_keepalive_connections = 100
+    settings.pool_max_connections = 100
+    settings.pool_keepalive_expiry = 120
+    # HTTP timeout settings
+    settings.http_connect_timeout = 30.0
+    settings.http_write_timeout = 30.0
+    settings.http_pool_timeout = 30.0
+    settings.referer_url = "http://localhost:11434"
     settings.http2_enabled = True
     settings.provider_rate_limit_rpm = 5000
     settings.provider_rate_limit_tpm = 100000
     settings.provider_enable_rate_limit = True
     settings.provider_rate_limit_auto_start = True
+    settings.provider_max_retries = 3  # Add missing attribute
+    settings.provider_retry_base_delay = 1.0  # Add missing retry base delay
+    settings.provider_retry_jitter = True  # Add missing retry jitter
+    # Circuit breaker settings
+    settings.circuit_breaker_failure_threshold = 5
+    settings.circuit_breaker_recovery_timeout = 60
+    settings.circuit_breaker_half_open_requests = 3
+    # Timeout settings
+    settings.max_stream_seconds = 60
+    # Client rate limit settings
+    settings.client_rate_limit_enabled = False
+    settings.client_rate_limit_rpm = 1000
+    settings.client_rate_limit_tpm = 50000
+    settings.client_rate_limit_burst = 10
+    settings.client_rate_limit_adaptive = False
     # Model mappings
     settings.big_model = "gpt-4"
     settings.small_model = "gpt-3.5-turbo"
+    settings.big_model_name = "gpt-4"  # Add big_model_name
     # Cache settings
     settings.cache_enabled = True
     settings.cache_ttl_seconds = 3600
@@ -67,16 +93,17 @@ def mock_settings():
 
 
 @pytest.fixture
-async def test_app(mock_settings):
+def test_app(mock_settings):
     """Create test FastAPI app."""
-    app = await create_app(mock_settings)
+    app = create_app(mock_settings)
     return app
 
 
 @pytest.fixture
 def test_client(test_app):
-    """Create test client."""
-    return TestClient(test_app)
+    """Yield a TestClient and ensure proper cleanup after each test."""
+    with TestClient(test_app) as client:
+        yield client
 
 
 @pytest.fixture
@@ -173,7 +200,7 @@ class TestMonitoringRoutes:
 class TestMessagesRoute:
     """Test the main messages proxy route."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_messages_endpoint_success(
         self, test_client, sample_anthropic_request
     ):
@@ -210,7 +237,7 @@ class TestMessagesRoute:
             assert data["type"] == "message"
             assert data["role"] == "assistant"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_messages_endpoint_invalid_json(self, test_client):
         """Test messages endpoint with invalid JSON."""
         response = test_client.post(
@@ -224,7 +251,7 @@ class TestMessagesRoute:
         assert data["type"] == "error"
         assert "error" in data
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_messages_endpoint_validation_error(self, test_client):
         """Test messages endpoint with validation error."""
         invalid_request = {
@@ -242,10 +269,7 @@ class TestMessagesRoute:
         data = response.json()
         assert data["type"] == "error"
 
-    @pytest.mark.asyncio
-    async def test_messages_endpoint_streaming(
-        self, test_client, sample_anthropic_request
-    ):
+    def test_messages_endpoint_streaming(self, test_app, sample_anthropic_request):
         """Test streaming response."""
         sample_anthropic_request["stream"] = True
 
@@ -260,11 +284,12 @@ class TestMessagesRoute:
                 return_value=mock_stream()
             )
 
-            response = test_client.post(
-                "/v1/messages",
-                json=sample_anthropic_request,
-                headers={"Content-Type": "application/json"},
-            )
+            with TestClient(test_app) as streamed_client:
+                response = streamed_client.post(
+                    "/v1/messages",
+                    json=sample_anthropic_request,
+                    headers={"Content-Type": "application/json"},
+                )
 
             # Streaming returns SSE format
             assert response.status_code == 200
@@ -301,7 +326,7 @@ class TestMiddleware:
         # CORS headers should not be present when disabled
         assert "access-control-allow-origin" not in response.headers
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cors_enabled(self, mock_settings):
         """Test CORS when enabled."""
         mock_settings.enable_cors = True
@@ -352,7 +377,7 @@ class TestErrorHandling:
         response = test_client.delete("/v1/messages")
         assert response.status_code == 405
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_internal_server_error_handling(self, test_client):
         """Test handling of internal server errors."""
         with patch(

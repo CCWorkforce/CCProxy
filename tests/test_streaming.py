@@ -6,7 +6,7 @@ from ccproxy.interfaces.http.streaming import (
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_streaming_thinking_content():
     # Setup mock OpenAI stream
     mock_stream = AsyncMock()
@@ -37,7 +37,7 @@ async def test_streaming_thinking_content():
     assert any("content_block_start" in e and "thinking" in e for e in events)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_streaming_text_content():
     # Setup mock OpenAI stream with text
     mock_stream = AsyncMock()

@@ -16,6 +16,12 @@
   - Configurable via environment variables (CACHE_WARMUP_*)
   - Supports warmup from log files and predefined common prompts
 
+## Synchronization Primitives:
+- **anyio.Lock**: Used for thread-safe access to cache data structures and pending requests
+- **anyio.Event**: Used for signaling completion of pending cache operations
+- **anyio.create_task_group**: Used for structured concurrency in background cleanup tasks
+- **anyio.Semaphore**: Used in stream deduplication for controlling concurrent access
+
 ## Guidelines:
 - **Memory limits**: Respect 500MB cache memory limit with automatic cleanup
 - **Circuit breaker**: Use circuit breaker pattern to protect against validation failures
@@ -23,7 +29,7 @@
 - **Performance metrics**: Track hits, misses, evictions, and performance statistics
 - **Data redaction**: Ensure sensitive data is properly redacted before caching
 - **Background cleanup**: Implement background processes for cache maintenance
-- **Thread safety**: All cache operations must be thread-safe and async-compatible
+- **Thread safety**: All cache operations must be thread-safe and async-compatible using anyio primitives
 - **TTL management**: Proper handling of time-to-live for cached entries
 - **Cache warmup**: Configure via environment to preload popular requests on startup
 - **Popularity tracking**: Auto-save popular requests based on configurable thresholds

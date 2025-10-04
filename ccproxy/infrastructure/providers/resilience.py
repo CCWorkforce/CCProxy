@@ -3,7 +3,7 @@ Resilience patterns for provider implementations.
 Includes circuit breaker and retry logic for handling failures gracefully.
 """
 
-import asyncio
+import anyio
 import logging
 import random
 from datetime import datetime
@@ -48,7 +48,7 @@ class CircuitBreaker:
         self.consecutive_failures = 0
         self.last_failure_time: Optional[datetime] = None
         self.half_open_successes = 0
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
     async def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
         """
@@ -171,7 +171,7 @@ class RetryHandler:
                     f"Rate limit hit, retrying in {delay:.2f}s "
                     f"(attempt {attempt + 1}/{self.max_retries})"
                 )
-                await asyncio.sleep(delay)
+                await anyio.sleep(delay)
                 attempt += 1
             except (
                 openai.APIConnectionError,
@@ -186,7 +186,7 @@ class RetryHandler:
                     f"Network error, retrying in {delay:.2f}s "
                     f"(attempt {attempt + 1}/{self.max_retries}): {e}"
                 )
-                await asyncio.sleep(delay)
+                await anyio.sleep(delay)
                 attempt += 1
 
     def _calculate_delay(self, attempt: int) -> float:

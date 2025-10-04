@@ -26,7 +26,7 @@ def mock_settings():
 class TestThreadPool:
     """Test cases for thread pool management."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_asyncify_with_kwargs(self):
         """Test that asyncify correctly handles functions with keyword arguments."""
         # This is a regression test for the bug where kwargs were passed
@@ -51,7 +51,7 @@ class TestThreadPool:
         # Should produce sorted, compact JSON
         assert result == '{"a":1,"b":2}'
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_asyncify_with_positional_args(self):
         """Test asyncify with positional arguments."""
 
@@ -62,7 +62,7 @@ class TestThreadPool:
         result = await async_add(5, 3)
         assert result == 8
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_asyncify_with_mixed_args(self):
         """Test asyncify with both positional and keyword arguments."""
 
@@ -115,7 +115,7 @@ class TestThreadPool:
                 stats["max_workers"] <= 20
             )  # Max allowed per worker in multi-worker mode
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_json_dumps_async_compatibility(self):
         """Test that our asyncify works with json.dumps (the actual use case)."""
         # This test ensures the fix for the kwargs bug works with real json.dumps

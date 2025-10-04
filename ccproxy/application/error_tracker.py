@@ -1,10 +1,14 @@
 """Comprehensive error tracking system for debugging and monitoring."""
 
-import asyncio
+import anyio
+from anyio import create_memory_object_stream
+from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
+from asyncer import create_task_group
 import json
 import re
 import traceback
 import uuid
+import inspect
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -13,7 +17,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 from fastapi import Request, Response
-from asyncer import create_task_group
 from .thread_pool import asyncify
 
 from ..config import Settings
@@ -95,7 +98,7 @@ class ErrorTracker:
     """
 
     _instance = None
-    _lock = asyncio.Lock()
+    _lock = anyio.Lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -108,10 +111,15 @@ class ErrorTracker:
         self._initialized = True
         self._settings: Optional[Settings] = None
         self._file_handle = None
-        self._write_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._write_send: Optional[MemoryObjectSendStream] = None
+        self._write_receive: Optional[MemoryObjectReceiveStream] = None
         self._writer_task = None
         self._redact_patterns: List[re.Pattern] = []
         self._setup_redaction_patterns()
+        # Create the channel with buffer size
+        send, receive = create_memory_object_stream(max_buffer_size=1000)
+        self._write_send = send
+        self._write_receive = receive
 
     def _setup_redaction_patterns(self):
         """Setup regex patterns for sensitive data redaction."""
@@ -146,9 +154,12 @@ class ErrorTracker:
         error_log_path = Path(settings.error_tracking_file)
         error_log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Start background writer
+        # Start background writer task
         if not self._writer_task:
-            self._writer_task = asyncio.create_task(self._writer_loop())
+            # Store task group for background task
+            self._task_group = create_task_group()
+            await self._task_group.__aenter__()
+            self._writer_task = self._task_group.soonify(self._writer_loop)()
 
         info(
             LogRecord(
@@ -160,10 +171,18 @@ class ErrorTracker:
     async def shutdown(self):
         """Shutdown the error tracker gracefully."""
         if self._writer_task:
-            # Signal shutdown by adding None to queue
-            await self._write_queue.put(None)
-            await self._writer_task
+            # Signal shutdown by sending None through channel
+            await self._write_send.send(None)
+            # Close the task group
+            if hasattr(self, "_task_group"):
+                await self._task_group.__aexit__(None, None, None)
             self._writer_task = None
+
+        # Close the channels
+        if self._write_send:
+            await self._write_send.aclose()
+        if self._write_receive:
+            await self._write_receive.aclose()
 
         if self._file_handle:
             self._file_handle.close()
@@ -173,8 +192,8 @@ class ErrorTracker:
         """Background task to write errors to file."""
         while True:
             try:
-                # Get error context from queue
-                error_context = await self._write_queue.get()
+                # Get error context from channel
+                error_context = await self._write_receive.receive()
 
                 # Check for shutdown signal
                 if error_context is None:
@@ -486,15 +505,16 @@ class ErrorTracker:
                 metadata=self._redact_sensitive_data(metadata or {}),
             )
 
-            # Queue for async write (non-blocking)
-            if not self._write_queue.full():
-                await self._write_queue.put(error_context)
-            else:
-                # Queue is full, log a warning
+            # Send to channel for async write (non-blocking)
+            try:
+                # Try to send with nowait to check if channel is full
+                self._write_send.send_nowait(error_context)
+            except anyio.WouldBlock:
+                # Channel is full, log a warning
                 warning(
                     LogRecord(
                         event=LogEvent.CACHE_EVENT.value,
-                        message="Error tracking queue full, dropping error",
+                        message="Error tracking channel full, dropping error",
                         request_id=request_id,
                     )
                 )
@@ -568,17 +588,18 @@ class ErrorTracker:
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
-                    # For sync functions, try to queue error tracking
-                    asyncio.create_task(
-                        self.track_error(
-                            error=e,
-                            error_type=error_type,
-                            metadata={"function": func.__name__},
+                    # For sync functions, we can't easily create async tasks
+                    # Log synchronously instead
+                    warning(
+                        LogRecord(
+                            event=LogEvent.CACHE_EVENT.value,
+                            message=f"Error in {func.__name__}: {str(e)}",
+                            data={"error_type": error_type.value},
                         )
                     )
                     raise
 
-            return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+            return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
 
         return decorator
 

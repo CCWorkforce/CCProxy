@@ -5,7 +5,7 @@ from ccproxy.domain.models import Message, ContentBlockText
 from ccproxy.config import TruncationConfig
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_utf8_preservation():
     # Create message with multi-byte UTF-8 characters
     messages = [

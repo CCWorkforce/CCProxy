@@ -1,6 +1,6 @@
 """Memory management for cache with eviction strategies."""
 
-import asyncio
+import anyio
 from typing import Dict, List, Optional
 from collections import OrderedDict
 
@@ -27,7 +27,7 @@ class CacheMemoryManager:
         self.max_size = max_size
         self.memory_usage_bytes = 0
         self.cache: OrderedDict[str, CachedResponse] = OrderedDict()
-        self.lock = asyncio.Lock()
+        self.lock = anyio.Lock()
         self.eviction_count = 0
 
     async def add(
