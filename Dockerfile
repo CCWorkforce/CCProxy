@@ -1,4 +1,4 @@
-# Production-grade Dockerfile with Gunicorn and optimizations
+# Production-grade Dockerfile with Uvicorn and optimizations
 # Multi-stage build for minimal size and maximum performance
 # Supports both Alpine (smallest) and Debian slim (better compatibility)
 
@@ -26,8 +26,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt && \
-    pip install gunicorn
+    pip install -r requirements.txt
 
 # ============================================================================
 # Stage 2: Python dependencies builder (Debian-based for compatibility)
@@ -48,8 +47,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt && \
-    pip install gunicorn
+    pip install -r requirements.txt
 
 # ============================================================================
 # Stage 3: Alpine runtime (SMALLEST ~80-120MB)
@@ -80,15 +78,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Gunicorn settings (CPU-based concurrency)
+    # Uvicorn settings (CPU-based concurrency)
     WEB_CONCURRENCY=${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} \
-    WORKER_CLASS=uvicorn.workers.UvicornWorker \
-    WORKER_CONNECTIONS=1000 \
-    MAX_REQUESTS=1000 \
-    MAX_REQUESTS_JITTER=50 \
-    TIMEOUT=120 \
-    GRACEFUL_TIMEOUT=30 \
-    KEEPALIVE=5 \
     # App settings
     HOST=0.0.0.0 \
     PORT=11434 \
@@ -99,7 +90,6 @@ WORKDIR /app
 # Copy application code with correct ownership
 COPY --chown=ccproxy:ccproxy ccproxy/ ./ccproxy/
 COPY --chown=ccproxy:ccproxy *.py ./
-COPY --chown=ccproxy:ccproxy gunicorn.conf.py .
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/.cache && \
@@ -116,8 +106,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/health', timeout=5).read()" || exit 1
 
 # Production entrypoint with signal handling
-ENTRYPOINT ["gunicorn", "--config", "gunicorn.conf.py"]
-CMD ["wsgi:app"]
+# Calculate worker count at runtime using shell form
+CMD ["sh", "-c", "exec uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-11434} --workers ${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} --loop uvloop --http httptools --timeout-keep-alive 5 --timeout-graceful-shutdown 30"]
 
 # ============================================================================
 # Stage 4: Debian slim runtime (RECOMMENDED ~150-200MB, better compatibility)
@@ -147,15 +137,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Gunicorn settings (CPU-based concurrency)
+    # Uvicorn settings (CPU-based concurrency)
     WEB_CONCURRENCY=${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} \
-    WORKER_CLASS=uvicorn.workers.UvicornWorker \
-    WORKER_CONNECTIONS=1000 \
-    MAX_REQUESTS=1000 \
-    MAX_REQUESTS_JITTER=50 \
-    TIMEOUT=120 \
-    GRACEFUL_TIMEOUT=30 \
-    KEEPALIVE=5 \
     # App settings
     HOST=0.0.0.0 \
     PORT=11434 \
@@ -166,7 +149,6 @@ WORKDIR /app
 # Copy application code with correct ownership
 COPY --chown=ccproxy:ccproxy ccproxy/ ./ccproxy/
 COPY --chown=ccproxy:ccproxy *.py ./
-COPY --chown=ccproxy:ccproxy gunicorn.conf.py .
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/.cache && \
@@ -187,8 +169,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/health', timeout=5).read()" || exit 1
 
 # Production entrypoint with signal handling
-ENTRYPOINT ["gunicorn", "--config", "gunicorn.conf.py"]
-CMD ["wsgi:app"]
+# Calculate worker count at runtime using shell form
+CMD ["sh", "-c", "exec uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-11434} --workers ${WEB_CONCURRENCY:-$(($(nproc) * 2 + 1))} --loop uvloop --http httptools --timeout-keep-alive 5 --timeout-graceful-shutdown 30"]
 
 # ============================================================================
 # Stage 5: Production with Supervisor (optional, for advanced process management)

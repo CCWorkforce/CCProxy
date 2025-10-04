@@ -75,7 +75,64 @@ class AsyncMessageConverter(BaseConverter):
             converted_messages = [sv.value for sv in soon_values]
             openai_messages.extend(converted_messages)
 
+        # Validate tool calls have corresponding results
+        self._validate_tool_consistency(openai_messages)
+
         return openai_messages
+
+    def _validate_tool_consistency(self, messages: List[Dict[str, Any]]) -> None:
+        """
+        Validate that all tool calls have corresponding tool results.
+        Remove orphaned tool calls only if there are subsequent messages that should contain results.
+
+        Args:
+            messages: List of converted OpenAI format messages
+        """
+        # Track tool call IDs that need results
+        pending_tool_calls = {}
+        last_assistant_with_tools_idx = -1
+
+        for i, msg in enumerate(messages):
+            # Track assistant messages with tool calls
+            if msg.get("role") == "assistant" and "tool_calls" in msg:
+                for tool_call in msg["tool_calls"]:
+                    tool_id = tool_call.get("id")
+                    if tool_id:
+                        pending_tool_calls[tool_id] = i
+                        last_assistant_with_tools_idx = i
+
+            # Check for tool results that match pending calls
+            elif msg.get("role") == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                if tool_call_id in pending_tool_calls:
+                    del pending_tool_calls[tool_call_id]
+
+        # Only validate if there are messages after the last tool call
+        # (indicating the conversation continues and results are expected)
+        has_subsequent_messages = (
+            last_assistant_with_tools_idx >= 0
+            and last_assistant_with_tools_idx < len(messages) - 1
+        )
+
+        # If there are orphaned tool calls AND subsequent messages, fix the issue
+        if pending_tool_calls and has_subsequent_messages:
+            # Remove tool_calls from messages with orphaned calls
+            for msg_idx in set(pending_tool_calls.values()):
+                if msg_idx < len(messages):
+                    msg = messages[msg_idx]
+                    if "tool_calls" in msg:
+                        # Remove only the orphaned tool calls
+                        msg["tool_calls"] = [
+                            tc
+                            for tc in msg["tool_calls"]
+                            if tc.get("id") not in pending_tool_calls
+                        ]
+                        # If no tool calls remain, remove the field entirely
+                        if not msg["tool_calls"]:
+                            del msg["tool_calls"]
+                            # Ensure the message has some content
+                            if not msg.get("content"):
+                                msg["content"] = ""
 
     async def _convert_single_message_async(self, message: Message) -> Dict[str, Any]:
         """Convert a single message asynchronously."""

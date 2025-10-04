@@ -30,7 +30,7 @@ Optional
 - LOG_LEVEL (default INFO)
 - LOG_FILE_PATH (default log.jsonl)
 - ERROR_LOG_FILE_PATH (default error.jsonl)
-- WEB_CONCURRENCY (for Gunicorn)
+- WEB_CONCURRENCY (for multi-worker Uvicorn deployments)
 Thread Pool Configuration (all optional)
 - THREAD_POOL_MAX_WORKERS (default None - auto-calculates based on CPU cores, max 40)
 - THREAD_POOL_HIGH_CPU_THRESHOLD (default None - auto-calculates based on CPU count: 60% + 2.5% per core, max 90%)
@@ -48,7 +48,7 @@ Scripts create .env.example and validate env where helpful.
 
 Run options
 - Local dev: python main.py (FastAPI with uvicorn; auto-reload per Settings.reload)
-- Gunicorn (prod): gunicorn --config gunicorn.conf.py wsgi:app
+- Production: ./run-ccproxy.sh (Uvicorn with multi-worker support; workers = CPU × 2 + 1)
 - Docker: docker build -t ccproxy:latest -f Dockerfile .; docker-compose up -d
 Health/metrics
 - Health: GET / (root) returns {status: ok}
@@ -76,7 +76,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
   - warmup.py: CacheWarmupManager for preloading popular requests and common prompts; uses anyio.Path for async file operations and parallel warmup item loading
 - ccproxy/application/error_tracker.py: Comprehensive error tracking and monitoring system with async JSON serialization and parallel redaction processing using asyncer
 - ccproxy/application/thread_pool.py: Intelligent thread pool management for CPU-bound operations
-  - Auto-detects Gunicorn multi-worker deployment and adjusts accordingly
+  - Auto-detects multi-worker deployment via WEB_CONCURRENCY and adjusts accordingly
   - Prevents resource exhaustion: reduces threads per worker in multi-worker mode
   - Target total threads = CPU_count × 5 (distributed across workers)
   - Single worker: up to 40 threads; Multi-worker: 4-20 threads per worker
@@ -110,12 +110,12 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 
 ## Entry Points
 - main.py: Development server (uvicorn with auto-reload)
-- wsgi.py: Production WSGI application for Gunicorn
+- wsgi.py: Production ASGI application for Uvicorn
 - App factory: ccproxy/interfaces/http/app.py:create_app(Settings) provides dependency injection
 
 Development notes for Claude Code
 - Always construct the FastAPI app through create_app(Settings); do not import globals directly
-- Thread pool automatically adjusts for Gunicorn deployment to prevent resource exhaustion
+- Thread pool automatically adjusts for multi-worker deployment to prevent resource exhaustion
 - Follow hexagonal architecture principles: domain models should not depend on external concerns
 - Application layer orchestrates use cases; infrastructure layer handles external integrations
 - When adding parameters, ensure OpenAI parity: warn or omit unsupported fields; map tool_choice carefully

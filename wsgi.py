@@ -1,5 +1,5 @@
 """
-WSGI entry point for Gunicorn.
+ASGI entry point for Uvicorn.
 This module provides the application factory for production deployment.
 """
 
@@ -13,7 +13,7 @@ load_dotenv()
 
 # Create application instance
 def create_application():
-    """Application factory for Gunicorn."""
+    """Application factory for Uvicorn."""
     try:
         settings = Settings()
     except Exception as e:
@@ -28,7 +28,7 @@ def create_application():
         raise SystemExit(1)
 
 
-# Create the app instance for Gunicorn
+# Create the app instance for Uvicorn
 app = create_application()
 
 # For development/testing

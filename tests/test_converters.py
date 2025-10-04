@@ -314,7 +314,8 @@ class TestOpenAIToAnthropicConversion:
     def test_convert_simple_response(self, openai_chat_completion):
         """Test converting simple OpenAI response."""
         result = convert_openai_to_anthropic_response(
-            openai_chat_completion, original_anthropic_model_name="claude-opus-4-1-20250805"
+            openai_chat_completion,
+            original_anthropic_model_name="claude-opus-4-1-20250805",
         )
 
         assert result.id == "chatcmpl-123"
@@ -341,7 +342,8 @@ class TestOpenAIToAnthropicConversion:
         openai_chat_completion.choices[0].message.content = None
 
         result = convert_openai_to_anthropic_response(
-            openai_chat_completion, original_anthropic_model_name="claude-opus-4-1-20250805"
+            openai_chat_completion,
+            original_anthropic_model_name="claude-opus-4-1-20250805",
         )
 
         assert len(result.content) == 1
@@ -358,7 +360,8 @@ class TestOpenAIToAnthropicConversion:
         ].message.refusal = "I cannot help with that request."
 
         result = convert_openai_to_anthropic_response(
-            openai_chat_completion, original_anthropic_model_name="claude-opus-4-1-20250805"
+            openai_chat_completion,
+            original_anthropic_model_name="claude-opus-4-1-20250805",
         )
 
         assert len(result.content) == 1
@@ -378,8 +381,9 @@ class TestOpenAIToAnthropicConversion:
         for openai_reason, expected_anthropic in test_cases:
             openai_chat_completion.choices[0].finish_reason = openai_reason
             result = convert_openai_to_anthropic_response(
-            openai_chat_completion, original_anthropic_model_name="claude-opus-4-1-20250805"
-        )
+                openai_chat_completion,
+                original_anthropic_model_name="claude-opus-4-1-20250805",
+            )
             assert result.stop_reason == expected_anthropic
 
 
@@ -477,7 +481,9 @@ class TestErrorHandling:
             assert result[0]["role"] == "assistant"
             assert "tool_calls" in result[0]
             # The arguments should contain the error fallback
-            tool_call_args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
+            tool_call_args = json.loads(
+                result[0]["tool_calls"][0]["function"]["arguments"]
+            )
             assert "error" in tool_call_args
             # Should handle error and still return valid structure
             assert isinstance(result, list)

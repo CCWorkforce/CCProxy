@@ -41,7 +41,6 @@ aiofiles>=24.1.0
 pytest-sugar>=1.1.1
 
 # Production server (optional, for better performance)
-gunicorn>=23.0.0
 six>=1.17.0
 
 pytest>=8.4.2

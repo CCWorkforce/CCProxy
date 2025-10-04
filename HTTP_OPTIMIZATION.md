@@ -104,7 +104,7 @@ SSL_CERT_FILE=/path/to/custom/ca-bundle.crt
 
 ### Deployment-Specific
 - **Local**: Set `IS_LOCAL_DEPLOYMENT=True` → httpx (easier debug).
-- **Prod**: Use Gunicorn/Docker; aiohttp for 2-5x concurrency gains.
+- **Prod**: Use Uvicorn/Docker; aiohttp for 2-5x concurrency gains.
 - Verify: Check logs for "Using DefaultAioHttpClient" or HTTP/2 mention.
 
 ## Benchmarking
