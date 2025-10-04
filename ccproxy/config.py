@@ -144,6 +144,13 @@ class Settings(BaseSettings):
     cache_token_counts_max: int = Field(
         default=2048, validation_alias=AliasChoices("CACHE_TOKEN_COUNTS_MAX")
     )
+    tokenizer_cache_shards: int = Field(
+        default=16,
+        validation_alias=AliasChoices("TOKENIZER_CACHE_SHARDS"),
+        description="Number of cache shards for reducing lock contention (1-64)",
+        ge=1,
+        le=64,
+    )
 
     cache_converters_enabled: bool = Field(
         default=True, validation_alias=AliasChoices("CACHE_CONVERTERS_ENABLED")

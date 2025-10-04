@@ -4,7 +4,7 @@ import time
 import hashlib
 import anyio
 from anyio.abc import Lock as AnyioLock
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
 from .thread_pool import asyncify
@@ -21,7 +21,7 @@ from ..domain.models import (
     ContentBlockThinking,
     ContentBlockRedactedThinking,
 )
-from ..logging import warning, debug, LogRecord, LogEvent
+from ..logging import warning, debug, LogRecord, LogEvent, info
 from ccproxy.config import Settings, TruncationConfig
 
 
@@ -29,13 +29,6 @@ class TokenEncoder(Protocol):
     """Protocol for token encoders that can encode text into tokens."""
 
     def encode(self, text: str) -> List[int]: ...
-
-
-_token_encoder_cache: Dict[str, TokenEncoder] = {}
-_token_count_lru_order: List[str] = []
-_token_count_hits = 0
-_token_count_misses = 0
-_token_lock: Optional[AnyioLock] = None
 
 
 @dataclass
@@ -49,14 +42,48 @@ class CacheEntry:
     timestamp: float
 
 
-_token_count_cache: Dict[str, CacheEntry] = {}
+@dataclass
+class TokenCacheShard:
+    """Single shard of the token cache with its own lock."""
+
+    lock: AnyioLock = field(default_factory=lambda: anyio.Lock())
+    cache: Dict[str, CacheEntry] = field(default_factory=dict)
+    lru_order: List[str] = field(default_factory=list)
 
 
-def _ensure_token_lock_initialized() -> AnyioLock:
-    global _token_lock
-    if _token_lock is None:
-        _token_lock = anyio.Lock()
-    return _token_lock
+# Global cache for token encoders (doesn't need sharding - small and rarely accessed)
+_token_encoder_cache: Dict[str, TokenEncoder] = {}
+
+# Sharded cache for token counts
+_token_cache_shards: List[TokenCacheShard] = []
+_num_shards: int = 16
+_shards_initialized: bool = False
+
+# Global statistics (shared across all shards)
+_token_count_hits = 0
+_token_count_misses = 0
+
+
+def _ensure_shards_initialized(num_shards: int = 16) -> None:
+    """Initialize cache shards on first use or when shard count changes."""
+    global _token_cache_shards, _shards_initialized, _num_shards
+    if not _shards_initialized or _num_shards != num_shards:
+        _num_shards = num_shards
+        _token_cache_shards = [TokenCacheShard() for _ in range(_num_shards)]
+        _shards_initialized = True
+        info(
+            LogRecord(
+                event=LogEvent.TOKEN_COUNT.value,
+                message=f"Initialized {_num_shards} token cache shards",
+                data={"num_shards": _num_shards},
+            )
+        )
+
+
+def _get_shard_for_key(key: str) -> TokenCacheShard:
+    """Select shard using consistent hashing."""
+    shard_index = hash(key) % _num_shards
+    return _token_cache_shards[shard_index]
 
 
 def get_token_encoder(
@@ -249,18 +276,25 @@ async def count_tokens_for_anthropic_request(
     use_cache = True
     ttl_s = 300  # Default: 5 minutes - balances performance with privacy
     max_entries = 2048  # Default: ~400KB memory footprint
+    num_shards = 16  # Default number of shards
     if settings is not None:
         use_cache = settings.cache_token_counts_enabled
         ttl_s = int(settings.cache_token_counts_ttl_s)
         max_entries = int(settings.cache_token_counts_max)
+        num_shards = int(settings.tokenizer_cache_shards)
 
     if use_cache:
+        # Ensure shards are initialized with the correct number only when caching is enabled
+        _ensure_shards_initialized(num_shards)
         key = await _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        lock = _ensure_token_lock_initialized()
-        async with lock:
-            if key in _token_count_cache:
-                entry = _token_count_cache[key]
+
+        # Get the appropriate shard for this key
+        shard = _get_shard_for_key(key)
+
+        async with shard.lock:
+            if key in shard.cache:
+                entry = shard.cache[key]
                 if now - entry.timestamp <= ttl_s:
                     global _token_count_hits
                     _token_count_hits += 1
@@ -269,20 +303,24 @@ async def count_tokens_for_anthropic_request(
                             LogEvent.TOKEN_COUNT.value,
                             "Token count cache hit",
                             request_id,
-                            {"key": key[:8], "age_s": round(now - entry.timestamp, 3)},
+                            {
+                                "key": key[:8],
+                                "age_s": round(now - entry.timestamp, 3),
+                                "shard_id": hash(key) % _num_shards,
+                            },
                         )
                     )
                     # Update LRU position on hit (move to end)
-                    if key in _token_count_lru_order:
-                        _token_count_lru_order.remove(key)
-                    _token_count_lru_order.append(key)
+                    if key in shard.lru_order:
+                        shard.lru_order.remove(key)
+                    shard.lru_order.append(key)
                     return entry.count
                 else:
                     # expired; evict
                     # Safe to del since key existence confirmed
-                    del _token_count_cache[key]
+                    del shard.cache[key]
                     try:
-                        _token_count_lru_order.remove(key)
+                        shard.lru_order.remove(key)
                     except ValueError:
                         pass
             # miss path after lock
@@ -450,9 +488,13 @@ async def count_tokens_for_anthropic_request(
     if use_cache:
         key = await _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
-        lock = _ensure_token_lock_initialized()
+
+        # Get the appropriate shard for this key
+        shard = _get_shard_for_key(key)
+        shard_id = hash(key) % _num_shards
+
         start_time = time.time()
-        async with lock:
+        async with shard.lock:
             acquire_time = time.time() - start_time
             # Optional logging for lock contention if acquire time exceeds threshold
             lock_contention_threshold = (
@@ -469,21 +511,26 @@ async def count_tokens_for_anthropic_request(
                         metadata={
                             "contention_location": "cache_write",
                             "acquire_time": acquire_time,
-                            "context": "Storing new token count entry",
+                            "shard_id": shard_id,
+                            "context": "Storing new token count entry in sharded cache",
                         },
                     )
                 except Exception:
                     # Ignore logging failures to avoid disrupting core functionality
                     pass
 
-            if key in _token_count_lru_order:
-                _token_count_lru_order.remove(key)
-            _token_count_lru_order.append(key)
+            if key in shard.lru_order:
+                shard.lru_order.remove(key)
+            shard.lru_order.append(key)
             # Store using CacheEntry for structured timestamp management
-            _token_count_cache[key] = CacheEntry(total_tokens, now)
-            while len(_token_count_lru_order) > max_entries:
-                evict_key = _token_count_lru_order.pop(0)
-                _token_count_cache.pop(evict_key, None)
+            shard.cache[key] = CacheEntry(total_tokens, now)
+
+            # Evict oldest entries if shard exceeds its capacity
+            # Each shard gets a portion of the total max entries
+            max_per_shard = max(1, max_entries // _num_shards)
+            while len(shard.lru_order) > max_per_shard:
+                evict_key = shard.lru_order.pop(0)
+                shard.cache.pop(evict_key, None)
 
     return total_tokens
 
@@ -635,3 +682,54 @@ async def count_tokens_for_openai_request(
             if isinstance(content, str):
                 total_chars += len(content)
         return max(1, total_chars // 4)  # ~4 chars per token
+
+
+def get_token_cache_stats() -> Dict[str, Any]:
+    """Get aggregated statistics across all cache shards.
+
+    Returns:
+        Dictionary containing cache statistics including:
+        - total_entries: Total cached entries across all shards
+        - hits: Total cache hits
+        - misses: Total cache misses
+        - hit_rate: Cache hit rate percentage
+        - shard_distribution: Entry count per shard
+        - most_loaded_shard: ID of shard with most entries
+        - least_loaded_shard: ID of shard with least entries
+    """
+    if not _shards_initialized:
+        return {
+            "total_entries": 0,
+            "hits": _token_count_hits,
+            "misses": _token_count_misses,
+            "hit_rate": 0.0,
+            "shard_distribution": [],
+            "num_shards": 0,
+            "initialized": False,
+        }
+
+    shard_sizes = []
+    total_entries = 0
+
+    for i, shard in enumerate(_token_cache_shards):
+        shard_size = len(shard.cache)
+        shard_sizes.append(shard_size)
+        total_entries += shard_size
+
+    total_requests = _token_count_hits + _token_count_misses
+    hit_rate = (_token_count_hits / total_requests * 100) if total_requests > 0 else 0.0
+
+    return {
+        "total_entries": total_entries,
+        "hits": _token_count_hits,
+        "misses": _token_count_misses,
+        "hit_rate": hit_rate,
+        "shard_distribution": shard_sizes,
+        "num_shards": _num_shards,
+        "most_loaded_shard": shard_sizes.index(max(shard_sizes)) if shard_sizes else -1,
+        "least_loaded_shard": shard_sizes.index(min(shard_sizes))
+        if shard_sizes
+        else -1,
+        "avg_entries_per_shard": total_entries / _num_shards if _num_shards > 0 else 0,
+        "initialized": True,
+    }
