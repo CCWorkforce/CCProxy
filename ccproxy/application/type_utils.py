@@ -1,10 +1,4 @@
-from typing import (
-    Any,
-    Callable,
-    TypeVar,
-    Protocol,
-    runtime_checkable,
-)
+from typing import Any, Callable, TypeVar, Protocol, runtime_checkable, cast
 
 import dataclasses
 
@@ -221,11 +215,11 @@ class TypeConverter:
         if is_dataclass_instance(obj):
             return dataclasses.asdict(obj)
         if hasattr(obj, "model_dump"):
-            return obj.model_dump()
+            return cast(dict[Any, Any], obj.model_dump())
         if hasattr(obj, "dict"):
-            return obj.dict()
+            return cast(dict[Any, Any], obj.dict())
         if hasattr(obj, "__dict__"):
-            return obj.__dict__
+            return cast(dict[Any, Any], obj.__dict__)
         return fallback or {}
 
     @staticmethod

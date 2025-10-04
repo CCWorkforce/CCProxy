@@ -8,7 +8,7 @@ import time
 import uuid
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # Context variable for trace context propagation
 trace_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
@@ -19,7 +19,7 @@ trace_context: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
 class RequestLogger:
     """Handles request logging with correlation and tracing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize request logger."""
         self._request_log: Dict[str, Dict[str, Any]] = {}
         self._tracing_manager = self._init_tracing_manager()
@@ -83,7 +83,7 @@ class RequestLogger:
             return None
 
         # Prepare headers for injection
-        headers = {}
+        headers: Dict[str, str] = {}
         self._tracing_manager.inject_context(headers)
 
         # Add custom trace headers
@@ -220,7 +220,7 @@ class RequestLogger:
 class PerformanceTracker:
     """Tracks performance metrics for requests."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize performance tracker."""
         self._active_requests: Dict[str, float] = {}
 
@@ -263,7 +263,7 @@ class PerformanceTracker:
         """
         return len(self._active_requests)
 
-    def get_active_request_ids(self) -> list:
+    def get_active_request_ids(self) -> List[str]:
         """
         Get list of active request correlation IDs.
 

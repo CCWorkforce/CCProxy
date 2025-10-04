@@ -16,7 +16,7 @@ class ConversionContext:
     target_model: Optional[str] = None
     original_model: Optional[str] = None
     settings: Optional[Settings] = None
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -43,7 +43,7 @@ class BaseConverter(ABC):
         """
         pass
 
-    def with_context(self, **kwargs) -> "BaseConverter":
+    def with_context(self, **kwargs: Any) -> "BaseConverter":
         """
         Create a new converter with updated context.
 

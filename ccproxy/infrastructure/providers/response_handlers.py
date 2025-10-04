@@ -4,7 +4,7 @@ Handles response decoding, UTF-8 processing, and error recovery.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, Optional, cast
 
 
 def safe_decode_response(response_bytes: bytes, context: str = "API response") -> str:
@@ -79,7 +79,7 @@ class ResponseProcessor:
         return response
 
     @staticmethod
-    def extract_usage_info(response: Any) -> Optional[dict]:
+    def extract_usage_info(response: Any) -> Optional[Dict[str, int]]:
         """
         Extract usage information from API response.
 
@@ -134,7 +134,7 @@ class ErrorResponseHandler:
     def create_error_response(
         error: Exception,
         correlation_id: Optional[str] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         Create a structured error response.
 
@@ -245,5 +245,5 @@ class StreamResponseHandler:
         if hasattr(chunk, "choices") and chunk.choices:
             for choice in chunk.choices:
                 if hasattr(choice, "delta") and hasattr(choice.delta, "content"):
-                    return choice.delta.content
+                    return cast(Optional[str], choice.delta.content)
         return None

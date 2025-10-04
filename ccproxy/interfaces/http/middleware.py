@@ -1,20 +1,22 @@
-"""Common FastAPI middleware utilities for CCProxy HTTP interface."""
+"""
+Common FastAPI middleware utilities for CCProxy HTTP interface.
+"""
 
 import time
 import uuid
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from fastapi import Request
 from fastapi.responses import Response
 
 # Import tracing if available
 try:
-    from ...tracing import get_tracing_manager
+    from ...tracing import get_tracing_manager, TracingManager
 
     tracing_available = True
 except ImportError:
     tracing_available = False
-    get_tracing_manager = None
+    get_tracing_manager: Any = None
 
 
 async def logging_middleware(
@@ -39,9 +41,15 @@ async def logging_middleware(
     trace_id: Optional[str] = None
     span_context = None
 
-    if tracing_available and get_tracing_manager:
-        tracing_manager = get_tracing_manager()
-        if tracing_manager and tracing_manager.enabled:
+    tracing_manager = None
+    if tracing_available and get_tracing_manager is not None:
+        if callable(get_tracing_manager):
+            tracing_manager = get_tracing_manager()
+        if (
+            tracing_manager
+            and isinstance(tracing_manager, TracingManager)
+            and tracing_manager.enabled
+        ):
             # Extract trace context from headers
             headers_dict = dict(request.headers)
             span_context = tracing_manager.extract_context(headers_dict)
@@ -62,8 +70,9 @@ async def logging_middleware(
     # Process request with optional tracing
     if (
         tracing_available
-        and get_tracing_manager
-        and tracing_manager
+        and get_tracing_manager is not None
+        and tracing_manager is not None
+        and isinstance(tracing_manager, TracingManager)
         and tracing_manager.enabled
     ):
         # Start a server span for this request

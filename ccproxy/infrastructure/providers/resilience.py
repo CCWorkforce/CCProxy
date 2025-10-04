@@ -8,7 +8,7 @@ import logging
 import random
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 
 import httpx
 import openai
@@ -65,7 +65,9 @@ class CircuitBreaker:
         self.half_open_successes = 0
         self._lock = anyio.Lock()
 
-    async def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
+    async def call(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Execute function with circuit breaker protection.
 
@@ -163,7 +165,7 @@ class RetryHandler:
         self.jitter = jitter
 
     async def execute_with_retry(
-        self, func: Callable[..., T], *args: Any, **kwargs: Any
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
     ) -> T:
         """
         Execute a function with exponential backoff retry logic.
@@ -219,7 +221,9 @@ class RetryHandler:
         Returns:
             Delay in seconds
         """
-        return self.base_delay * (2**attempt) + random.uniform(0, self.jitter)
+        return cast(
+            float, self.base_delay * (2**attempt) + random.uniform(0, self.jitter)
+        )
 
 
 class ResilientExecutor:
@@ -243,7 +247,9 @@ class ResilientExecutor:
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self.retry_handler = retry_handler or RetryHandler()
 
-    async def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    async def execute(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Execute function with both circuit breaker and retry logic.
 
@@ -264,9 +270,12 @@ class ResilientExecutor:
             raise Exception("Service temporarily unavailable - circuit breaker is open")
 
         # Execute with circuit breaker and retry
-        return await self.circuit_breaker.call(
-            self.retry_handler.execute_with_retry,
-            func,
-            *args,
-            **kwargs,
+        return cast(
+            T,
+            await self.circuit_breaker.call(
+                self.retry_handler.execute_with_retry,
+                func,
+                *args,
+                **kwargs,
+            ),
         )
