@@ -225,7 +225,7 @@ class ResponseCache:
                 try:
                     with anyio.fail_after(timeout_seconds):
                         await pending_event.wait()
-                except anyio.TimeoutError:
+                except TimeoutError:
                     debug(
                         LogRecord(
                             event=LogEvent.CACHE_EVENT.value,
@@ -359,7 +359,7 @@ class ResponseCache:
         async def iterator():
             try:
                 while True:
-                    item = await queue.get()
+                    item = await queue.receive()
                     if item is None:
                         break
                     yield item

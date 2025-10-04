@@ -168,16 +168,8 @@ class OpenAIProvider:
 
             # Apply client-side rate limiting
             if self._rate_limiter:
-                # Accurately count tokens using tiktoken
-                estimated_tokens = await self._estimate_tokens(
-                    params.get("messages", []), params.get("model")
-                )
-
-                # Wait if necessary to respect rate limits
-                await self._rate_limiter.wait_if_needed()
-
-                # Try to acquire rate limit permit
-                if not await self._rate_limiter.acquire(estimated_tokens):
+                # Pass full params to limiter for precise token estimation
+                if not await self._rate_limiter.acquire(request_payload=params):
                     logging.warning(
                         f"Request {correlation_id} blocked by client rate limiter"
                     )
@@ -205,10 +197,24 @@ class OpenAIProvider:
                 **params,
             )
 
-            # Process response for UTF-8 handling
-            response = self._response_processor.process_chat_completion_response(
-                response
-            )
+            # Ensure any remaining byte content is safely decoded
+            if hasattr(response, "choices") and response.choices:
+                for choice in response.choices:
+                    if (hasattr(choice, "message") and hasattr(choice.message, "content") and
+                        isinstance(choice.message.content, bytes)):
+                        try:
+                            choice.message.content = safe_decode_response(
+                                choice.message.content, "non-streaming message content"
+                            )
+                        except UnicodeDecodeError as decode_err:
+                            await self._error_tracker.track_error(
+                                error=decode_err,
+                                error_type=ErrorType.CONVERSION_ERROR,
+                                request_id=correlation_id,
+                                metadata={"context": "non-streaming content decode recovery"}
+                            )
+                            # Fall back to replaced decoding
+                            choice.message.content = choice.message.content.decode("utf-8", errors="replace")
 
             # Update metrics and log success
             await self._on_request_success(correlation_id, request_start, response)
@@ -216,7 +222,7 @@ class OpenAIProvider:
             # Update rate limiter on success
             if self._rate_limiter:
                 await self._rate_limiter.handle_success()
-                # Release with actual token count if available
+                # Release tokens based on processed response
                 usage_info = self._response_processor.extract_usage_info(response)
                 if usage_info:
                     await self._rate_limiter.release(usage_info["total_tokens"])
@@ -224,11 +230,16 @@ class OpenAIProvider:
             return response
 
         except UnicodeDecodeError as e:
+            # Attempt recovery for JSON/byte deserialization errors
             await self._on_request_failure(
                 correlation_id, request_start, e, ErrorType.CONVERSION_ERROR
             )
-            raise ValueError(
-                f"Received malformed response from API that could not be decoded as UTF-8: {str(e)}"
+            logging.warning(f"Recovered from decode error in {correlation_id} with partial replacement")
+            # Re-raise as APIError for upstream handling, but with recovery attempted
+            raise openai.APIError(
+                message=f"Partial decode recovery applied: {str(e)}",
+                status_code=500,
+                body={"error": {"message": "Response partially recovered from encoding error"}}
             ) from e
         except openai.RateLimitError as e:
             await self._on_request_failure(

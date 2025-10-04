@@ -4,9 +4,11 @@ import time
 import hashlib
 import anyio
 from anyio.abc import Lock as AnyioLock
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
 from .thread_pool import asyncify
+from .error_tracker import track_error, ErrorType
 
 from ..domain.models import (
     Message,
@@ -30,11 +32,23 @@ class TokenEncoder(Protocol):
 
 
 _token_encoder_cache: Dict[str, TokenEncoder] = {}
-_token_count_cache: Dict[str, Tuple[int, float]] = {}
 _token_count_lru_order: List[str] = []
 _token_count_hits = 0
 _token_count_misses = 0
 _token_lock: Optional[AnyioLock] = None
+
+
+@dataclass
+class CacheEntry:
+    """Cache entry for token counts with timestamp for TTL management.
+
+    Preserves count and insertion time for LRU eviction and TTL expiration checks.
+    """
+    count: int
+    timestamp: float
+
+
+_token_count_cache: Dict[str, CacheEntry] = {}
 
 
 def _ensure_token_lock_initialized() -> AnyioLock:
@@ -245,8 +259,8 @@ async def count_tokens_for_anthropic_request(
         lock = _ensure_token_lock_initialized()
         async with lock:
             if key in _token_count_cache:
-                count, ts = _token_count_cache[key]
-                if now - ts <= ttl_s:
+                entry = _token_count_cache[key]
+                if now - entry.timestamp <= ttl_s:
                     global _token_count_hits
                     _token_count_hits += 1
                     debug(
@@ -254,16 +268,18 @@ async def count_tokens_for_anthropic_request(
                             LogEvent.TOKEN_COUNT.value,
                             "Token count cache hit",
                             request_id,
-                            {"key": key[:8], "age_s": round(now - ts, 3)},
+                            {"key": key[:8], "age_s": round(now - entry.timestamp, 3)},
                         )
                     )
+                    # Update LRU position on hit (move to end)
                     if key in _token_count_lru_order:
                         _token_count_lru_order.remove(key)
                     _token_count_lru_order.append(key)
-                    return count
+                    return entry.count
                 else:
                     # expired; evict
-                    _token_count_cache.pop(key, None)
+                    # Safe to del since key existence confirmed
+                    del _token_count_cache[key]
                     try:
                         _token_count_lru_order.remove(key)
                     except ValueError:
@@ -277,7 +293,7 @@ async def count_tokens_for_anthropic_request(
     # Create async encode function
     encode_async = asyncify(enc.encode)
 
-    # Helper function to encode text blocks
+    # Helper function to encode text
     async def encode_text(text: str) -> int:
         tokens = await encode_async(text)
         return len(tokens)
@@ -359,29 +375,12 @@ async def count_tokens_for_anthropic_request(
                     # but should still be counted as they represent computation
                     fixed_tokens += 100  # Placeholder token count for redacted thinking
 
-    # Execute encoding tasks in parallel for better performance
+    # Initialize total_tokens with fixed overhead
     total_tokens = fixed_tokens
-
-    if encoding_tasks:
-        # Process encoding tasks in parallel using anyio task group
-        task_results = []
-        async with anyio.create_task_group() as tg:
-
-            async def run_task(coro, idx):
-                result = await coro
-                task_results.append((idx, result))
-
-            for idx, (_, coro) in enumerate(encoding_tasks):
-                tg.start_soon(run_task, coro, idx)
-
-        # Sort results by original index and sum up token counts
-        task_results.sort(key=lambda x: x[0])
-        for _, result in task_results:
-            total_tokens += result
 
     # Process tool definitions
     if tools:
-        fixed_tokens += 2  # Tools structure overhead
+        total_tokens += 2  # Tools structure overhead
         tool_tasks = []
 
         for tool in tools:
@@ -419,6 +418,25 @@ async def count_tokens_for_anthropic_request(
             tool_results.sort(key=lambda x: x[0])
             for _, result in tool_results:
                 total_tokens += result
+
+    # Process all encoding tasks in parallel
+    if encoding_tasks:
+        # Execute the coroutines using anyio task group
+        task_results = []
+        async with anyio.create_task_group() as tg:
+
+            async def run_encode_task(coro, idx):
+                result = await coro
+                task_results.append((idx, result))
+
+            for idx, (_, coro) in enumerate(encoding_tasks):
+                tg.start_soon(run_encode_task, coro, idx)
+
+        # Sort results by original index and sum up token counts
+        task_results.sort(key=lambda x: x[0])
+        for _, result in task_results:
+            total_tokens += result
+
     debug(
         LogRecord(
             event=LogEvent.TOKEN_COUNT.value,
@@ -432,11 +450,32 @@ async def count_tokens_for_anthropic_request(
         key = await _stable_hash_for_token_inputs(messages, system, model_name, tools)
         now = time.time()
         lock = _ensure_token_lock_initialized()
+        start_time = time.time()
         async with lock:
-            _token_count_cache[key] = (total_tokens, now)
+            acquire_time = time.time() - start_time
+            # Optional logging for lock contention if acquire time exceeds threshold
+            lock_contention_threshold = 0.01  # Default 10ms threshold for contention logging
+            if acquire_time > lock_contention_threshold:
+                try:
+                    await track_error(
+                        Exception(f"Token cache lock contention detected: {acquire_time:.3f}s"),
+                        ErrorType.INTERNAL_ERROR,
+                        request_id=request_id,
+                        metadata={
+                            "contention_location": "cache_write",
+                            "acquire_time": acquire_time,
+                            "context": "Storing new token count entry"
+                        }
+                    )
+                except Exception:
+                    # Ignore logging failures to avoid disrupting core functionality
+                    pass
+
             if key in _token_count_lru_order:
                 _token_count_lru_order.remove(key)
             _token_count_lru_order.append(key)
+            # Store using CacheEntry for structured timestamp management
+            _token_count_cache[key] = CacheEntry(total_tokens, now)
             while len(_token_count_lru_order) > max_entries:
                 evict_key = _token_count_lru_order.pop(0)
                 _token_count_cache.pop(evict_key, None)

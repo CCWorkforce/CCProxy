@@ -498,13 +498,13 @@ class TestStreamDeduplicator:
 
         # Read from queues until we get None (end signal)
         while True:
-            item = await subscriber1.get()
+            item = await subscriber1.receive()
             if item is None:
                 break
             data1.append(item)
 
         while True:
-            item = await subscriber2.get()
+            item = await subscriber2.receive()
             if item is None:
                 break
             data2.append(item)
@@ -532,7 +532,7 @@ class TestStreamDeduplicator:
         # Collect data
         data = []
         while True:
-            item = await queue.get()
+            item = await queue.receive()
             if item is None:
                 break
             data.append(item)
