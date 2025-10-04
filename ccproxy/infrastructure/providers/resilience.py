@@ -42,8 +42,17 @@ class CircuitBreaker:
             half_open_requests: Successful requests needed to close circuit
         """
         self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout  # seconds
+        if self.failure_threshold < 1:
+            raise ValueError(f"failure_threshold must be at least 1, got {self.failure_threshold}")
+
+        self.recovery_timeout = recovery_timeout
+        if self.recovery_timeout < 1:
+            raise ValueError(f"recovery_timeout must be at least 1, got {self.recovery_timeout}")
+  # seconds
         self.half_open_requests = half_open_requests
+        if self.half_open_requests < 1:
+            raise ValueError(f"half_open_requests must be at least 1, got {self.half_open_requests}")
+
         self.state = CircuitState.CLOSED
         self.consecutive_failures = 0
         self.last_failure_time: Optional[datetime] = None
@@ -139,6 +148,9 @@ class RetryHandler:
             jitter: Random jitter to add to delays (0-jitter seconds)
         """
         self.max_retries = max_retries
+        if self.max_retries < 0:
+            raise ValueError(f"max_retries must be non-negative, got {self.max_retries}")
+
         self.base_delay = base_delay
         self.jitter = jitter
 
