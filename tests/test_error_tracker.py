@@ -1,6 +1,6 @@
 """Comprehensive test suite for the error tracking system."""
 
-import asyncio
+import anyio
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch, mock_open
 import pytest
@@ -89,14 +89,14 @@ def sample_error_context(sample_request_snapshot, sample_response_snapshot):
 class TestErrorTracker:
     """Test cases for ErrorTracker class."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_singleton_pattern(self):
         """Test that ErrorTracker follows singleton pattern."""
         tracker1 = ErrorTracker()
         tracker2 = ErrorTracker()
         assert tracker1 is tracker2
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_initialization(self, error_tracker_instance, mock_settings):
         """Test error tracker initialization."""
         with patch("pathlib.Path.mkdir") as mock_mkdir:
@@ -106,7 +106,7 @@ class TestErrorTracker:
             mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
             assert error_tracker_instance._writer_task is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_initialization_disabled(self, error_tracker_instance, mock_settings):
         """Test initialization when error tracking is disabled."""
         mock_settings.error_tracking_enabled = False
@@ -116,7 +116,7 @@ class TestErrorTracker:
         assert error_tracker_instance._settings == mock_settings
         assert error_tracker_instance._writer_task is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_track_error(self, error_tracker_instance, mock_settings):
         """Test tracking an error."""
         await error_tracker_instance.initialize(mock_settings)
@@ -134,9 +134,10 @@ class TestErrorTracker:
         )
 
         # Check that error was queued
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_track_error_with_request_response(
         self,
         error_tracker_instance,
@@ -172,9 +173,10 @@ class TestErrorTracker:
             request_id="req-789",
         )
 
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_redaction_patterns(self, error_tracker_instance):
         """Test sensitive data redaction patterns."""
         # Test API key redaction
@@ -190,7 +192,7 @@ class TestErrorTracker:
         assert "sk-1234567890abcdef" not in redacted
         assert "[REDACTED]" in redacted
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_context_manager(self, error_tracker_instance, mock_settings):
         """Test error tracking context manager."""
         await error_tracker_instance.initialize(mock_settings)
@@ -201,7 +203,8 @@ class TestErrorTracker:
         ):
             pass  # No error should be tracked
 
-        assert error_tracker_instance._write_queue.qsize() == 0
+        # Check that the stream buffer is empty
+        assert error_tracker_instance._write_send.statistics().current_buffer_used == 0
 
         # Test with exception
         with pytest.raises(ValueError):
@@ -211,9 +214,10 @@ class TestErrorTracker:
                 raise ValueError("Test error in context")
 
         # Error should be tracked
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_error_context_to_dict(self, sample_error_context):
         """Test ErrorContext to_dict conversion."""
         error_dict = sample_error_context.to_dict()
@@ -224,7 +228,7 @@ class TestErrorTracker:
         assert error_dict["request_id"] == "req-456"
         assert error_dict["metadata"]["test_key"] == "test_value"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_writer_loop(self, error_tracker_instance, mock_settings):
         """Test the background writer loop."""
         mock_file = mock_open()
@@ -239,12 +243,12 @@ class TestErrorTracker:
             await error_tracker_instance._write_queue.put(test_context)
 
             # Give writer task time to process
-            await asyncio.sleep(0.1)
+            await anyio.sleep(0.1)
 
             # Check that write was attempted
             mock_file().write.assert_called()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_log_rotation(self, error_tracker_instance, mock_settings):
         """Test log file rotation when size limit is exceeded."""
         mock_settings.error_tracking_max_size_mb = 0.001  # Very small limit
@@ -259,7 +263,7 @@ class TestErrorTracker:
                 # Check that rotation was attempted
                 mock_rename.assert_called()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_cleanup_old_logs(self, error_tracker_instance, mock_settings):
         """Test cleanup of old error logs."""
         mock_settings.error_tracking_retention_days = 7
@@ -284,7 +288,7 @@ class TestErrorTracker:
                 old_log.unlink.assert_called_once()
                 recent_log.unlink.assert_not_called()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_shutdown(self, error_tracker_instance, mock_settings):
         """Test graceful shutdown of error tracker."""
         await error_tracker_instance.initialize(mock_settings)
@@ -305,7 +309,7 @@ class TestErrorTracker:
             or error_tracker_instance._writer_task.cancelled()
         )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_decorator_sync_function(self, error_tracker_instance, mock_settings):
         """Test error tracking decorator on synchronous function."""
         await error_tracker_instance.initialize(mock_settings)
@@ -318,9 +322,10 @@ class TestErrorTracker:
             failing_function()
 
         # Error should be tracked
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_decorator_async_function(
         self, error_tracker_instance, mock_settings
     ):
@@ -335,9 +340,10 @@ class TestErrorTracker:
             await async_failing_function()
 
         # Error should be tracked
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_error_types(self, error_tracker_instance, mock_settings):
         """Test all error type classifications."""
         await error_tracker_instance.initialize(mock_settings)
@@ -351,9 +357,13 @@ class TestErrorTracker:
             )
 
         # All errors should be queued
-        assert error_tracker_instance._write_queue.qsize() == len(ErrorType)
+        # Check that all error types have been queued
+        assert (
+            error_tracker_instance._write_send.statistics().current_buffer_used
+            == len(ErrorType)
+        )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_metadata_truncation(self, error_tracker_instance, mock_settings):
         """Test that large metadata is truncated properly."""
         await error_tracker_instance.initialize(mock_settings)
@@ -371,9 +381,10 @@ class TestErrorTracker:
         )
 
         # Check that error was queued (truncation should not prevent tracking)
-        assert error_tracker_instance._write_queue.qsize() > 0
+        # Check that errors have been sent to the stream
+        assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_concurrent_writes(self, error_tracker_instance, mock_settings):
         """Test concurrent error tracking from multiple tasks."""
         await error_tracker_instance.initialize(mock_settings)
@@ -385,34 +396,40 @@ class TestErrorTracker:
                     error_type=ErrorType.INTERNAL_ERROR,
                     request_id=f"task-{task_id}-{i}",
                 )
-                await asyncio.sleep(0.01)
+                await anyio.sleep(0.01)
 
         # Run multiple tasks concurrently
-        tasks = [track_errors(i) for i in range(3)]
-        await asyncio.gather(*tasks)
+        async with anyio.create_task_group() as tg:
+            for i in range(3):
+                tg.start_soon(track_errors, i)
 
         # All errors should be queued
-        assert error_tracker_instance._write_queue.qsize() == 15
+        assert error_tracker_instance._write_send.statistics().current_buffer_used == 15
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_queue_full_handling(self, error_tracker_instance, mock_settings):
         """Test handling when the write queue is full."""
+        from anyio import create_memory_object_stream
+        from anyio import WouldBlock
+
         await error_tracker_instance.initialize(mock_settings)
 
-        # Fill the queue to capacity
-        error_tracker_instance._write_queue = asyncio.Queue(maxsize=2)
+        # Replace with a smaller stream for testing
+        send, receive = create_memory_object_stream(max_buffer_size=2)
+        error_tracker_instance._write_send = send
+        error_tracker_instance._write_receive = receive
 
-        # Add items until queue is full
+        # Add items until stream is full
         for i in range(2):
-            await error_tracker_instance._write_queue.put(
+            await error_tracker_instance._write_send.send(
                 ErrorContext(
                     error_type=ErrorType.INTERNAL_ERROR, error_message=f"Error {i}"
                 )
             )
 
         # Try to add one more (should not block indefinitely)
-        with pytest.raises(asyncio.QueueFull):
-            error_tracker_instance._write_queue.put_nowait(
+        with pytest.raises(WouldBlock):
+            error_tracker_instance._write_send.send_nowait(
                 ErrorContext(
                     error_type=ErrorType.INTERNAL_ERROR, error_message="Overflow"
                 )

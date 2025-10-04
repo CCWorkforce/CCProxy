@@ -29,7 +29,7 @@ from openai.types.completion_usage import CompletionUsage
 class TestAsyncMessageConverter:
     """Test async message converter with parallel processing."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_convert_messages_async(self):
         """Test async message conversion."""
         messages = [
@@ -46,7 +46,7 @@ class TestAsyncMessageConverter:
         assert result[1]["role"] == "user"
         assert result[2]["role"] == "assistant"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_convert_messages_with_context(self):
         """Test async message conversion with context."""
         settings = MagicMock(spec=Settings)
@@ -78,7 +78,7 @@ class TestAsyncMessageConverter:
         assert isinstance(result[0]["content"], list)
         assert len(result[0]["content"]) == 2
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_parallel_processing(self):
         """Test that messages are processed in parallel."""
         settings = MagicMock(spec=Settings)
@@ -101,7 +101,7 @@ class TestAsyncMessageConverter:
 class TestAsyncResponseConverter:
     """Test async response converter."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_convert_response_async(self):
         """Test async response conversion."""
         # Create mock OpenAI response
@@ -136,7 +136,7 @@ class TestAsyncResponseConverter:
         assert result.usage.input_tokens == 10
         assert result.usage.output_tokens == 8
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_convert_response_with_tool_calls(self):
         """Test async response conversion with tool calls."""
         # Create mock OpenAI response with tool calls
@@ -174,7 +174,7 @@ class TestAsyncResponseConverter:
         assert result.content[0].name == "get_weather"
         assert result.content[0].input == {"location": "New York"}
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_convert_response_with_context(self):
         """Test async response conversion with context."""
         settings = MagicMock(spec=Settings)
@@ -209,7 +209,7 @@ class TestAsyncResponseConverter:
 class TestAsyncConverterIntegration:
     """Test async converter integration with the application."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_end_to_end_conversion(self):
         """Test complete conversion flow."""
         # Input messages
@@ -254,7 +254,7 @@ class TestAsyncConverterIntegration:
         assert anthropic_response.usage.input_tokens == 6
         assert anthropic_response.usage.output_tokens == 10
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_performance_improvement(self):
         """Test that async converters provide performance improvement."""
         import time

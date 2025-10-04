@@ -1,9 +1,8 @@
 """Comprehensive test suite for OpenAI provider monitoring and resilience features."""
 
-import asyncio
+import anyio
 from unittest.mock import AsyncMock, MagicMock, patch, Mock
 import pytest
-import pytest_asyncio
 from datetime import datetime
 from openai import RateLimitError, AuthenticationError
 
@@ -49,7 +48,7 @@ def mock_settings():
     return settings
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def provider_with_monitoring(mock_settings):
     """Create an OpenAI provider with monitoring enabled."""
     import os
@@ -63,7 +62,7 @@ async def provider_with_monitoring(mock_settings):
 class TestCircuitBreaker:
     """Test circuit breaker functionality."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_circuit_breaker_initialization(self):
         """Test circuit breaker starts in closed state."""
         breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
@@ -71,7 +70,7 @@ class TestCircuitBreaker:
         assert breaker.consecutive_failures == 0
         assert not breaker.is_open
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_circuit_breaker_opens_after_threshold(self):
         """Test circuit breaker opens after failure threshold."""
         breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
@@ -88,7 +87,7 @@ class TestCircuitBreaker:
         assert breaker.is_open
         assert breaker.consecutive_failures == 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_circuit_breaker_blocks_when_open(self):
         """Test circuit breaker blocks calls when open."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=30)
@@ -105,7 +104,7 @@ class TestCircuitBreaker:
         with pytest.raises(Exception, match="Circuit breaker is OPEN"):
             await breaker.call(failing_func)
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_circuit_breaker_half_open_recovery(self):
         """Test circuit breaker recovery through half-open state."""
         breaker = CircuitBreaker(
@@ -125,7 +124,7 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.OPEN
 
         # Wait for recovery timeout
-        await asyncio.sleep(0.2)
+        await anyio.sleep(0.2)
 
         # Should enter half-open state and allow test calls
         result = await breaker.call(func, should_fail=False)
@@ -136,7 +135,7 @@ class TestCircuitBreaker:
         result = await breaker.call(func, should_fail=False)
         assert breaker.state == CircuitState.CLOSED
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_circuit_breaker_resets_on_success(self):
         """Test circuit breaker resets consecutive failures on success."""
         breaker = CircuitBreaker(failure_threshold=3)
@@ -159,7 +158,7 @@ class TestCircuitBreaker:
 class TestProviderMetrics:
     """Test provider metrics collection."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_metrics_initialization(self, provider_with_monitoring):
         """Test metrics are initialized correctly."""
         metrics = await provider_with_monitoring.get_metrics()
@@ -170,7 +169,7 @@ class TestProviderMetrics:
         assert metrics.health_score == 100.0
         assert metrics.circuit_state == "closed"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_successful_request_metrics(self, provider_with_monitoring):
         """Test metrics update on successful requests."""
         with patch.object(
@@ -193,7 +192,7 @@ class TestProviderMetrics:
             assert metrics.tokens_processed == 100
             assert metrics.avg_latency_ms > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_failed_request_metrics(self, provider_with_monitoring):
         """Test metrics update on failed requests."""
         with patch.object(
@@ -219,7 +218,7 @@ class TestProviderMetrics:
             assert metrics.successful_requests == 0
             assert metrics.failed_requests == 1
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_latency_percentiles(self, provider_with_monitoring):
         """Test latency percentile calculations."""
         # Simulate multiple requests with different latencies
@@ -262,7 +261,7 @@ class TestProviderMetrics:
 class TestHealthCheck:
     """Test health check functionality."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_healthy_status(self, provider_with_monitoring):
         """Test healthy status when everything is working."""
         # Simulate successful metrics
@@ -277,7 +276,7 @@ class TestHealthCheck:
         assert health["success_rate"] == 0.95
         assert health["circuit_breaker"] == "closed"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_degraded_status(self, provider_with_monitoring):
         """Test degraded status with some failures."""
         # Simulate degraded metrics
@@ -291,7 +290,7 @@ class TestHealthCheck:
         assert health["health_score"] == 60.0
         assert health["success_rate"] == 0.6
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_unhealthy_status(self, provider_with_monitoring):
         """Test unhealthy status with many failures."""
         # Simulate unhealthy metrics
@@ -307,7 +306,7 @@ class TestHealthCheck:
         assert health["success_rate"] == 0.3
         assert health["circuit_breaker"] == "open"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_health_score_with_penalties(self, provider_with_monitoring):
         """Test health score calculation with various penalties."""
         # Setup metrics
@@ -335,13 +334,13 @@ class TestHealthCheck:
 class TestAdaptiveTimeout:
     """Test adaptive timeout functionality."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_default_timeout_with_no_history(self, provider_with_monitoring):
         """Test default timeout when no latency history."""
         timeout = provider_with_monitoring.get_adaptive_timeout()
         assert timeout == 300.0  # Default max_stream_seconds
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_adaptive_timeout_calculation(self, provider_with_monitoring):
         """Test adaptive timeout based on latency history."""
         # Simulate latency history (in ms)
@@ -374,7 +373,7 @@ class TestAdaptiveTimeout:
         # But minimum is 10 seconds
         assert timeout == 10.0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_adaptive_timeout_max_bound(self, provider_with_monitoring):
         """Test adaptive timeout respects maximum bound."""
         # Simulate very high latencies
@@ -389,7 +388,7 @@ class TestAdaptiveTimeout:
 class TestRequestLogging:
     """Test request logging with correlation IDs."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_correlation_id_generation(self, provider_with_monitoring):
         """Test that correlation IDs are generated for requests."""
         with patch.object(
@@ -407,7 +406,7 @@ class TestRequestLogging:
             # Request log should be cleaned up after success
             assert len(provider_with_monitoring._request_log) == 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_request_logging_excludes_sensitive_data(
         self, provider_with_monitoring
     ):
@@ -427,7 +426,7 @@ class TestRequestLogging:
         assert log_entry["params"]["model"] == "gpt-4"
         assert log_entry["params"]["temperature"] == 0.7
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_request_cleanup_on_failure(self, provider_with_monitoring):
         """Test that request logs are cleaned up even on failure."""
         with patch.object(
@@ -454,7 +453,7 @@ class TestRequestLogging:
 class TestErrorTracking:
     """Test error tracking integration."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_rate_limit_error_tracking(self, provider_with_monitoring):
         """Test rate limit errors are tracked correctly."""
         with patch.object(
@@ -480,7 +479,7 @@ class TestErrorTracking:
                 call_args = mock_track.call_args
                 assert call_args.kwargs["error_type"] == ErrorType.RATE_LIMIT_ERROR
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_auth_error_tracking(self, provider_with_monitoring):
         """Test authentication errors are tracked correctly."""
         with patch.object(
@@ -510,7 +509,7 @@ class TestErrorTracking:
 class TestPerformanceMonitoring:
     """Test performance monitoring integration."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_performance_monitor_tracks_requests(self, provider_with_monitoring):
         """Test that performance monitor tracks request lifecycle."""
         with patch.object(
@@ -530,7 +529,7 @@ class TestPerformanceMonitoring:
             assert perf_metrics.active_requests == 0
             assert perf_metrics.error_count == 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_concurrent_request_tracking(self, provider_with_monitoring):
         """Test tracking of concurrent requests."""
 
@@ -546,15 +545,16 @@ class TestPerformanceMonitoring:
                 )
 
         # Make concurrent requests
-        tasks = [make_request() for _ in range(5)]
-        await asyncio.gather(*tasks)
+        async with anyio.create_task_group() as tg:
+            for _ in range(5):
+                tg.start_soon(make_request)
 
         # All requests should be completed
         perf_metrics = provider_with_monitoring._performance_monitor.metrics
         assert perf_metrics.request_count == 5
         assert perf_metrics.active_requests == 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_streaming_request_monitoring(self, provider_with_monitoring):
         """Test monitoring of streaming requests."""
 
@@ -581,7 +581,7 @@ class TestPerformanceMonitoring:
 class TestIntegration:
     """Integration tests for all monitoring features."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_full_monitoring_workflow(self, provider_with_monitoring):
         """Test complete monitoring workflow with multiple scenarios."""
         # Successful request
