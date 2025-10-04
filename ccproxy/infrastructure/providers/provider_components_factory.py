@@ -70,7 +70,20 @@ class ProviderComponentsFactory:
 
         Returns:
             ResilienceComponents bundle
+
+        Raises:
+            ValueError: If settings contain invalid values
         """
+        # Validate retry settings
+        if settings.provider_retry_base_delay <= 0:
+            raise ValueError(
+                f"provider_retry_base_delay must be positive, got {settings.provider_retry_base_delay}"
+            )
+        if not (0 <= settings.provider_retry_jitter <= 1):
+            raise ValueError(
+                f"provider_retry_jitter must be between 0 and 1, got {settings.provider_retry_jitter}"
+            )
+
         circuit_breaker = CircuitBreaker(
             failure_threshold=settings.circuit_breaker_failure_threshold,
             recovery_timeout=settings.circuit_breaker_recovery_timeout,
@@ -104,7 +117,16 @@ class ProviderComponentsFactory:
 
         Returns:
             MonitoringComponents bundle
+
+        Raises:
+            ValueError: If settings contain invalid values
         """
+        # Validate monitoring settings
+        if settings.max_stream_seconds <= 0:
+            raise ValueError(
+                f"max_stream_seconds must be positive, got {settings.max_stream_seconds}"
+            )
+
         metrics_collector = MetricsCollector()
         health_monitor = HealthMonitor(metrics_collector)
         timeout_calculator = AdaptiveTimeoutCalculator(
@@ -164,10 +186,19 @@ class ProviderComponentsFactory:
 
         Returns:
             Configured ClientRateLimiter or None if disabled
+
+        Raises:
+            ValueError: If settings contain invalid values
         """
         if not settings.client_rate_limit_enabled:
             logging.info("Client rate limiting disabled")
             return None
+
+        # Validate rate limit settings
+        if not isinstance(settings.client_rate_limit_tpm, int) or settings.client_rate_limit_tpm <= 0:
+            raise ValueError(
+                f"client_rate_limit_tpm must be a positive integer, got {settings.client_rate_limit_tpm}"
+            )
 
         rate_limit_config = RateLimitConfig(
             requests_per_minute=settings.client_rate_limit_rpm,

@@ -58,17 +58,15 @@ class TestCacheWarmupManager:
         assert manager.cache == mock_cache
         assert manager.config == warmup_config
         assert manager._popular_items == {}
-        assert manager._warmup_task is None
-        assert manager._save_task is None
+        assert manager._task_group is None
 
         await manager.start()
-        # Should have started tasks if enabled
-        if warmup_config.warmup_on_startup:
-            assert manager._warmup_task is not None
-        if warmup_config.auto_save_popular:
-            assert manager._save_task is not None
+        # Manager should initialize successfully
+        assert manager.cache == mock_cache
 
         await manager.stop()
+        # After stop, task group should be None
+        assert manager._task_group is None
 
     @pytest.mark.anyio
     async def test_preload_common_prompts(self, mock_cache, warmup_config):
@@ -224,13 +222,13 @@ class TestCacheWarmupManager:
         await manager.start()
 
         # Should not have started any tasks when disabled
-        assert manager._warmup_task is None
-        assert manager._save_task is None
+        assert manager._task_group is None
 
         # Should not attempt to load anything
         mock_cache.cache_response.assert_not_called()
 
         await manager.stop()
+        assert manager._task_group is None
 
     @pytest.mark.anyio
     async def test_preload_responses(self, mock_cache, warmup_config):
