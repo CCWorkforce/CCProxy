@@ -71,8 +71,8 @@ NOT_EXTENDED = 510
 NETWORK_AUTHENTICATION_REQUIRED = 511
 
 
-class HTTPStatus(object):
-    _explanations = {
+class HTTPStatus:
+    _explanations: dict[int, str] = {
         100: "Continue",
         101: "Switching Protocols",
         102: "Processing",
@@ -136,18 +136,18 @@ class HTTPStatus(object):
         511: "Network Authentication Required",
     }
 
-    _code = None
-    _meaning = None
-
-    def __init__(self, code: int):
+    def __init__(self, code: int) -> None:
         self._code = code
-        self._meaning = self._explanations[code]
-        pass
+        self._meaning = self._explanations.get(code)
+        if self._meaning is None:
+            raise ValueError(f"Invalid status code {code}")
 
     def get_code(self) -> int:
         """
         Return the integer value of current status code
         """
+        if self._code is None:
+            raise ValueError("should firstly set a status code")
         return self._code
 
     def get_meaning(self) -> str:
@@ -156,8 +156,9 @@ class HTTPStatus(object):
         """
         if self._code is None:
             raise ValueError("should firstly set a status code")
-
+        if self._meaning is None:
+            raise ValueError(f"Invalid status code {self._code}")
         return self._meaning
 
     def __str__(self) -> str:
-        return str(self._code) + " " + str(self._meaning)
+        return f"{self.get_code()} {self.get_meaning()}"

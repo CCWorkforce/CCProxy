@@ -1,8 +1,9 @@
 """Stream deduplication for handling concurrent identical streaming requests."""
 
-import asyncio
+import anyio
+from anyio import WouldBlock, create_memory_object_stream
+from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
 from typing import Dict, List, Optional, Tuple
-from asyncio import Queue, QueueFull
 
 from ...logging import debug, info, warning, LogRecord, LogEvent
 
@@ -18,17 +19,22 @@ class StreamDeduplicator:
 
     def __init__(self, max_queue_size: int = 100):
         """Initialize stream deduplicator."""
-        self.subscribers: Dict[str, List[Queue]] = {}
-        self.lock = asyncio.Lock()
+        self.subscribers: Dict[
+            str, List[Tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]]
+        ] = {}
+        self.lock = anyio.Lock()
         self.max_queue_size = max_queue_size
         self.active_streams: Dict[str, bool] = {}
 
     async def register(
         self, key: str, request_id: Optional[str] = None
-    ) -> Tuple[bool, "Queue[Optional[str]]"]:
-        """Register a subscriber queue for the given stream key."""
+    ) -> Tuple[bool, MemoryObjectReceiveStream]:
+        """Register a subscriber channel for the given stream key."""
 
-        queue: "Queue[Optional[str]]" = Queue(maxsize=self.max_queue_size)
+        # Create a channel with the specified buffer size
+        send_stream, receive_stream = create_memory_object_stream(
+            max_buffer_size=self.max_queue_size
+        )
 
         async with self.lock:
             is_primary = key not in self.subscribers
@@ -36,7 +42,7 @@ class StreamDeduplicator:
                 self.subscribers[key] = []
                 self.active_streams[key] = True
 
-            self.subscribers[key].append(queue)
+            self.subscribers[key].append((send_stream, receive_stream))
             subscriber_count = len(self.subscribers[key])
 
             debug(
@@ -52,14 +58,24 @@ class StreamDeduplicator:
                 )
             )
 
-        return is_primary, queue
+        return is_primary, receive_stream
 
-    async def unregister(self, key: str, queue: "Queue[Optional[str]]") -> None:
-        """Remove a subscriber queue from the stream."""
+    async def unregister(
+        self, key: str, receive_stream: MemoryObjectReceiveStream
+    ) -> None:
+        """Remove a subscriber channel from the stream."""
 
         async with self.lock:
-            if key in self.subscribers and queue in self.subscribers[key]:
-                self.subscribers[key].remove(queue)
+            if key in self.subscribers:
+                # Find and remove the matching receive stream
+                for i, (send, recv) in enumerate(self.subscribers[key]):
+                    if recv == receive_stream:
+                        self.subscribers[key].pop(i)
+                        # Close the channels
+                        await send.aclose()
+                        await recv.aclose()
+                        break
+
                 if not self.subscribers[key]:
                     del self.subscribers[key]
                     self.active_streams.pop(key, None)
@@ -76,24 +92,27 @@ class StreamDeduplicator:
             if key not in self.subscribers:
                 return
 
-            dead_queues = []
-            for queue in self.subscribers[key]:
+            dead_streams = []
+            for send_stream, receive_stream in self.subscribers[key]:
                 try:
-                    queue.put_nowait(line)
-                except QueueFull:
-                    dead_queues.append(queue)
+                    send_stream.send_nowait(line)
+                except anyio.WouldBlock:
+                    dead_streams.append((send_stream, receive_stream))
                     warning(
                         LogRecord(
                             event=LogEvent.CACHE_EVENT.value,
-                            message=f"Stream subscriber queue full for key {key[:8]}...",
+                            message=f"Stream subscriber channel full for key {key[:8]}...",
                             request_id=None,
                             data={"cache_key": key[:8] + "..."},
                         )
                     )
+                except anyio.ClosedResourceError:
+                    # Channel was closed
+                    dead_streams.append((send_stream, receive_stream))
 
-            # Remove dead queues
-            for queue in dead_queues:
-                self.subscribers[key].remove(queue)
+            # Remove dead streams
+            for dead_pair in dead_streams:
+                self.subscribers[key].remove(dead_pair)
 
     async def finalize(self, key: str) -> None:
         """
@@ -107,11 +126,11 @@ class StreamDeduplicator:
                 return
 
             # Send None to signal end of stream
-            for queue in self.subscribers[key]:
+            for send_stream, receive_stream in self.subscribers[key]:
                 try:
-                    queue.put_nowait(None)
-                except QueueFull:
-                    pass  # Queue is full, subscriber will timeout
+                    send_stream.send_nowait(None)
+                except (anyio.WouldBlock, anyio.ClosedResourceError):
+                    pass  # Channel is full or closed, subscriber will timeout
 
             info(
                 LogRecord(
@@ -145,10 +164,10 @@ class StreamDeduplicator:
         async with self.lock:
             # Finalize all active streams
             for key in list(self.subscribers.keys()):
-                for queue in self.subscribers[key]:
+                for send_stream, _ in self.subscribers[key]:
                     try:
-                        queue.put_nowait(None)
-                    except QueueFull:
+                        send_stream.send_nowait(None)
+                    except WouldBlock:
                         pass
 
             self.subscribers.clear()

@@ -8,11 +8,15 @@ from datetime import datetime, timezone
 from logging.handlers import QueueHandler, QueueListener
 import queue
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
+from logging import Handler
 
 from .config import Settings
 
 _REDACT_KEYS: set[str] = set()
+
+_logger: Optional[logging.Logger] = None
+_log_listener: Optional[QueueListener] = None
 
 
 def _sanitize_for_json(obj: Any) -> Any:
@@ -231,9 +235,6 @@ class ConsoleJSONFormatter(JSONFormatter):
         return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
 
 
-_logger: Optional[logging.Logger] = None
-
-
 def init_logging(settings: Settings) -> logging.Logger:
     global _logger
     global _log_listener
@@ -249,7 +250,7 @@ def init_logging(settings: Settings) -> logging.Logger:
         ConsoleJSONFormatter() if settings.log_pretty_console else JSONFormatter()
     )
 
-    handlers = [console_handler]
+    handlers: List[Handler] = [console_handler]
 
     # Setup file handlers if configured
     if settings.log_file_path:
@@ -387,5 +388,5 @@ def error(record: LogRecord, exc: Optional[Exception] = None) -> None:
     _log(logging.ERROR, record, exc=exc)
 
 
-def critical(record: LogRecord, exc: Optional[Exception] = None):
+def critical(record: LogRecord, exc: Optional[Exception] = None) -> None:
     _log(logging.CRITICAL, record, exc=exc)

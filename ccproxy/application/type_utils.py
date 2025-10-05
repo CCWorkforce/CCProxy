@@ -1,16 +1,8 @@
-"""Type checking utilities for consolidated isinstance patterns and type dispatching."""
+from typing import Any, Callable, TypeVar, Protocol, runtime_checkable, cast
 
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-    TypeVar,
-    Protocol,
-    runtime_checkable,
-)
 import dataclasses
+
+from typing import Union
 
 from ..domain.models import (
     ContentBlockText,
@@ -107,7 +99,7 @@ def is_dataclass_instance(obj: Any) -> bool:
     return dataclasses.is_dataclass(obj) and not isinstance(obj, type)
 
 
-def is_redactable_key(key: Any, redact_keys: List[str]) -> bool:
+def is_redactable_key(key: Any, redact_keys: list[str]) -> bool:
     """Check if a key should be redacted based on redact list."""
     return isinstance(key, str) and key.lower() in redact_keys
 
@@ -131,24 +123,24 @@ def is_nested_dict_field(obj: Any, *path: str) -> bool:
     if not isinstance(obj, dict):
         return False
 
-    current = obj
+    current: dict[str, Any] = obj
     for key in path:
         if not isinstance(current, dict) or key not in current:
             return False
-        current = current.get(key)
+        current = current[key]  # type: ignore
     return True
 
 
-def safe_get_nested(obj: Dict[str, Any], *path: str, default: Any = None) -> Any:
+def safe_get_nested(obj: dict[str, Any], *path: str, default: Any = None) -> Any:
     """Safely get nested dictionary value with default."""
     if not isinstance(obj, dict):
         return default
 
-    current = obj
+    current: dict[str, Any] = obj
     for key in path:
         if not isinstance(current, dict):
             return default
-        current = current.get(key, default)
+        current = current.get(key, default)  # type: ignore
         if current is default:
             return default
     return current
@@ -159,7 +151,8 @@ class ContentBlockDispatcher:
 
     @staticmethod
     def dispatch(
-        block: Union[ContentBlock, Dict[str, Any]], handlers: Dict[str, callable]
+        block: Union[ContentBlock, dict[str, Any]],
+        handlers: dict[str, Callable[[Any], Any]],
     ) -> Any:
         """Dispatch to appropriate handler based on block type.
 
@@ -215,22 +208,22 @@ class TypeConverter:
             return fallback
 
     @staticmethod
-    def to_dict(obj: Any, fallback: Optional[Dict] = None) -> Dict:
+    def to_dict(obj: Any, fallback: dict[Any, Any] | None = None) -> dict[Any, Any]:
         """Convert object to dict with fallback."""
         if isinstance(obj, dict):
             return obj
         if is_dataclass_instance(obj):
             return dataclasses.asdict(obj)
         if hasattr(obj, "model_dump"):
-            return obj.model_dump()
+            return cast(dict[Any, Any], obj.model_dump())
         if hasattr(obj, "dict"):
-            return obj.dict()
+            return cast(dict[Any, Any], obj.dict())
         if hasattr(obj, "__dict__"):
-            return obj.__dict__
+            return cast(dict[Any, Any], obj.__dict__)
         return fallback or {}
 
     @staticmethod
-    def ensure_list(obj: Any) -> List:
+    def ensure_list(obj: Any) -> list[Any]:
         """Ensure object is a list."""
         if isinstance(obj, list):
             return obj

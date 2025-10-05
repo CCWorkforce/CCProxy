@@ -1,7 +1,6 @@
 """Main converter functions for backward compatibility."""
 
 from typing import Any, Dict, List, Optional, Union
-import asyncio
 
 from openai.types.chat.chat_completion import ChatCompletion
 
@@ -16,8 +15,36 @@ from ...domain.models import (
     ToolChoice,
     SystemContent,
 )
-from ...application.error_tracker import error_tracker, ErrorType
-from ...logging import error, LogRecord, LogEvent
+from ...application.error_tracker import ErrorType
+from ...logging import error as log_error, LogRecord, LogEvent
+
+
+def _fire_and_forget_error_tracking(
+    exception: Exception,
+    error_type: ErrorType,
+    request_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Fire and forget error tracking - best effort only.
+
+    Since we're in a sync context but the error tracker is async, we can't
+    directly call it. Instead, we'll just log the error synchronously.
+    This is acceptable because error tracking is a best-effort operation.
+    """
+    # Log the error synchronously since we're in a sync context
+    log_error(
+        LogRecord(
+            event=LogEvent.CONVERSION_EVENT.value,
+            message=f"Conversion error: {str(exception)}",
+            request_id=request_id,
+            data={
+                **metadata,
+                "error_type": error_type.value,
+            }
+            if metadata
+            else {"error_type": error_type.value},
+        )
+    )
 
 
 def convert_anthropic_to_openai_messages(
@@ -70,16 +97,14 @@ def convert_anthropic_to_openai_messages(
                 metadata["first_message_content_preview"] = content_preview
 
         # Log and track error asynchronously
-        asyncio.create_task(
-            error_tracker.track_error(
-                error=e,
-                error_type=ErrorType.CONVERSION_ERROR,
-                request_id=request_id,
-                metadata=metadata,
-            )
+        _fire_and_forget_error_tracking(
+            exception=e,
+            error_type=ErrorType.CONVERSION_ERROR,
+            request_id=request_id,
+            metadata=metadata,
         )
 
-        error(
+        log_error(
             LogRecord(
                 event=LogEvent.CONVERSION_EVENT.value,
                 message=f"Failed to convert Anthropic messages to OpenAI format: {str(e)}",
@@ -121,16 +146,14 @@ def convert_anthropic_tools_to_openai(
         if anthropic_tools and len(anthropic_tools) > 0:
             metadata["first_tool_name"] = getattr(anthropic_tools[0], "name", "unknown")
 
-        asyncio.create_task(
-            error_tracker.track_error(
-                error=e,
-                error_type=ErrorType.CONVERSION_ERROR,
-                request_id=request_id,
-                metadata=metadata,
-            )
+        _fire_and_forget_error_tracking(
+            exception=e,
+            error_type=ErrorType.CONVERSION_ERROR,
+            request_id=request_id,
+            metadata=metadata,
         )
 
-        error(
+        log_error(
             LogRecord(
                 event=LogEvent.CONVERSION_EVENT.value,
                 message=f"Failed to convert Anthropic tools: {str(e)}",
@@ -171,16 +194,14 @@ def convert_anthropic_tool_choice_to_openai(
             "error_message": str(e),
         }
 
-        asyncio.create_task(
-            error_tracker.track_error(
-                error=e,
-                error_type=ErrorType.CONVERSION_ERROR,
-                request_id=request_id,
-                metadata=metadata,
-            )
+        _fire_and_forget_error_tracking(
+            exception=e,
+            error_type=ErrorType.CONVERSION_ERROR,
+            request_id=request_id,
+            metadata=metadata,
         )
 
-        error(
+        log_error(
             LogRecord(
                 event=LogEvent.CONVERSION_EVENT.value,
                 message=f"Failed to convert tool choice: {str(e)}",
@@ -244,16 +265,14 @@ def convert_openai_to_anthropic_response(
                 openai_response.usage, "completion_tokens", None
             )
 
-        asyncio.create_task(
-            error_tracker.track_error(
-                error=e,
-                error_type=ErrorType.CONVERSION_ERROR,
-                request_id=request_id,
-                metadata=metadata,
-            )
+        _fire_and_forget_error_tracking(
+            exception=e,
+            error_type=ErrorType.CONVERSION_ERROR,
+            request_id=request_id,
+            metadata=metadata,
         )
 
-        error(
+        log_error(
             LogRecord(
                 event=LogEvent.CONVERSION_EVENT.value,
                 message=f"Failed to convert OpenAI response to Anthropic format: {str(e)}",

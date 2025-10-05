@@ -3,7 +3,7 @@ Provider metrics and health monitoring.
 Tracks performance, errors, and health scores for provider instances.
 """
 
-import asyncio
+import anyio
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -36,7 +36,7 @@ class MetricsCollector:
 
     metrics: ProviderMetrics = field(default_factory=ProviderMetrics)
     latency_history: List[float] = field(default_factory=list)
-    _metrics_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _metrics_lock: anyio.Lock = field(default_factory=anyio.Lock)
     max_history_size: int = 1000
 
     async def record_success(self, latency_ms: float, tokens: int = 0) -> None:

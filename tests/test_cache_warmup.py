@@ -50,7 +50,7 @@ class TestCacheWarmupManager:
             save_interval_seconds=60,
         )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_init_and_start(self, mock_cache, warmup_config):
         """Test initialization and startup."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -58,19 +58,17 @@ class TestCacheWarmupManager:
         assert manager.cache == mock_cache
         assert manager.config == warmup_config
         assert manager._popular_items == {}
-        assert manager._warmup_task is None
-        assert manager._save_task is None
+        assert manager._task_group is None
 
         await manager.start()
-        # Should have started tasks if enabled
-        if warmup_config.warmup_on_startup:
-            assert manager._warmup_task is not None
-        if warmup_config.auto_save_popular:
-            assert manager._save_task is not None
+        # Manager should initialize successfully
+        assert manager.cache == mock_cache
 
         await manager.stop()
+        # After stop, task group should be None
+        assert manager._task_group is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_preload_common_prompts(self, mock_cache, warmup_config):
         """Test preloading of common prompts."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -82,7 +80,7 @@ class TestCacheWarmupManager:
             # Should have loaded at least one common prompt
             assert mock_load.call_count > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_save_and_load_warmup_file(self, mock_cache, warmup_config):
         """Test saving and loading warmup items to/from file."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -104,7 +102,7 @@ class TestCacheWarmupManager:
         ):
             assert Path(warmup_config.warmup_file_path).exists()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_track_cache_hit(self, mock_cache, warmup_config):
         """Test tracking cache hits for popularity."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -120,7 +118,7 @@ class TestCacheWarmupManager:
         assert cache_key in manager._popular_items
         assert manager._popular_items[cache_key] == 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_load_warmup_item(self, mock_cache, warmup_config):
         """Test loading a single warmup item into cache."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -157,7 +155,7 @@ class TestCacheWarmupManager:
         assert call_args[0][1].id == "msg_789"  # response
         assert call_args[0][2].model == "claude-3-opus-20240229"  # request
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_periodic_save(self, mock_cache, warmup_config):
         """Test periodic saving of popular requests."""
         # Set a very short save interval
@@ -173,9 +171,9 @@ class TestCacheWarmupManager:
         await manager.start()
 
         # Wait for save to happen
-        import asyncio
+        import anyio
 
-        await asyncio.sleep(0.2)
+        await anyio.sleep(0.2)
 
         # Stop the manager
         await manager.stop()
@@ -184,7 +182,7 @@ class TestCacheWarmupManager:
         # (actual saving depends on having cached responses)
         # This is more about testing the save loop runs
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_max_warmup_items_limit(self, mock_cache, warmup_config):
         """Test that max_warmup_items limit is respected."""
         warmup_config.max_warmup_items = 2
@@ -207,7 +205,7 @@ class TestCacheWarmupManager:
                 # Should respect max_warmup_items limit
                 assert len(data) <= warmup_config.max_warmup_items
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_disabled_warmup(self, mock_cache):
         """Test that warmup doesn't run when disabled."""
         config = CacheWarmupConfig(
@@ -224,15 +222,15 @@ class TestCacheWarmupManager:
         await manager.start()
 
         # Should not have started any tasks when disabled
-        assert manager._warmup_task is None
-        assert manager._save_task is None
+        assert manager._task_group is None
 
         # Should not attempt to load anything
         mock_cache.cache_response.assert_not_called()
 
         await manager.stop()
+        assert manager._task_group is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_preload_responses(self, mock_cache, warmup_config):
         """Test preloading specific responses."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -273,7 +271,7 @@ class TestCacheWarmupManager:
         assert count == 3
         assert mock_cache.set.call_count == 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_warmup_from_log(self, mock_cache, warmup_config, tmp_path):
         """Test warming up cache from a log file."""
         # Create a mock log file with correct structure

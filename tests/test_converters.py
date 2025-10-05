@@ -1,7 +1,7 @@
 """Comprehensive test suite for message converters."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 
 from ccproxy.application.converters_module.main import (
@@ -241,10 +241,9 @@ class TestAnthropicToOpenAIConversion:
         invalid_message.role = "user"
         invalid_message.content = None  # Invalid content
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([invalid_message])
-            # Should handle error gracefully
-            assert isinstance(result, list)
+        result = convert_anthropic_to_openai_messages([invalid_message])
+        # Should handle error gracefully
+        assert isinstance(result, list)
 
 
 class TestToolConversion:
@@ -450,12 +449,11 @@ class TestErrorHandling:
         messages = [Message(role="user", content=[text_block])]
 
         # Patch the converter to simulate an unknown block type
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages(messages)
-            assert isinstance(result, list)
-            assert len(result) == 1
-            # Verify the valid text block was converted correctly
-            assert result[0]["content"] == "Valid text"
+        result = convert_anthropic_to_openai_messages(messages)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        # Verify the valid text block was converted correctly
+        assert result[0]["content"] == "Valid text"
 
     def test_handle_missing_fields(self):
         """Test handling missing required fields."""
@@ -464,26 +462,306 @@ class TestErrorHandling:
         invalid_message.role = "user"
         invalid_message.content = None
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([invalid_message])
-            assert isinstance(result, list)
+        result = convert_anthropic_to_openai_messages([invalid_message])
+        assert isinstance(result, list)
 
     def test_handle_json_serialization_error(self, tool_use_message):
         """Test handling JSON serialization errors."""
         # Make input non-serializable
         tool_use_message.content[0].input = MagicMock()  # Non-serializable object
 
-        with patch("ccproxy.application.converters_module.main.asyncio.create_task"):
-            result = convert_anthropic_to_openai_messages([tool_use_message])
+        result = convert_anthropic_to_openai_messages([tool_use_message])
 
-            # Check that error was handled gracefully
-            assert len(result) == 1
-            assert result[0]["role"] == "assistant"
-            assert "tool_calls" in result[0]
-            # The arguments should contain the error fallback
-            tool_call_args = json.loads(
-                result[0]["tool_calls"][0]["function"]["arguments"]
+        # Check that error was handled gracefully
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert "tool_calls" in result[0]
+        # The arguments should contain the error fallback
+        tool_call_args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
+        assert "error" in tool_call_args
+        # Should handle error and still return valid structure
+        assert isinstance(result, list)
+
+
+class TestConverterEdgeCases:
+    """Test edge cases for message converters."""
+
+    @pytest.fixture
+    def large_text_message(self):
+        """Create a message with very large text content (>10k tokens)."""
+        # Approximate 10k+ tokens with repeated text
+        large_text = "This is a test sentence. " * 2500  # ~10k+ tokens
+        return Message(
+            role="user", content=[ContentBlockText(type="text", text=large_text)]
+        )
+
+    @pytest.fixture
+    def many_tool_calls_message(self):
+        """Create a message with many tool calls."""
+        tool_calls = []
+        for i in range(10):
+            tool_calls.append(
+                ContentBlockToolUse(
+                    type="tool_use",
+                    id=f"tool_{i}",
+                    name=f"function_{i}",
+                    input={"param": f"value_{i}"},
+                )
             )
-            assert "error" in tool_call_args
-            # Should handle error and still return valid structure
-            assert isinstance(result, list)
+        return Message(role="assistant", content=tool_calls)
+
+    def test_convert_large_message_handling(self, large_text_message):
+        """Test conversion of messages with very large content (>10k tokens)."""
+        result = convert_anthropic_to_openai_messages([large_text_message])
+
+        assert len(result) == 1
+        assert result[0]["role"] == "user"
+        # Verify large content is preserved (not truncated by default)
+        assert len(result[0]["content"]) > 10000
+
+    def test_convert_many_tool_calls_parallel(self, many_tool_calls_message):
+        """Test conversion of message with many tool calls (parallel processing)."""
+        result = convert_anthropic_to_openai_messages([many_tool_calls_message])
+
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert "tool_calls" in result[0]
+        assert len(result[0]["tool_calls"]) == 10
+
+        # Verify all tool calls were converted correctly
+        for i, tool_call in enumerate(result[0]["tool_calls"]):
+            assert tool_call["function"]["name"] == f"function_{i}"
+            args = json.loads(tool_call["function"]["arguments"])
+            assert args["param"] == f"value_{i}"
+
+    def test_mixed_content_types_in_single_message(self):
+        """Test message with mixed content types."""
+        mixed_message = Message(
+            role="user",
+            content=[
+                ContentBlockText(type="text", text="Here's an image:"),
+                ContentBlockImage(
+                    type="image",
+                    source={
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": "base64data",
+                    },
+                ),
+                ContentBlockText(type="text", text="What do you see?"),
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([mixed_message])
+        assert len(result) == 1
+        assert len(result[0]["content"]) == 3
+        assert result[0]["content"][0]["type"] == "text"
+        assert result[0]["content"][1]["type"] == "image_url"
+        assert result[0]["content"][2]["type"] == "text"
+
+    def test_deeply_nested_tool_inputs(self):
+        """Test tool use with deeply nested input structures."""
+        nested_input = {
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "level4": {
+                            "data": ["item1", "item2", "item3"],
+                            "meta": {"key": "value"},
+                        }
+                    }
+                }
+            }
+        }
+
+        tool_message = Message(
+            role="assistant",
+            content=[
+                ContentBlockToolUse(
+                    type="tool_use",
+                    id="nested_tool",
+                    name="complex_function",
+                    input=nested_input,
+                )
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([tool_message])
+        assert len(result) == 1
+        assert "tool_calls" in result[0]
+
+        # Verify nested structure is preserved
+        args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
+        assert args["level1"]["level2"]["level3"]["level4"]["data"] == [
+            "item1",
+            "item2",
+            "item3",
+        ]
+
+    def test_empty_tool_input(self):
+        """Test tool use with empty input."""
+        tool_message = Message(
+            role="assistant",
+            content=[
+                ContentBlockToolUse(
+                    type="tool_use",
+                    id="empty_tool",
+                    name="no_params_function",
+                    input={},
+                )
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([tool_message])
+        assert len(result) == 1
+        assert "tool_calls" in result[0]
+
+        # Empty input should convert to empty JSON object
+        args = json.loads(result[0]["tool_calls"][0]["function"]["arguments"])
+        assert args == {}
+
+    def test_unicode_and_special_characters(self):
+        """Test messages with Unicode and special characters."""
+        unicode_message = Message(
+            role="user",
+            content=[
+                ContentBlockText(
+                    type="text",
+                    text="Unicode: 你好世界 🌍 Émojis: 😀🎉 Special: \n\t\r",
+                )
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([unicode_message])
+        assert len(result) == 1
+        assert "你好世界" in result[0]["content"]
+        assert "🌍" in result[0]["content"]
+        assert "😀🎉" in result[0]["content"]
+
+    def test_malformed_image_data(self):
+        """Test handling of minimal/edge-case image data."""
+        minimal_image = Message(
+            role="user",
+            content=[
+                ContentBlockImage(
+                    type="image",
+                    source={
+                        "type": "base64",
+                        "media_type": "image/jpeg",  # Valid but minimal
+                        "data": "test",  # Minimal data
+                    },
+                )
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([minimal_image])
+        assert len(result) == 1
+        # Should handle minimal data gracefully
+        assert result[0]["role"] == "user"
+        assert result[0]["content"][0]["type"] == "image_url"
+
+    def test_rapid_role_switching(self):
+        """Test conversation with rapid role switching."""
+        messages = [
+            Message(role="user", content=[ContentBlockText(type="text", text="1")]),
+            Message(
+                role="assistant", content=[ContentBlockText(type="text", text="2")]
+            ),
+            Message(role="user", content=[ContentBlockText(type="text", text="3")]),
+            Message(
+                role="assistant", content=[ContentBlockText(type="text", text="4")]
+            ),
+            Message(role="user", content=[ContentBlockText(type="text", text="5")]),
+        ]
+
+        result = convert_anthropic_to_openai_messages(messages)
+        assert len(result) == 5
+        assert [msg["role"] for msg in result] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+            "user",
+        ]
+        assert [msg["content"] for msg in result] == ["1", "2", "3", "4", "5"]
+
+    def test_tool_result_with_error_content(self):
+        """Test tool result containing error information."""
+        error_result = Message(
+            role="user",
+            content=[
+                ContentBlockToolResult(
+                    type="tool_result",
+                    tool_use_id="failed_tool",
+                    content=[
+                        ContentBlockText(
+                            type="text", text="Error: API rate limit exceeded"
+                        )
+                    ],
+                    is_error=True,
+                )
+            ],
+        )
+
+        result = convert_anthropic_to_openai_messages([error_result])
+        assert len(result) == 1
+        # Tool results convert to tool role messages
+        assert result[0]["role"] == "tool"
+        assert "Error: API rate limit exceeded" in str(result[0]["content"])
+
+    def test_concurrent_conversion_simulation(self):
+        """Test that converter handles multiple messages efficiently."""
+        # Create a mix of different message types
+        messages = []
+        for i in range(20):
+            if i % 3 == 0:
+                # Text message
+                messages.append(
+                    Message(
+                        role="user" if i % 2 == 0 else "assistant",
+                        content=[ContentBlockText(type="text", text=f"Message {i}")],
+                    )
+                )
+            elif i % 3 == 1:
+                # Tool use message
+                messages.append(
+                    Message(
+                        role="assistant",
+                        content=[
+                            ContentBlockToolUse(
+                                type="tool_use",
+                                id=f"tool_{i}",
+                                name=f"function_{i}",
+                                input={"index": i},
+                            )
+                        ],
+                    )
+                )
+            else:
+                # Tool result message
+                messages.append(
+                    Message(
+                        role="user",
+                        content=[
+                            ContentBlockToolResult(
+                                type="tool_result",
+                                tool_use_id=f"tool_{i - 1}",
+                                content=[
+                                    ContentBlockText(type="text", text=f"Result {i}")
+                                ],
+                            )
+                        ],
+                    )
+                )
+
+        result = convert_anthropic_to_openai_messages(messages)
+        assert len(result) == 20
+
+        # Verify each message was converted correctly
+        for i, msg in enumerate(result):
+            if i % 3 == 0:
+                assert f"Message {i}" in str(msg["content"])
+            elif i % 3 == 1:
+                assert "tool_calls" in msg
+            else:
+                assert f"Result {i}" in str(msg["content"])

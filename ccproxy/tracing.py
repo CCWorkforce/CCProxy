@@ -2,8 +2,9 @@
 
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, cast
 from contextlib import contextmanager
+from typing import Generator
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,12 +18,12 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 try:
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 except ImportError:
-    OTLPSpanExporter = None
+    OTLPSpanExporter = cast(Any, None)
 
 try:
     from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 except ImportError:
-    JaegerExporter = None
+    JaegerExporter = cast(Any, None)
 
 
 class TracingManager:
@@ -85,7 +86,7 @@ class TracingManager:
         if exporter_type == "console":
             return ConsoleSpanExporter()
 
-        elif exporter_type == "otlp" and OTLPSpanExporter:
+        elif exporter_type == "otlp" and OTLPSpanExporter is not None:
             if not settings.tracing_endpoint:
                 logging.warning(
                     "OTLP exporter configured but no endpoint specified, using default"
@@ -93,7 +94,7 @@ class TracingManager:
                 return OTLPSpanExporter()
             return OTLPSpanExporter(endpoint=settings.tracing_endpoint)
 
-        elif exporter_type == "jaeger" and JaegerExporter:
+        elif exporter_type == "jaeger" and JaegerExporter is not None:
             if not settings.tracing_endpoint:
                 # Default Jaeger agent endpoint
                 return JaegerExporter(
@@ -156,7 +157,7 @@ class TracingManager:
         attributes: Optional[Dict[str, Any]] = None,
         kind: trace.SpanKind = trace.SpanKind.INTERNAL,
         context: Optional[Any] = None,
-    ):
+    ) -> Generator[Optional[trace.Span], None, None]:
         """Start a new span with the given name and attributes.
 
         Args:

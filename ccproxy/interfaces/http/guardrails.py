@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-import asyncio
+import anyio
 import re
 import json
 from typing import Dict, List, Pattern, Any
@@ -290,7 +290,7 @@ class _MemoryRateLimiter:
         self.per_minute = per_minute
         self.burst = burst
         self._store: Dict[str, List[float]] = {}
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
     async def allow(self, key: str) -> bool:
         """Check whether *key* is within its rate limit window."""

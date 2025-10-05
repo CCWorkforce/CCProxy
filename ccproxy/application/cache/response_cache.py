@@ -1,9 +1,10 @@
 """Modular response cache implementation using specialized components."""
 
-import asyncio
 import hashlib
 import time
 from typing import Any, Dict, Optional, List, AsyncIterator, Tuple
+import anyio
+from anyio import create_task_group
 
 from .models import CachedResponse
 from .statistics import CacheStatistics
@@ -66,34 +67,37 @@ class ResponseCache:
         self._stream_deduplicator = StreamDeduplicator()
 
         # Pending requests tracking
-        self._pending_requests: Dict[str, asyncio.Event] = {}
-        self._lock = asyncio.Lock()
+        self._pending_requests: Dict[str, anyio.Event] = {}
+        self._lock = anyio.Lock()
 
         # Cleanup task
         self._cleanup_task = None
+        self._cleanup_task_group = None
 
     async def start_cleanup_task(self):
         """Start the background cleanup task."""
-        if self._cleanup_task is None:
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        if self._cleanup_task_group is None:
+            self._cleanup_task_group = create_task_group()
+            await self._cleanup_task_group.__aenter__()
+            self._cleanup_task_group.start_soon(self._cleanup_loop)
 
     async def stop_cleanup_task(self):
         """Stop the background cleanup task."""
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
+        if self._cleanup_task_group:
+            self._cleanup_task_group.cancel_scope.cancel()
             try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
+                await self._cleanup_task_group.__aexit__(None, None, None)
+            except Exception:
                 pass
-            self._cleanup_task = None
+            self._cleanup_task_group = None
 
     async def _cleanup_loop(self):
         """Background task to clean up expired entries."""
         while True:
             try:
-                await asyncio.sleep(self._cleanup_interval)
+                await anyio.sleep(self._cleanup_interval)
                 await self._cleanup_expired()
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 break
             except Exception as e:
                 warning(
@@ -201,7 +205,7 @@ class ResponseCache:
         cache_key = self._generate_cache_key(request)
 
         # Check if request is pending and wait if requested
-        pending_event: Optional[asyncio.Event] = None
+        pending_event: Optional[anyio.Event] = None
         if wait_for_pending:
             async with self._lock:
                 pending_event = self._pending_requests.get(cache_key)
@@ -219,10 +223,9 @@ class ResponseCache:
                     )
                 )
                 try:
-                    await asyncio.wait_for(
-                        pending_event.wait(), timeout=timeout_seconds
-                    )
-                except asyncio.TimeoutError:
+                    with anyio.fail_after(timeout_seconds):
+                        await pending_event.wait()
+                except TimeoutError:
                     debug(
                         LogRecord(
                             event=LogEvent.CACHE_EVENT.value,
@@ -264,7 +267,7 @@ class ResponseCache:
 
         async with self._lock:
             if cache_key not in self._pending_requests:
-                self._pending_requests[cache_key] = asyncio.Event()
+                self._pending_requests[cache_key] = anyio.Event()
 
         return cache_key
 
@@ -356,7 +359,7 @@ class ResponseCache:
         async def iterator():
             try:
                 while True:
-                    item = await queue.get()
+                    item = await queue.receive()
                     if item is None:
                         break
                     yield item

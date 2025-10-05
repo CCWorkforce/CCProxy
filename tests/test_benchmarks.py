@@ -1,8 +1,8 @@
 import tracemalloc
 import gc
-import asyncio
 import pytest
 from time import monotonic
+import anyio
 
 from ccproxy.interfaces.http.streaming import StreamProcessor
 
@@ -22,7 +22,7 @@ def test_stream_processor_memory():
         enc=enc_mock, request_id="bench", thinking_enabled=False
     )
     for _ in range(100):
-        asyncio.run(processor.process_text_content("chunk"))
+        anyio.run(processor.process_text_content, "chunk")
 
     gc.set_debug(gc.DEBUG_SAVEALL)
     start_time = monotonic()
@@ -33,7 +33,7 @@ def test_stream_processor_memory():
         for i in range(1000):
             await processor.process_text_content(f"chunk_{i}")
 
-    asyncio.run(process_all_chunks())
+    anyio.run(process_all_chunks)
 
     duration = monotonic() - start_time
     snapshot2 = tracemalloc.take_snapshot()

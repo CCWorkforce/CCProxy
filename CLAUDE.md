@@ -66,9 +66,9 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/application/converters.py: Message format conversion between Anthropic and OpenAI (exports async converters)
 - ccproxy/application/converters_module/: Modular converter implementations with specialized processors
   - async_converter.py: AsyncMessageConverter and AsyncResponseConverter for parallel processing
-  - Uses Asyncer library for improved async operations (asyncify for CPU-bound operations, asyncio.gather for parallel execution)
+  - Uses Asyncer library for improved async operations (asyncify for CPU-bound operations, anyio.create_task_group for parallel execution)
   - Optimized for high-throughput with parallel message and tool call processing
-- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); uses asyncio.gather for parallel token encoding with asyncified tiktoken operations; includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
+- ccproxy/application/tokenizer.py: Advanced async-aware token counting with TTL-based cache (300s expiry); uses anyio.create_task_group for parallel token encoding with asyncified tiktoken operations; includes OpenAI request counting via count_tokens_for_openai_request for precise integration with tiktoken encoders.
 - ccproxy/application/model_selection.py: Model mapping (opus/sonnet→BIG, haiku→SMALL)
 - ccproxy/application/request_validator.py: LRU cache (10,000 capacity) with cryptographic hashing
 - ccproxy/application/response_cache.py: Response caching abstraction (delegates to cache implementations)
@@ -87,7 +87,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
 - ccproxy/infrastructure/providers/: Provider implementations for external services
   - base.py: ChatProvider protocol definition
   - openai_provider.py: High-performance HTTP/2 client with connection pooling (500 connections, 120s keepalive); includes circuit breaker (failure threshold=5, recovery=60s), comprehensive metrics (latency percentiles, health scoring), error tracking, adaptive timeouts, tiktoken for precise token estimation in rate limiting (via tokenizer.py), and request correlation IDs for resilience and monitoring
-  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); uses asyncified list operations for non-blocking cleanup of request history; integrates with openai_provider for token estimation and release.
+  - rate_limiter.py: Client-side adaptive rate limiter using sliding window (1-min tracking); supports RPM/TPM limits, auto-start, 429 backoff (80% reduction), success recovery (10% increase after 10 successes); uses asyncified list operations for non-blocking cleanup of request history; integrates with openai_provider for token estimation and release via precise count_tokens_for_openai_request for TPM accuracy.
 
 ## Interface Layer (ccproxy/interfaces/)
 - External interfaces and delivery mechanisms
@@ -134,7 +134,7 @@ Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
 - For async tests, use pytest-asyncio; respx is available for httpx mocking
 - Test runner script: ./run-tests.sh (supports parallel execution, coverage, watch mode)
-- Comprehensive test coverage for error_tracker, converters, cache, routes, and async components
+- Comprehensive test coverage for error_tracker, converters, cache, routes, async components, and rate_limiter
 
 CI/CD and tooling
 - Ruff and mypy configured in pyproject.toml (strict type checking enabled)

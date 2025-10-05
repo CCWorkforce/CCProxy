@@ -1,9 +1,10 @@
 """Client-side rate limiter for proactive OpenAI API rate limiting."""
 
-import asyncio
+import anyio
 import time
 import logging
 from typing import Optional, Dict, Any
+from ccproxy.application.tokenizer import count_tokens_for_openai_request
 from dataclasses import dataclass
 from enum import Enum
 
@@ -25,10 +26,25 @@ class RateLimitConfig:
     requests_per_minute: int = 1500
     tokens_per_minute: int = 270000
     burst_size: int = 100
+    model_name: str = "gpt-4o"
     strategy: RateLimitStrategy = RateLimitStrategy.ADAPTIVE
     adaptive_enabled: bool = True
     backoff_multiplier: float = 0.8  # Reduce limits to 80% after 429
-    recovery_multiplier: float = 1.1  # Increase limits by 10% during recovery
+    recovery_multiplier: float = 1.1
+
+    def __post_init__(self):
+        if self.requests_per_minute < 1:
+            raise ValueError(
+                f"requests_per_minute must be positive, got {self.requests_per_minute}"
+            )
+        if self.tokens_per_minute < 1:
+            raise ValueError(
+                f"tokens_per_minute must be positive, got {self.tokens_per_minute}"
+            )
+        if self.burst_size < 1:
+            raise ValueError(
+                f"burst_size must be positive, got {self.burst_size}"
+            )  # Increase limits by 10% during recovery
 
 
 @dataclass
@@ -64,8 +80,8 @@ class ClientRateLimiter:
         self.metrics = RateLimitMetrics()
 
         # Token buckets for requests and tokens
-        self._request_semaphore = asyncio.Semaphore(config.burst_size)
-        self._token_semaphore = asyncio.Semaphore(
+        self._request_semaphore = anyio.Semaphore(config.burst_size)
+        self._token_semaphore = anyio.Semaphore(
             config.burst_size * 1000
         )  # Rough token burst
 
@@ -78,7 +94,7 @@ class ClientRateLimiter:
         self._current_tpm_limit = config.tokens_per_minute
 
         # Lock for thread-safe operations
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
         # Rate limiter state
         self._running = False
@@ -97,7 +113,9 @@ class ClientRateLimiter:
         self._running = False
         logging.info("Client rate limiter stopped")
 
-    async def acquire(self, estimated_tokens: int = 0, priority: int = 0) -> bool:
+    async def acquire(
+        self, request_payload: Optional[Dict[str, Any]] = None, priority: int = 0
+    ) -> bool:
         """
         Acquire permission to make an API request.
 
@@ -114,6 +132,37 @@ class ClientRateLimiter:
 
         async with self._lock:
             current_time = time.time()
+
+            if request_payload is not None:
+                try:
+                    model = request_payload.get("model", self.config.model_name)
+                    messages = request_payload.get("messages", [])
+                    tools = request_payload.get(
+                        "tools", request_payload.get("functions", [])
+                    )
+                    estimated_tokens = await count_tokens_for_openai_request(
+                        messages, model_name=model, tools=tools, request_id=None
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Token estimation failed: {e}, using rough estimate"
+                    )
+                    messages = request_payload.get("messages", [])
+                    total_chars = 0
+                    for msg in messages:
+                        content = msg.get("content", "")
+                        if isinstance(content, str):
+                            total_chars += len(content)
+                        elif isinstance(content, list):
+                            for part in content:
+                                if (
+                                    isinstance(part, dict)
+                                    and part.get("type") == "text"
+                                ):
+                                    total_chars += len(part.get("text", ""))
+                    estimated_tokens = max(1, total_chars // 4)
+            else:
+                estimated_tokens = 0
 
             # Offload list cleaning to thread pool for large lists
             async_clean_requests = asyncify(
@@ -212,7 +261,7 @@ class ClientRateLimiter:
                 )
 
         if retry_after:
-            await asyncio.sleep(retry_after)
+            await anyio.sleep(retry_after)
 
     async def handle_success(self) -> None:
         """Handle a successful API response for adaptive rate limiting."""
@@ -283,4 +332,4 @@ class ClientRateLimiter:
                     logging.debug(
                         f"Rate limiter waiting {wait_time:.2f}s to respect RPM limit"
                     )
-                    await asyncio.sleep(wait_time)
+                    await anyio.sleep(wait_time)

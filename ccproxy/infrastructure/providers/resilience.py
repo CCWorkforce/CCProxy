@@ -3,12 +3,12 @@ Resilience patterns for provider implementations.
 Includes circuit breaker and retry logic for handling failures gracefully.
 """
 
-import asyncio
+import anyio
 import logging
 import random
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 
 import httpx
 import openai
@@ -42,15 +42,32 @@ class CircuitBreaker:
             half_open_requests: Successful requests needed to close circuit
         """
         self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout  # seconds
+        if self.failure_threshold < 1:
+            raise ValueError(
+                f"failure_threshold must be at least 1, got {self.failure_threshold}"
+            )
+
+        self.recovery_timeout = recovery_timeout
+        if self.recovery_timeout < 1:
+            raise ValueError(
+                f"recovery_timeout must be at least 1, got {self.recovery_timeout}"
+            )
+        # seconds
         self.half_open_requests = half_open_requests
+        if self.half_open_requests < 1:
+            raise ValueError(
+                f"half_open_requests must be at least 1, got {self.half_open_requests}"
+            )
+
         self.state = CircuitState.CLOSED
         self.consecutive_failures = 0
         self.last_failure_time: Optional[datetime] = None
         self.half_open_successes = 0
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
 
-    async def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
+    async def call(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Execute function with circuit breaker protection.
 
@@ -139,11 +156,16 @@ class RetryHandler:
             jitter: Random jitter to add to delays (0-jitter seconds)
         """
         self.max_retries = max_retries
+        if self.max_retries < 0:
+            raise ValueError(
+                f"max_retries must be non-negative, got {self.max_retries}"
+            )
+
         self.base_delay = base_delay
         self.jitter = jitter
 
     async def execute_with_retry(
-        self, func: Callable[..., T], *args: Any, **kwargs: Any
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
     ) -> T:
         """
         Execute a function with exponential backoff retry logic.
@@ -171,7 +193,7 @@ class RetryHandler:
                     f"Rate limit hit, retrying in {delay:.2f}s "
                     f"(attempt {attempt + 1}/{self.max_retries})"
                 )
-                await asyncio.sleep(delay)
+                await anyio.sleep(delay)
                 attempt += 1
             except (
                 openai.APIConnectionError,
@@ -186,7 +208,7 @@ class RetryHandler:
                     f"Network error, retrying in {delay:.2f}s "
                     f"(attempt {attempt + 1}/{self.max_retries}): {e}"
                 )
-                await asyncio.sleep(delay)
+                await anyio.sleep(delay)
                 attempt += 1
 
     def _calculate_delay(self, attempt: int) -> float:
@@ -199,7 +221,9 @@ class RetryHandler:
         Returns:
             Delay in seconds
         """
-        return self.base_delay * (2**attempt) + random.uniform(0, self.jitter)
+        return cast(
+            float, self.base_delay * (2**attempt) + random.uniform(0, self.jitter)
+        )
 
 
 class ResilientExecutor:
@@ -223,7 +247,9 @@ class ResilientExecutor:
         self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self.retry_handler = retry_handler or RetryHandler()
 
-    async def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    async def execute(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """
         Execute function with both circuit breaker and retry logic.
 
@@ -244,9 +270,12 @@ class ResilientExecutor:
             raise Exception("Service temporarily unavailable - circuit breaker is open")
 
         # Execute with circuit breaker and retry
-        return await self.circuit_breaker.call(
-            self.retry_handler.execute_with_retry,
-            func,
-            *args,
-            **kwargs,
+        return cast(
+            T,
+            await self.circuit_breaker.call(
+                self.retry_handler.execute_with_retry,
+                func,
+                *args,
+                **kwargs,
+            ),
         )

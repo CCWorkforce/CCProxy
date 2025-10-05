@@ -6,7 +6,7 @@ class APIUser(HttpUser):
     wait_time = between(0.5, 1.5)
 
     @task
-    def messages(self):
+    def messages(self) -> None:
         payload = {
             "model": "claude-3-opus",
             "max_tokens": 100,

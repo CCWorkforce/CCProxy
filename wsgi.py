@@ -3,8 +3,9 @@ ASGI entry point for Uvicorn.
 This module provides the application factory for production deployment.
 """
 
+import sys
 from dotenv import load_dotenv
-from ccproxy.config import Settings
+from ccproxy.config import Settings, ConfigurationError
 from ccproxy.interfaces.http.app import create_app
 
 # Load environment variables
@@ -16,9 +17,14 @@ def create_application():
     """Application factory for Uvicorn."""
     try:
         settings = Settings()
+    except ConfigurationError as e:
+        # Handle configuration errors gracefully
+        print(f"\nConfiguration Error:\n{e}", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
-        # Fail fast on invalid config
-        raise SystemExit(f"Configuration error: {e}")
+        # Handle other initialization errors
+        print(f"\nUnexpected error during configuration: {e}", file=sys.stderr)
+        sys.exit(1)
 
     try:
         return create_app(settings)
