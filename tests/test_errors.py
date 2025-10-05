@@ -54,9 +54,7 @@ class TestExtractProviderErrorDetails:
 
     def test_extract_with_invalid_json_raw(self):
         """Test when raw string is invalid JSON."""
-        error_dict = {
-            "metadata": {"provider_name": "test", "raw": "not valid json {"}
-        }
+        error_dict = {"metadata": {"provider_name": "test", "raw": "not valid json {"}}
 
         result = extract_provider_error_details(error_dict)
 
