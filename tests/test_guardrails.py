@@ -31,6 +31,7 @@ def mock_request():
 @pytest.fixture
 def mock_call_next():
     """Create a mock call_next function."""
+
     async def _call_next(request):
         response = Response(content="OK", status_code=200)
         return response
@@ -42,7 +43,9 @@ def mock_call_next():
 def mock_log_event():
     """Mock LogEvent to avoid AttributeError on REQUEST_VALIDATION_ERROR."""
     with patch("ccproxy.interfaces.http.guardrails.LogEvent") as mock_event:
-        mock_event.REQUEST_VALIDATION_ERROR = PropertyMock(return_value=MagicMock(value="validation_error"))
+        mock_event.REQUEST_VALIDATION_ERROR = PropertyMock(
+            return_value=MagicMock(value="validation_error")
+        )
         yield mock_event
 
 
@@ -50,13 +53,17 @@ class TestBodySizeLimitMiddleware:
     """Test BodySizeLimitMiddleware."""
 
     @pytest.mark.anyio
-    async def test_request_exceeds_limit_via_content_length(self, mock_request, mock_call_next):
+    async def test_request_exceeds_limit_via_content_length(
+        self, mock_request, mock_call_next
+    ):
         """Test request blocked when content-length exceeds limit."""
         mock_request.headers = {"content-length": "11000"}
 
         middleware = BodySizeLimitMiddleware(app=MagicMock(), max_bytes=10000)
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             mock_error.return_value = Response(status_code=413)
             response = await middleware.dispatch(mock_request, mock_call_next)
 
@@ -76,7 +83,9 @@ class TestBodySizeLimitMiddleware:
         mock_call_next.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_request_exceeds_limit_no_content_length(self, mock_request, mock_call_next):
+    async def test_request_exceeds_limit_no_content_length(
+        self, mock_request, mock_call_next
+    ):
         """Test request blocked when actual body exceeds limit (no content-length header)."""
         large_body = b"x" * 11000
         mock_request.headers = {}
@@ -84,7 +93,9 @@ class TestBodySizeLimitMiddleware:
 
         middleware = BodySizeLimitMiddleware(app=MagicMock(), max_bytes=10000)
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             mock_error.return_value = Response(status_code=413)
             response = await middleware.dispatch(mock_request, mock_call_next)
 
@@ -92,7 +103,9 @@ class TestBodySizeLimitMiddleware:
             mock_error.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_request_within_limit_no_content_length(self, mock_request, mock_call_next):
+    async def test_request_within_limit_no_content_length(
+        self, mock_request, mock_call_next
+    ):
         """Test request allowed when body within limit (no content-length header)."""
         small_body = b"x" * 5000
         mock_request.headers = {}
@@ -119,15 +132,22 @@ class TestInjectionGuardMiddleware:
     """Test InjectionGuardMiddleware."""
 
     @pytest.mark.anyio
-    async def test_sql_injection_in_body(self, mock_request, mock_call_next, mock_log_event):
+    async def test_sql_injection_in_body(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test SQL injection detected in request body."""
         malicious_json = {"query": "SELECT * FROM users WHERE id=1"}
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -136,15 +156,22 @@ class TestInjectionGuardMiddleware:
                 mock_call_next.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_xss_injection_in_body(self, mock_request, mock_call_next, mock_log_event):
+    async def test_xss_injection_in_body(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test XSS detected in request body."""
         malicious_json = {"content": "<script>alert('XSS')</script>"}
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -152,15 +179,22 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_command_injection_in_body(self, mock_request, mock_call_next, mock_log_event):
+    async def test_command_injection_in_body(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test command injection detected in request body."""
         malicious_json = {"cmd": "$(rm -rf /)"}
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -168,15 +202,22 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_path_traversal_in_body(self, mock_request, mock_call_next, mock_log_event):
+    async def test_path_traversal_in_body(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test path traversal detected in request body."""
         malicious_json = {"file": "../../etc/passwd"}
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -184,17 +225,21 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_injection_in_header(self, mock_request, mock_call_next, mock_log_event):
+    async def test_injection_in_header(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test injection detected in request header."""
         mock_request.headers = {
             "User-Agent": "<script>alert('XSS')</script>",
-            "X-Request-Id": "test-123"
+            "X-Request-Id": "test-123",
         }
         mock_request.method = "GET"
 
         middleware = InjectionGuardMiddleware(app=MagicMock(), check_headers=True)
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -205,7 +250,10 @@ class TestInjectionGuardMiddleware:
     async def test_clean_request_allowed(self, mock_request, mock_call_next):
         """Test clean request is allowed through."""
         clean_json = {"message": "Hello, world!"}
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=json.dumps(clean_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
@@ -215,21 +263,22 @@ class TestInjectionGuardMiddleware:
         mock_call_next.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_nested_json_injection(self, mock_request, mock_call_next, mock_log_event):
+    async def test_nested_json_injection(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test injection detected in nested JSON structures."""
-        malicious_json = {
-            "data": {
-                "nested": {
-                    "deep": "SELECT * FROM users"
-                }
-            }
+        malicious_json = {"data": {"nested": {"deep": "SELECT * FROM users"}}}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
         }
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -237,17 +286,22 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_injection_in_array(self, mock_request, mock_call_next, mock_log_event):
+    async def test_injection_in_array(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test injection detected in array elements."""
-        malicious_json = {
-            "items": ["safe", "javascript:alert('XSS')"]
+        malicious_json = {"items": ["safe", "javascript:alert('XSS')"]}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
         }
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
         mock_request.body = AsyncMock(return_value=json.dumps(malicious_json).encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -255,15 +309,22 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_malformed_json_fallback(self, mock_request, mock_call_next, mock_log_event):
+    async def test_malformed_json_fallback(
+        self, mock_request, mock_call_next, mock_log_event
+    ):
         """Test malformed JSON is checked as plain text."""
         malicious_text = "SELECT * FROM users"
-        mock_request.headers = {"content-type": "application/json", "X-Request-Id": "test-123"}
+        mock_request.headers = {
+            "content-type": "application/json",
+            "X-Request-Id": "test-123",
+        }
         mock_request.body = AsyncMock(return_value=malicious_text.encode())
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
 
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             with patch("ccproxy.interfaces.http.guardrails.warning"):
                 mock_error.return_value = Response(status_code=400)
                 response = await middleware.dispatch(mock_request, mock_call_next)
@@ -275,7 +336,7 @@ class TestInjectionGuardMiddleware:
         """Test header checking can be disabled."""
         mock_request.headers = {
             "User-Agent": "<script>alert('XSS')</script>",
-            "X-Request-Id": "test-123"
+            "X-Request-Id": "test-123",
         }
         mock_request.method = "GET"
 
@@ -345,7 +406,7 @@ class TestMemoryRateLimiter:
 
         # Mock time advancement by directly manipulating store
         # In real scenario, old entries would be pruned after 60s
-        with patch('time.monotonic', return_value=time.monotonic() + 61):
+        with patch("time.monotonic", return_value=time.monotonic() + 61):
             # After 60s, old entries should be pruned and new request allowed
             assert await limiter.allow("key1") is True
 
@@ -370,11 +431,7 @@ class TestRateLimitMiddleware:
         """Test request allowed when within rate limit."""
         mock_request.headers = {"Authorization": "Bearer token123"}
 
-        middleware = RateLimitMiddleware(
-            app=MagicMock(),
-            per_minute=10,
-            burst=0
-        )
+        middleware = RateLimitMiddleware(app=MagicMock(), per_minute=10, burst=0)
         response = await middleware.dispatch(mock_request, mock_call_next)
 
         assert response.status_code == 200
@@ -385,33 +442,29 @@ class TestRateLimitMiddleware:
         """Test request blocked when rate limit exceeded."""
         mock_request.headers = {"Authorization": "Bearer token123"}
 
-        middleware = RateLimitMiddleware(
-            app=MagicMock(),
-            per_minute=1,
-            burst=0
-        )
+        middleware = RateLimitMiddleware(app=MagicMock(), per_minute=1, burst=0)
 
         # First request should pass
         response1 = await middleware.dispatch(mock_request, mock_call_next)
         assert response1.status_code == 200
 
         # Second request should be rate limited
-        with patch("ccproxy.interfaces.http.guardrails.log_and_return_error_response") as mock_error:
+        with patch(
+            "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
+        ) as mock_error:
             mock_error.return_value = Response(status_code=429)
             response2 = await middleware.dispatch(mock_request, mock_call_next)
             assert response2.status_code == 429
 
     @pytest.mark.anyio
-    async def test_uses_client_ip_when_no_auth_header(self, mock_request, mock_call_next):
+    async def test_uses_client_ip_when_no_auth_header(
+        self, mock_request, mock_call_next
+    ):
         """Test uses client IP when Authorization header is missing."""
         mock_request.headers = {}
         mock_request.client.host = "192.168.1.100"
 
-        middleware = RateLimitMiddleware(
-            app=MagicMock(),
-            per_minute=10,
-            burst=0
-        )
+        middleware = RateLimitMiddleware(app=MagicMock(), per_minute=10, burst=0)
         response = await middleware.dispatch(mock_request, mock_call_next)
 
         assert response.status_code == 200
@@ -422,11 +475,7 @@ class TestRateLimitMiddleware:
         mock_request.headers = {}
         mock_request.client = None
 
-        middleware = RateLimitMiddleware(
-            app=MagicMock(),
-            per_minute=10,
-            burst=0
-        )
+        middleware = RateLimitMiddleware(app=MagicMock(), per_minute=10, burst=0)
         response = await middleware.dispatch(mock_request, mock_call_next)
 
         assert response.status_code == 200
@@ -495,7 +544,9 @@ class TestInjectionPatterns:
     def test_sql_union_select(self):
         """Test UNION SELECT pattern detection."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        is_malicious, attack_type = middleware._check_for_injection("UNION SELECT username FROM users")
+        is_malicious, attack_type = middleware._check_for_injection(
+            "UNION SELECT username FROM users"
+        )
         assert is_malicious is True
         assert "SQL" in attack_type
 
@@ -508,14 +559,18 @@ class TestInjectionPatterns:
     def test_xss_iframe(self):
         """Test iframe injection pattern."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        is_malicious, attack_type = middleware._check_for_injection("<iframe src='evil.com'>")
+        is_malicious, attack_type = middleware._check_for_injection(
+            "<iframe src='evil.com'>"
+        )
         assert is_malicious is True
         assert "XSS" in attack_type
 
     def test_xss_event_handler(self):
         """Test event handler injection."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        is_malicious, attack_type = middleware._check_for_injection("<img onload='alert(1)'>")
+        is_malicious, attack_type = middleware._check_for_injection(
+            "<img onload='alert(1)'>"
+        )
         assert is_malicious is True
 
     def test_cmd_backtick(self):
@@ -534,12 +589,16 @@ class TestInjectionPatterns:
     def test_path_windows(self):
         """Test Windows path traversal."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        is_malicious, attack_type = middleware._check_for_injection("C:\\Windows\\System32")
+        is_malicious, attack_type = middleware._check_for_injection(
+            "C:\\Windows\\System32"
+        )
         assert is_malicious is True
         assert "Path" in attack_type
 
     def test_clean_text(self):
         """Test clean text is not flagged."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        is_malicious, attack_type = middleware._check_for_injection("Hello, world! This is safe text.")
+        is_malicious, attack_type = middleware._check_for_injection(
+            "Hello, world! This is safe text."
+        )
         assert is_malicious is False

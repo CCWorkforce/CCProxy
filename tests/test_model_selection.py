@@ -1,6 +1,5 @@
 """Tests for model selection logic."""
 
-import pytest
 from ccproxy.application.model_selection import select_target_model
 
 
@@ -126,3 +125,33 @@ class TestModelSelection:
             small_model_name="gpt-4o-mini",
         )
         assert result == "gpt-4o-mini"
+
+    def test_empty_model_name(self):
+        """Test with empty model name defaults to small."""
+        result = select_target_model(
+            client_model_name="",
+            request_id="test-empty",
+            big_model_name="gpt-4",
+            small_model_name="gpt-3.5-turbo",
+        )
+        assert result == "gpt-3.5-turbo"
+
+    def test_opus_and_haiku_in_name(self):
+        """Test when both opus and haiku appear - opus takes precedence."""
+        result = select_target_model(
+            client_model_name="my-opus-haiku-model",
+            request_id="test-both",
+            big_model_name="gpt-4",
+            small_model_name="gpt-3.5-turbo",
+        )
+        assert result == "gpt-4"  # opus has priority
+
+    def test_sonnet_and_haiku_in_name(self):
+        """Test when both sonnet and haiku appear - sonnet takes precedence."""
+        result = select_target_model(
+            client_model_name="my-sonnet-haiku-model",
+            request_id="test-both-2",
+            big_model_name="gpt-4",
+            small_model_name="gpt-3.5-turbo",
+        )
+        assert result == "gpt-4"  # sonnet has priority

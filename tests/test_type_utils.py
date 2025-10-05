@@ -366,7 +366,10 @@ class TestSafeGetNested:
     def test_safe_get_nested_with_default(self):
         """Test with custom default value."""
         data = {"user": {}}
-        assert safe_get_nested(data, "user", "profile", "name", default="Unknown") == "Unknown"
+        assert (
+            safe_get_nested(data, "user", "profile", "name", default="Unknown")
+            == "Unknown"
+        )
 
     def test_safe_get_nested_non_dict_value(self):
         """Test when intermediate value is not dict."""
@@ -428,11 +431,28 @@ class TestContentBlockDispatcher:
         """Test dispatching all supported block types."""
         blocks_and_types = [
             (ContentBlockText(type="text", text="Hi"), "text"),
-            (ContentBlockImage(type="image", source={"type": "base64", "media_type": "image/png", "data": "abc"}), "image"),
-            (ContentBlockToolUse(type="tool_use", id="1", name="tool", input={}), "tool_use"),
-            (ContentBlockToolResult(type="tool_result", tool_use_id="1", content="result"), "tool_result"),
+            (
+                ContentBlockImage(
+                    type="image",
+                    source={"type": "base64", "media_type": "image/png", "data": "abc"},
+                ),
+                "image",
+            ),
+            (
+                ContentBlockToolUse(type="tool_use", id="1", name="tool", input={}),
+                "tool_use",
+            ),
+            (
+                ContentBlockToolResult(
+                    type="tool_result", tool_use_id="1", content="result"
+                ),
+                "tool_result",
+            ),
             (ContentBlockThinking(type="thinking", thinking="think"), "thinking"),
-            (ContentBlockRedactedThinking(type="redacted_thinking", data="hidden"), "redacted_thinking"),
+            (
+                ContentBlockRedactedThinking(type="redacted_thinking", data="hidden"),
+                "redacted_thinking",
+            ),
         ]
 
         for block, expected_type in blocks_and_types:
@@ -526,7 +546,9 @@ class TestTypeConverter:
     def test_to_dict_fallback(self):
         """Test to_dict with fallback."""
         assert TypeConverter.to_dict("string") == {}
-        assert TypeConverter.to_dict(123, fallback={"default": True}) == {"default": True}
+        assert TypeConverter.to_dict(123, fallback={"default": True}) == {
+            "default": True
+        }
 
     def test_ensure_list_from_list(self):
         """Test ensure_list with list input."""
@@ -574,7 +596,12 @@ class TestGetContentType:
             get_content_type(ContentBlockText(type="text", text="Hi")) == "text_block"
         )
         assert (
-            get_content_type(ContentBlockImage(type="image", source={"type": "base64", "media_type": "image/png", "data": "abc"}))
+            get_content_type(
+                ContentBlockImage(
+                    type="image",
+                    source={"type": "base64", "media_type": "image/png", "data": "abc"},
+                )
+            )
             == "image_block"
         )
         assert (
@@ -596,7 +623,9 @@ class TestGetContentType:
             == "thinking_block"
         )
         assert (
-            get_content_type(ContentBlockRedactedThinking(type="redacted_thinking", data="hidden"))
+            get_content_type(
+                ContentBlockRedactedThinking(type="redacted_thinking", data="hidden")
+            )
             == "redacted_thinking_block"
         )
 

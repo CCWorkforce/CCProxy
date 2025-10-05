@@ -428,7 +428,11 @@ async def test_count_tokens_with_images(clean_cache_state):
                 ContentBlockText(type="text", text="What's in this image?"),
                 ContentBlockImage(
                     type="image",
-                    source={"type": "base64", "media_type": "image/png", "data": "abc123"},
+                    source={
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": "abc123",
+                    },
                 ),
             ],
         )
@@ -523,7 +527,9 @@ async def test_count_tokens_with_thinking_block(clean_cache_state):
         Message(
             role="assistant",
             content=[
-                ContentBlockThinking(type="thinking", thinking="Let me think about this..."),
+                ContentBlockThinking(
+                    type="thinking", thinking="Let me think about this..."
+                ),
             ],
         )
     ]
@@ -740,7 +746,10 @@ async def test_count_tokens_for_openai_with_multipart_content(clean_cache_state)
             "role": "user",
             "content": [
                 {"type": "text", "text": "What's in this image?"},
-                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://example.com/image.png"},
+                },
             ],
         }
     ]
@@ -794,7 +803,10 @@ async def test_tool_result_with_list_content(clean_cache_state):
                 ContentBlockToolResult(
                     type="tool_result",
                     tool_use_id="tool_1",
-                    content=[{"type": "text", "text": "Result 1"}, {"type": "text", "text": "Result 2"}],
+                    content=[
+                        {"type": "text", "text": "Result 1"},
+                        {"type": "text", "text": "Result 2"},
+                    ],
                 ),
             ],
         )

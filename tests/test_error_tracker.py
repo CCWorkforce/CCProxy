@@ -843,7 +843,9 @@ class TestEdgeCases:
 
         # Create an invalid request object that will cause errors when accessing method
         invalid_request = MagicMock()
-        type(invalid_request).method = PropertyMock(side_effect=Exception("Method error"))
+        type(invalid_request).method = PropertyMock(
+            side_effect=Exception("Method error")
+        )
 
         error_tracker._settings = MagicMock()
         error_tracker._settings.error_tracking_capture_request = True
@@ -880,7 +882,9 @@ class TestEdgeCases:
             await error_tracker.initialize(mock_settings)
 
         # Force a write error by mocking file operations
-        with patch.object(error_tracker, "_write_error", side_effect=Exception("Write error")):
+        with patch.object(
+            error_tracker, "_write_error", side_effect=Exception("Write error")
+        ):
             # Send an error context
             context = ErrorContext(
                 error_type=ErrorType.INTERNAL_ERROR,

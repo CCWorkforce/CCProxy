@@ -1,6 +1,5 @@
 """Tests for CCProxy domain exceptions."""
 
-import pytest
 from ccproxy.domain.exceptions import (
     CCProxyException,
     ConversionError,
@@ -50,9 +49,7 @@ class TestCCProxyException:
     def test_exception_with_all_params(self):
         """Test exception with all parameters."""
         exc = CCProxyException(
-            "Test error",
-            request_id="req-456",
-            details={"error_code": "TEST_001"}
+            "Test error", request_id="req-456", details={"error_code": "TEST_001"}
         )
         assert exc.message == "Test error"
         assert exc.request_id == "req-456"
@@ -81,10 +78,7 @@ class TestSerializationError:
 
     def test_serialization_error_with_content_type(self):
         """Test serialization error with content type."""
-        exc = SerializationError(
-            "Failed to serialize",
-            content_type="application/json"
-        )
+        exc = SerializationError("Failed to serialize", content_type="application/json")
         assert exc.content_type == "application/json"
 
     def test_serialization_error_full_params(self):
@@ -93,7 +87,7 @@ class TestSerializationError:
             "Serialization error",
             content_type="image/png",
             request_id="req-789",
-            details={"field": "image_data"}
+            details={"field": "image_data"},
         )
         assert exc.content_type == "image/png"
         assert exc.request_id == "req-789"
@@ -112,9 +106,7 @@ class TestCacheErrors:
     def test_cache_validation_error(self):
         """Test cache validation error."""
         exc = CacheValidationError(
-            "Validation failed",
-            validation_failures=5,
-            request_id="req-cache"
+            "Validation failed", validation_failures=5, request_id="req-cache"
         )
         assert isinstance(exc, CacheError)
         assert exc.validation_failures == 5
@@ -125,7 +117,7 @@ class TestCacheErrors:
         exc = CacheMemoryError(
             "Memory limit exceeded",
             memory_usage_bytes=600_000_000,
-            max_memory_bytes=500_000_000
+            max_memory_bytes=500_000_000,
         )
         assert isinstance(exc, CacheError)
         assert exc.memory_usage_bytes == 600_000_000
@@ -147,7 +139,7 @@ class TestTokenizationErrors:
             "Truncation failed",
             strategy="auto",
             model="gpt-3.5-turbo",
-            request_id="req-trunc"
+            request_id="req-trunc",
         )
         assert isinstance(exc, TokenizationError)
         assert exc.strategy == "auto"
@@ -167,9 +159,7 @@ class TestProviderErrors:
     def test_upstream_error(self):
         """Test upstream error."""
         exc = UpstreamError(
-            "Upstream API failed",
-            status_code=500,
-            provider_name="openai"
+            "Upstream API failed", status_code=500, provider_name="openai"
         )
         assert isinstance(exc, ProviderError)
         assert exc.status_code == 500
@@ -181,7 +171,7 @@ class TestProviderErrors:
             "Request timed out",
             timeout_seconds=30.0,
             provider_name="openai",
-            request_id="req-timeout"
+            request_id="req-timeout",
         )
         assert isinstance(exc, UpstreamError)
         assert exc.timeout_seconds == 30.0
@@ -191,9 +181,7 @@ class TestProviderErrors:
     def test_rate_limit_error(self):
         """Test rate limit error."""
         exc = RateLimitError(
-            "Rate limit exceeded",
-            retry_after=60.0,
-            provider_name="openai"
+            "Rate limit exceeded", retry_after=60.0, provider_name="openai"
         )
         assert isinstance(exc, UpstreamError)
         assert exc.status_code == 429
@@ -202,9 +190,7 @@ class TestProviderErrors:
     def test_authentication_error(self):
         """Test authentication error."""
         exc = AuthenticationError(
-            "Invalid API key",
-            provider_name="openai",
-            request_id="req-auth"
+            "Invalid API key", provider_name="openai", request_id="req-auth"
         )
         assert isinstance(exc, UpstreamError)
         assert exc.status_code == 401
@@ -222,11 +208,7 @@ class TestStreamingError:
 
     def test_streaming_error_with_chunk_index(self):
         """Test streaming error with chunk index."""
-        exc = StreamingError(
-            "Invalid chunk",
-            chunk_index=42,
-            request_id="req-stream"
-        )
+        exc = StreamingError("Invalid chunk", chunk_index=42, request_id="req-stream")
         assert exc.chunk_index == 42
         assert exc.request_id == "req-stream"
 
@@ -243,11 +225,7 @@ class TestUTF8Error:
     def test_utf8_error_with_bytes(self):
         """Test UTF-8 error with raw bytes."""
         raw = b"\xff\xfe"
-        exc = UTF8Error(
-            "Invalid UTF-8",
-            raw_bytes=raw,
-            request_id="req-utf8"
-        )
+        exc = UTF8Error("Invalid UTF-8", raw_bytes=raw, request_id="req-utf8")
         assert exc.raw_bytes == raw
         assert exc.request_id == "req-utf8"
 
@@ -263,10 +241,7 @@ class TestConfigurationError:
 
     def test_configuration_error_with_key(self):
         """Test configuration error with config key."""
-        exc = ConfigurationError(
-            "Invalid value",
-            config_key="OPENAI_API_KEY"
-        )
+        exc = ConfigurationError("Invalid value", config_key="OPENAI_API_KEY")
         assert exc.config_key == "OPENAI_API_KEY"
 
 
@@ -282,9 +257,7 @@ class TestModelSelectionError:
     def test_model_selection_error_with_model(self):
         """Test model selection error with requested model."""
         exc = ModelSelectionError(
-            "Model unavailable",
-            requested_model="gpt-5",
-            request_id="req-model"
+            "Model unavailable", requested_model="gpt-5", request_id="req-model"
         )
         assert exc.requested_model == "gpt-5"
         assert exc.request_id == "req-model"
@@ -302,9 +275,7 @@ class TestResourceExhaustedError:
     def test_resource_exhausted_error_with_type(self):
         """Test resource exhausted error with resource type."""
         exc = ResourceExhaustedError(
-            "Out of memory",
-            resource_type="memory",
-            request_id="req-resource"
+            "Out of memory", resource_type="memory", request_id="req-resource"
         )
         assert exc.resource_type == "memory"
         assert exc.request_id == "req-resource"

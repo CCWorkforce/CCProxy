@@ -1,7 +1,6 @@
 """Tests for cache circuit breaker."""
 
 import time
-import pytest
 from unittest.mock import patch
 
 from ccproxy.application.cache.circuit_breaker import CacheCircuitBreaker
@@ -107,7 +106,7 @@ class TestCacheCircuitBreaker:
         breaker.record_failure()
 
         # Check again with more failures
-        with patch('time.time', return_value=first_disabled_until + 1):
+        with patch("time.time", return_value=first_disabled_until + 1):
             breaker.is_open()
             second_disabled_until = breaker.disabled_until
 
@@ -180,7 +179,7 @@ class TestCacheCircuitBreaker:
 
         # Force check to calculate backoff
         current_time = time.time()
-        with patch('time.time', return_value=current_time):
+        with patch("time.time", return_value=current_time):
             breaker.is_open()
 
             # Maximum disabled duration should be 10 * reset_time = 100
