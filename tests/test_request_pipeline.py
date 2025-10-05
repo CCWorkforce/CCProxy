@@ -37,7 +37,7 @@ def test_init(mock_components):
     assert pipeline._response_processor == mock_components["response_processor"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_request_success_non_streaming(mock_components):
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"].acquire.return_value = True
@@ -68,7 +68,7 @@ async def test_process_request_success_non_streaming(mock_components):
     # No UTF-8 decode needed for str
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_request_streaming(mock_components):
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"] = None  # No limiter
@@ -87,7 +87,7 @@ async def test_process_request_streaming(mock_components):
     # No UTF-8 handling for streaming
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_request_circuit_open(mock_components):
     mock_components["circuit_breaker"].is_open = True
     params = {"model": "gpt-4"}
@@ -101,7 +101,7 @@ async def test_process_request_circuit_open(mock_components):
     mock_components["resilient_executor"].execute.assert_not_called()
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_request_rate_limit_exceeded(mock_components):
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"].acquire.return_value = False
@@ -117,7 +117,7 @@ async def test_process_request_rate_limit_exceeded(mock_components):
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_check_circuit_breaker_closed(mock_components):
     mock_components["circuit_breaker"].is_open = False
     pipeline = RequestPipeline(**mock_components)
@@ -125,7 +125,7 @@ async def test_check_circuit_breaker_closed(mock_components):
     # No exception
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_check_circuit_breaker_open(mock_components):
     mock_components["circuit_breaker"].is_open = True
     pipeline = RequestPipeline(**mock_components)
@@ -133,7 +133,7 @@ async def test_check_circuit_breaker_open(mock_components):
         await pipeline._check_circuit_breaker("test-id")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_apply_rate_limiting_no_limiter(mock_components):
     mock_components["rate_limiter"] = None
     pipeline = RequestPipeline(**mock_components)
@@ -141,7 +141,7 @@ async def test_apply_rate_limiting_no_limiter(mock_components):
     # No calls
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_apply_rate_limiting_exceeded(mock_components):
     mock_components["rate_limiter"].acquire.return_value = False
     pipeline = RequestPipeline(**mock_components)
@@ -169,7 +169,7 @@ def test_prepare_trace_headers_none(mock_components):
     assert "extra_headers" not in params
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_execute_request(mock_components):
     params = {"model": "gpt-4", "stream": False}
     pipeline = RequestPipeline(**mock_components)
@@ -182,7 +182,7 @@ async def test_execute_request(mock_components):
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_ensure_utf8_response_no_choices(mock_components):
     response = {}
     pipeline = RequestPipeline(**mock_components)
@@ -190,7 +190,7 @@ async def test_ensure_utf8_response_no_choices(mock_components):
     assert result == {}
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_ensure_utf8_response_str_content(mock_components, caplog):
     response = {"choices": [{"message": {"content": "hello"}}]}
     pipeline = RequestPipeline(**mock_components)
@@ -199,7 +199,7 @@ async def test_ensure_utf8_response_str_content(mock_components, caplog):
     assert "UTF-8 decode error" not in caplog.text
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_ensure_utf8_response_bytes_success(mock_components):
     b_content = b"hello".decode("utf-8").encode("utf-8")
     response = {"choices": [{"message": {"content": b_content}}]}
@@ -208,7 +208,7 @@ async def test_ensure_utf8_response_bytes_success(mock_components):
     assert result["choices"][0]["message"]["content"] == "hello"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_ensure_utf8_response_bytes_replace(caplog):
     response = {"choices": [{"message": {"content": b"\xff"}}]}
     mock_components["request_logger"] = Mock()  # For logging
@@ -221,7 +221,7 @@ async def test_ensure_utf8_response_bytes_replace(caplog):
     assert "UTF-8 decode error" in caplog.text
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_handle_rate_limit_response(mock_components):
     mock_error = Mock(spec=openai.RateLimitError)
     mock_response = Mock()
@@ -242,7 +242,7 @@ async def test_handle_rate_limit_response(mock_components):
     # No call
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_release_tokens_on_success(mock_components):
     response = {"usage": {"total_tokens": 100}}
     mock_components["response_processor"].extract_usage_info.return_value = {
@@ -269,7 +269,7 @@ async def test_release_tokens_on_success(mock_components):
     # No calls
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_full_openai_response_utf8_decode_success(mock_components):
     """Test full OpenAI response with UTF-8 decode success."""
     # Mock full OpenAI response with multiple choices
@@ -314,7 +314,7 @@ async def test_full_openai_response_utf8_decode_success(mock_components):
     assert result["usage"]["total_tokens"] == 30
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_full_openai_response_utf8_decode_error_with_replacement(
     mock_components, caplog
 ):
@@ -354,7 +354,7 @@ async def test_full_openai_response_utf8_decode_error_with_replacement(
         assert "UTF-8 decode error" in str(mock_warning.call_args)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_streaming_response_with_rate_limit_per_chunk(mock_components):
     """Test streaming response with rate limiter checking per chunk."""
 
@@ -395,7 +395,7 @@ async def test_streaming_response_with_rate_limit_per_chunk(mock_components):
     # Actual implementation may vary
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_streaming_response_rate_limit_failure_mid_stream(mock_components):
     """Test streaming response when rate limit fails mid-stream."""
 
@@ -440,7 +440,7 @@ async def test_streaming_response_rate_limit_failure_mid_stream(mock_components)
     assert len(chunks_received) == 2  # Only first two chunks received
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_streaming_with_total_tokens_release(mock_components):
     """Test that streaming properly releases tokens at the end."""
 

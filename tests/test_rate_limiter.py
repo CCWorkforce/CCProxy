@@ -7,7 +7,6 @@ from ccproxy.infrastructure.providers.rate_limiter import (
 )
 
 
-@pytest.mark.asyncio
 class TestClientRateLimiter:
     """Tests for ClientRateLimiter token estimation integration."""
 
@@ -21,7 +20,7 @@ class TestClientRateLimiter:
         )
         return ClientRateLimiter(config)
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_acquire_with_precise_token_estimation(self, rate_limiter):
         """Test acquire with request payload uses precise token estimation."""
         sample_payload = {
@@ -56,7 +55,7 @@ class TestClientRateLimiter:
             request_id=None,
         )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_acquire_token_estimation_accuracy(self, rate_limiter):
         """Test that estimated tokens are accurate within 5% for tool/image payloads."""
         # Tool payload
@@ -113,7 +112,7 @@ class TestClientRateLimiter:
             assert mock_tokenizer.call_count == 2
             # For image, should use fixed 85 + any text, but mock ensures accuracy
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_acquire_fallback_on_token_error(self, rate_limiter):
         """Test fallback to rough estimate on tokenizer failure."""
         payload = {"messages": [{"role": "user", "content": "Very long text" * 100}]}
@@ -131,7 +130,7 @@ class TestClientRateLimiter:
         )
         # Rough estimate used: len(str(payload)) // 4 should allow acquire
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_acquire_without_payload(self, rate_limiter):
         """Test acquire without payload uses zero tokens."""
         result = await rate_limiter.acquire(request_payload=None)

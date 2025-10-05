@@ -42,7 +42,7 @@ def test_init(mock_components):
     assert observer._response_processor == mock_components["response_processor"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_on_success(mock_components, mocker):
     mocker.patch("time.monotonic", return_value=1.0)
     correlation_id = "test-id"
@@ -87,7 +87,7 @@ async def test_on_success(mock_components, mocker):
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_on_failure(mock_components, mocker):
     mocker.patch("time.monotonic", return_value=1.0)
     correlation_id = "test-id"
@@ -133,7 +133,7 @@ async def test_on_failure(mock_components, mocker):
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_on_request_start(mock_components):
     correlation_id = "test-id"
     params = {"model": "gpt-4"}
@@ -183,7 +183,7 @@ def test_classify_error(mock_error_handler_class, mock_components):
     assert result == ErrorType.CONVERSION_ERROR
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_concurrent_on_success_calls(mock_components):
     """Test concurrent on_success calls with unique correlation IDs."""
     observer = RequestLifecycleObserver(**mock_components)
@@ -231,7 +231,7 @@ async def test_concurrent_on_success_calls(mock_components):
     assert all(lat > 0 for lat in latencies)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_concurrent_mixed_success_failure(mock_components):
     """Test concurrent mix of success and failure calls."""
     observer = RequestLifecycleObserver(**mock_components)
@@ -280,7 +280,7 @@ async def test_concurrent_mixed_success_failure(mock_components):
     assert ErrorType.TIMEOUT_ERROR in tracked_errors
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_concurrent_request_starts(mock_components):
     """Test concurrent on_request_start calls with unique trace IDs."""
     observer = RequestLifecycleObserver(**mock_components)
@@ -317,7 +317,7 @@ async def test_concurrent_request_starts(mock_components):
     assert all(f"trace-{i}" in logged_traces for i in range(5))
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_concurrent_with_varying_error_types(mock_components):
     """Test concurrent failures with different error types via classify_error."""
     observer = RequestLifecycleObserver(**mock_components)

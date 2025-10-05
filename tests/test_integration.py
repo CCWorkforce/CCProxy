@@ -34,7 +34,7 @@ def test_app(test_settings):
 class TestEndToEndIntegration:
     """Test complete request flow through the application."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     @respx.mock
     async def test_opus_to_gpt4_mapping(self, test_app):
         """Test that opus model correctly maps to gpt-4."""
@@ -83,7 +83,7 @@ class TestEndToEndIntegration:
             request_body = json.loads(openai_request.content)
             assert request_body["model"] == "gpt-4"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     @respx.mock
     async def test_sonnet_to_gpt35_mapping(self, test_app):
         """Test that sonnet model correctly maps to gpt-3.5-turbo."""
@@ -123,7 +123,7 @@ class TestEndToEndIntegration:
             request_body = json.loads(openai_request.content)
             assert request_body["model"] == "gpt-3.5-turbo"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     @respx.mock
     async def test_error_propagation_with_retry(self, test_app):
         """Test that API errors are properly propagated and retried."""
@@ -170,7 +170,7 @@ class TestEndToEndIntegration:
 
             assert route.call_count >= 1  # At least one call made
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     @respx.mock
     async def test_streaming_response_conversion(self, test_app):
         """Test streaming response conversion from OpenAI to Anthropic format."""
@@ -258,7 +258,7 @@ class TestEndToEndIntegration:
                 assert len(chunks_received) > 0
                 assert route.called
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     @respx.mock
     async def test_tool_use_conversion(self, test_app):
         """Test conversion of tool use between Anthropic and OpenAI formats."""
