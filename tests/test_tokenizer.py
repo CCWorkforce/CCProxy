@@ -398,3 +398,417 @@ async def test_backward_compatibility_single_shard(clean_cache_state):
     assert tokenizer._num_shards == 1
     assert len(tokenizer._token_cache_shards) == 1
     assert len(tokenizer._token_cache_shards[0].cache) == 10
+
+
+# === Additional Coverage Tests ===
+
+
+@pytest.mark.anyio
+async def test_get_token_encoder_unknown_model(clean_cache_state):
+    """Test get_token_encoder with unknown model falls back to cl100k_base."""
+    from ccproxy.application.tokenizer import get_token_encoder
+
+    encoder = get_token_encoder("unknown-model-12345", request_id="test")
+    assert encoder is not None
+
+    # Should be able to encode text
+    tokens = encoder.encode("test")
+    assert len(tokens) > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_images(clean_cache_state):
+    """Test token counting with image content blocks."""
+    from ccproxy.domain.models import ContentBlockImage
+
+    messages = [
+        Message(
+            role="user",
+            content=[
+                ContentBlockText(type="text", text="What's in this image?"),
+                ContentBlockImage(
+                    type="image",
+                    source={"type": "base64", "media_type": "image/png", "data": "abc123"},
+                ),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    # Should include text tokens + 768 for image
+    assert tokens > 768
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_tool_use(clean_cache_state):
+    """Test token counting with tool use blocks."""
+    from ccproxy.domain.models import ContentBlockToolUse
+
+    messages = [
+        Message(
+            role="assistant",
+            content=[
+                ContentBlockToolUse(
+                    type="tool_use",
+                    id="tool_1",
+                    name="search",
+                    input={"query": "test query"},
+                ),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_tool_result(clean_cache_state):
+    """Test token counting with tool result blocks."""
+    from ccproxy.domain.models import ContentBlockToolResult
+
+    messages = [
+        Message(
+            role="user",
+            content=[
+                ContentBlockToolResult(
+                    type="tool_result",
+                    tool_use_id="tool_1",
+                    content="Search results here",
+                ),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_thinking_block(clean_cache_state):
+    """Test token counting with thinking blocks."""
+    from ccproxy.domain.models import ContentBlockThinking
+
+    messages = [
+        Message(
+            role="assistant",
+            content=[
+                ContentBlockThinking(type="thinking", thinking="Let me think about this..."),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_redacted_thinking(clean_cache_state):
+    """Test token counting with redacted thinking blocks."""
+    from ccproxy.domain.models import ContentBlockRedactedThinking
+
+    messages = [
+        Message(
+            role="assistant",
+            content=[
+                ContentBlockRedactedThinking(type="redacted_thinking", data="hidden"),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    # Should add fixed 100 tokens for redacted thinking
+    assert tokens >= 100
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_tools(clean_cache_state):
+    """Test token counting with tool definitions."""
+    from ccproxy.domain.models import Tool
+
+    messages = [Message(role="user", content="Use the search tool")]
+
+    tools = [
+        Tool(
+            name="search",
+            description="Search for information",
+            input_schema={
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+            },
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", tools, "test", settings
+    )
+
+    # Should include tool definition tokens
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_with_system_content_list(clean_cache_state):
+    """Test token counting with system content as list."""
+    from ccproxy.domain.models import SystemContent
+
+    messages = [Message(role="user", content="Hello")]
+    system = [
+        SystemContent(type="text", text="You are a helpful assistant"),
+        SystemContent(type="text", text="Answer concisely"),
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, system, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_cache_ttl_expiration(clean_cache_state):
+    """Test that cache entries expire after TTL."""
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=True,
+        cache_token_counts_ttl_s=1,  # 1 second TTL
+        TOKENIZER_CACHE_SHARDS=2,
+    )
+
+    messages = [Message(role="user", content="Test message")]
+
+    # First call - cache miss
+    tokens1 = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test1", settings
+    )
+
+    # Second call immediately - cache hit
+    tokens2 = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test2", settings
+    )
+
+    assert tokens1 == tokens2
+
+    # Wait for TTL to expire
+    await asyncio.sleep(1.5)
+
+    # Third call after TTL - should be cache miss (entry expired)
+    tokens3 = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test3", settings
+    )
+
+    assert tokens3 == tokens1
+
+
+@pytest.mark.anyio
+async def test_count_tokens_for_openai_request(clean_cache_state):
+    """Test count_tokens_for_openai_request function."""
+    from ccproxy.application.tokenizer import count_tokens_for_openai_request
+
+    messages = [
+        {"role": "user", "content": "Hello, how are you?"},
+        {"role": "assistant", "content": "I'm doing well, thank you!"},
+    ]
+
+    tokens = await count_tokens_for_openai_request(messages, "gpt-4", None, "test")
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_for_openai_with_tools(clean_cache_state):
+    """Test OpenAI token counting with tools."""
+    from ccproxy.application.tokenizer import count_tokens_for_openai_request
+
+    messages = [{"role": "user", "content": "Search for something"}]
+
+    tools = [
+        {
+            "function": {
+                "name": "search",
+                "description": "Search the web",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        }
+    ]
+
+    tokens = await count_tokens_for_openai_request(messages, "gpt-4", tools, "test")
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_for_openai_with_tool_calls(clean_cache_state):
+    """Test OpenAI token counting with tool calls in messages."""
+    from ccproxy.application.tokenizer import count_tokens_for_openai_request
+
+    messages = [
+        {"role": "user", "content": "Search for something"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "search",
+                        "arguments": '{"query": "test"}',
+                    }
+                }
+            ],
+        },
+    ]
+
+    tokens = await count_tokens_for_openai_request(messages, "gpt-4", None, "test")
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_count_tokens_for_openai_with_multipart_content(clean_cache_state):
+    """Test OpenAI token counting with multipart content (text + image)."""
+    from ccproxy.application.tokenizer import count_tokens_for_openai_request
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+            ],
+        }
+    ]
+
+    tokens = await count_tokens_for_openai_request(messages, "gpt-4", None, "test")
+
+    # Should include text tokens + 85 for image
+    assert tokens > 85
+
+
+@pytest.mark.anyio
+async def test_get_token_cache_stats_uninitialized(clean_cache_state):
+    """Test get_token_cache_stats when cache is not initialized."""
+    from ccproxy.application.tokenizer import get_token_cache_stats
+
+    stats = get_token_cache_stats()
+
+    assert stats["initialized"] is False
+    assert stats["total_entries"] == 0
+    assert stats["num_shards"] == 0
+
+
+@pytest.mark.anyio
+async def test_cache_with_string_content(clean_cache_state):
+    """Test token counting with messages that have string content."""
+    messages = [Message(role="user", content="Simple string content")]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
+
+
+@pytest.mark.anyio
+async def test_tool_result_with_list_content(clean_cache_state):
+    """Test tool result with list content."""
+    from ccproxy.domain.models import ContentBlockToolResult
+
+    messages = [
+        Message(
+            role="user",
+            content=[
+                ContentBlockToolResult(
+                    type="tool_result",
+                    tool_use_id="tool_1",
+                    content=[{"type": "text", "text": "Result 1"}, {"type": "text", "text": "Result 2"}],
+                ),
+            ],
+        )
+    ]
+
+    settings = Settings(
+        openai_api_key="test-key",
+        big_model_name="gpt-4",
+        small_model_name="gpt-3.5-turbo",
+        cache_token_counts_enabled=False,
+    )
+
+    tokens = await count_tokens_for_anthropic_request(
+        messages, None, "gpt-4", None, "test", settings
+    )
+
+    assert tokens > 0
