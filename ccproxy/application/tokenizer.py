@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
 
 from .thread_pool import asyncify
-from .error_tracker import track_error, ErrorType
 
 from ..domain.models import (
     Message,
@@ -491,34 +490,8 @@ async def count_tokens_for_anthropic_request(
 
         # Get the appropriate shard for this key
         shard = _get_shard_for_key(key)
-        shard_id = hash(key) % _num_shards
 
-        start_time = time.time()
         async with shard.lock:
-            acquire_time = time.time() - start_time
-            # Optional logging for lock contention if acquire time exceeds threshold
-            lock_contention_threshold = (
-                0.01  # Default 10ms threshold for contention logging
-            )
-            if acquire_time > lock_contention_threshold:
-                try:
-                    await track_error(
-                        Exception(
-                            f"Token cache lock contention detected: {acquire_time:.3f}s"
-                        ),
-                        ErrorType.INTERNAL_ERROR,
-                        request_id=request_id,
-                        metadata={
-                            "contention_location": "cache_write",
-                            "acquire_time": acquire_time,
-                            "shard_id": shard_id,
-                            "context": "Storing new token count entry in sharded cache",
-                        },
-                    )
-                except Exception:
-                    # Ignore logging failures to avoid disrupting core functionality
-                    pass
-
             if key in shard.lru_order:
                 shard.lru_order.remove(key)
             shard.lru_order.append(key)
