@@ -327,7 +327,6 @@ class TestCacheWarmupManager:
 
         # Mock __aexit__ to raise an exception
         if manager._task_group:
-            original_aexit = manager._task_group.__aexit__
 
             async def failing_aexit(*args):
                 raise RuntimeError("Task group cleanup failed")
@@ -372,7 +371,9 @@ class TestCacheWarmupManager:
         assert mock_cache.set.call_count >= len(warmup_data)
 
     @pytest.mark.anyio
-    async def test_load_from_invalid_warmup_file(self, mock_cache, warmup_config, tmp_path):
+    async def test_load_from_invalid_warmup_file(
+        self, mock_cache, warmup_config, tmp_path
+    ):
         """Test handling of invalid warmup file."""
         # Create invalid warmup file
         warmup_file = tmp_path / "warmup.json"
@@ -474,7 +475,6 @@ class TestCacheWarmupManager:
         manager._popular_items = {"key1": 5}
 
         # Mock anyio.Path to raise an exception
-        import anyio
 
         with patch("ccproxy.application.cache.warmup.anyio.Path") as mock_path:
             mock_path.side_effect = RuntimeError("Path error")
@@ -499,7 +499,9 @@ class TestCacheWarmupManager:
         assert "test_key" not in manager._popular_items
 
     @pytest.mark.anyio
-    async def test_preload_responses_mismatched_lengths(self, mock_cache, warmup_config):
+    async def test_preload_responses_mismatched_lengths(
+        self, mock_cache, warmup_config
+    ):
         """Test preload_responses with mismatched request/response lengths."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -586,7 +588,9 @@ class TestCacheWarmupManager:
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
         # Try to load from non-existent file
-        count = await manager.warmup_from_log("/nonexistent/path/log.jsonl", max_items=10)
+        count = await manager.warmup_from_log(
+            "/nonexistent/path/log.jsonl", max_items=10
+        )
 
         # Should return 0
         assert count == 0
@@ -630,7 +634,9 @@ class TestCacheWarmupManager:
         assert count <= 3
 
     @pytest.mark.anyio
-    async def test_warmup_from_log_with_exception(self, mock_cache, warmup_config, tmp_path):
+    async def test_warmup_from_log_with_exception(
+        self, mock_cache, warmup_config, tmp_path
+    ):
         """Test warmup_from_log handles exceptions during file processing."""
         log_file = tmp_path / "test_log.jsonl"
 
@@ -649,48 +655,60 @@ class TestCacheWarmupManager:
             assert count == 0
 
     @pytest.mark.anyio
-    async def test_warmup_from_log_invalid_json_entries(self, mock_cache, warmup_config, tmp_path):
+    async def test_warmup_from_log_invalid_json_entries(
+        self, mock_cache, warmup_config, tmp_path
+    ):
         """Test warmup_from_log skips invalid JSON entries."""
         log_file = tmp_path / "test_log.jsonl"
 
         # Create log file with mix of valid and invalid entries
         with open(log_file, "w") as f:
             # Valid entry
-            f.write(json.dumps({
-                "request": {
-                    "model": "claude-3-opus-20240229",
-                    "messages": [{"role": "user", "content": "Test"}],
-                    "max_tokens": 100,
-                },
-                "response": {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "model": "claude-3-opus-20240229",
-                    "content": [{"type": "text", "text": "Response"}],
-                    "usage": {"input_tokens": 5, "output_tokens": 5},
-                    "stop_reason": "end_turn",
-                },
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "request": {
+                            "model": "claude-3-opus-20240229",
+                            "messages": [{"role": "user", "content": "Test"}],
+                            "max_tokens": 100,
+                        },
+                        "response": {
+                            "id": "msg_1",
+                            "type": "message",
+                            "role": "assistant",
+                            "model": "claude-3-opus-20240229",
+                            "content": [{"type": "text", "text": "Response"}],
+                            "usage": {"input_tokens": 5, "output_tokens": 5},
+                            "stop_reason": "end_turn",
+                        },
+                    }
+                )
+                + "\n"
+            )
             # Invalid JSON line
             f.write("invalid json line{{{[\n")
             # Another valid entry
-            f.write(json.dumps({
-                "request": {
-                    "model": "claude-3-opus-20240229",
-                    "messages": [{"role": "user", "content": "Test 2"}],
-                    "max_tokens": 100,
-                },
-                "response": {
-                    "id": "msg_2",
-                    "type": "message",
-                    "role": "assistant",
-                    "model": "claude-3-opus-20240229",
-                    "content": [{"type": "text", "text": "Response 2"}],
-                    "usage": {"input_tokens": 5, "output_tokens": 5},
-                    "stop_reason": "end_turn",
-                },
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "request": {
+                            "model": "claude-3-opus-20240229",
+                            "messages": [{"role": "user", "content": "Test 2"}],
+                            "max_tokens": 100,
+                        },
+                        "response": {
+                            "id": "msg_2",
+                            "type": "message",
+                            "role": "assistant",
+                            "model": "claude-3-opus-20240229",
+                            "content": [{"type": "text", "text": "Response 2"}],
+                            "usage": {"input_tokens": 5, "output_tokens": 5},
+                            "stop_reason": "end_turn",
+                        },
+                    }
+                )
+                + "\n"
+            )
 
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
