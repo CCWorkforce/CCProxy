@@ -420,6 +420,23 @@ class TestContentConverter:
         assert result["type"] == "image_url"
         assert result["image_url"]["url"].startswith("data:image/png;base64,")
 
+    def test_convert_image_block_url_source(self):
+        """Test converting image block with URL source type."""
+        converter = ContentConverter()
+        image_block = ContentBlockImage(
+            type="image",
+            source={
+                "type": "url",
+                "media_type": "image/jpeg",
+                "data": "https://example.com/image.jpg",
+            },
+        )
+
+        result = converter.convert_image_block_to_openai(image_block)
+
+        assert result["type"] == "image_url"
+        assert result["image_url"]["url"] == "https://example.com/image.jpg"
+
     def test_convert_tool_use_block(self, conversion_context):
         """Test converting tool use content block."""
         converter = ContentConverter()
@@ -436,6 +453,207 @@ class TestContentConverter:
         assert result["type"] == "function"
         assert result["function"]["name"] == "calculator"
         assert json.loads(result["function"]["arguments"]) == {"expression": "2+2"}
+
+    def test_serialize_tool_result_string(self):
+        """Test serializing string tool result content."""
+        result = ContentConverter.serialize_tool_result_content("Simple text result")
+        assert result == "Simple text result"
+
+    def test_serialize_tool_result_none(self):
+        """Test serializing None tool result content."""
+        result = ContentConverter.serialize_tool_result_content(None)
+        assert result == "null"
+
+    def test_serialize_tool_result_primitive_types(self):
+        """Test serializing primitive types (int, float, bool)."""
+        # Integer
+        result = ContentConverter.serialize_tool_result_content(42)
+        assert result == "42"
+
+        # Float
+        result = ContentConverter.serialize_tool_result_content(3.14)
+        assert result == "3.14"
+
+        # Boolean
+        result = ContentConverter.serialize_tool_result_content(True)
+        assert result == "true"
+
+    def test_serialize_tool_result_dict(self):
+        """Test serializing dict tool result content."""
+        data = {"status": "success", "value": 100}
+        result = ContentConverter.serialize_tool_result_content(data)
+        assert json.loads(result) == data
+
+    def test_serialize_tool_result_dict_unserializable(self):
+        """Test serializing dict with unserializable content."""
+
+        # Create a dict with unserializable value
+        class CustomObject:
+            pass
+
+        data = {"key": CustomObject()}
+        result = ContentConverter.serialize_tool_result_content(data)
+        assert "<unserializable_dict" in result
+        assert "['key']" in result
+
+    def test_serialize_tool_result_list_with_text_blocks(self):
+        """Test serializing list with text blocks."""
+        from ccproxy.domain.models import ContentBlockText
+
+        content = [
+            ContentBlockText(type="text", text="Line 1"),
+            ContentBlockText(type="text", text="Line 2"),
+        ]
+        result = ContentConverter.serialize_tool_result_content(content)
+        assert result == "Line 1\nLine 2"
+
+    def test_serialize_tool_result_list_with_mixed_content(self):
+        """Test serializing list with mixed text blocks and dicts."""
+        from ccproxy.domain.models import ContentBlockText
+
+        content = [
+            ContentBlockText(type="text", text="Text part"),
+            {"data": "json part"},
+        ]
+        result = ContentConverter.serialize_tool_result_content(content)
+        assert "Text part" in result
+        assert '"data"' in result or "data" in result
+
+    def test_serialize_tool_result_list_non_serializable_item(self):
+        """Test serializing list with non-serializable items."""
+
+        class CustomObject:
+            pass
+
+        content = [
+            {"text": "Valid item"},
+            CustomObject(),
+        ]
+        result = ContentConverter.serialize_tool_result_content(content)
+        assert "<unserializable_item" in result
+
+    def test_serialize_tool_result_generic_object_fallback(self):
+        """Test serializing generic non-serializable object."""
+
+        class CustomObject:
+            def __str__(self):
+                return "custom_object_string"
+
+        obj = CustomObject()
+        result = ContentConverter.serialize_tool_result_content(
+            obj, request_id="test-123"
+        )
+        assert result == "custom_object_string"
+
+    def test_extract_system_text_from_string(self):
+        """Test extracting system text from string."""
+        result = ContentConverter.extract_system_text("System instruction")
+        assert result == "System instruction"
+
+    def test_extract_system_text_from_list(self):
+        """Test extracting system text from list of SystemContent."""
+        from ccproxy.domain.models import SystemContent
+
+        system = [
+            SystemContent(type="text", text="First instruction"),
+            SystemContent(type="text", text="Second instruction"),
+        ]
+        result = ContentConverter.extract_system_text(system)
+        assert result == "First instruction\nSecond instruction"
+
+    def test_extract_system_text_from_list_with_non_text_blocks(self):
+        """Test extracting system text from list with non-text blocks (edge case)."""
+        from ccproxy.domain.models import SystemContent
+
+        # Create a system content list with only text blocks
+        # (The warning path is triggered when non-text blocks exist,
+        # but SystemContent currently only supports text type)
+        system = [
+            SystemContent(type="text", text="Only text"),
+        ]
+        result = ContentConverter.extract_system_text(system, request_id="test-req")
+        assert result == "Only text"
+
+    def test_extract_system_text_none(self):
+        """Test extracting system text from None."""
+        result = ContentConverter.extract_system_text(None)
+        assert result == ""
+
+    def test_serialize_tool_result_caching(self):
+        """Test that serialize_tool_result_content uses caching."""
+        from ccproxy.domain.models import ContentBlockText
+
+        # Use the same content multiple times to test caching
+        content = [
+            ContentBlockText(type="text", text="Cached text"),
+        ]
+
+        # First call
+        result1 = ContentConverter.serialize_tool_result_content(content)
+
+        # Second call with same content should use cache
+        result2 = ContentConverter.serialize_tool_result_content(content)
+
+        assert result1 == result2
+        assert result1 == "Cached text"
+
+    def test_serialize_tool_result_list_dict_item(self):
+        """Test serializing list with dict items."""
+        content = [
+            {"type": "text", "text": "Dict as text block"},
+        ]
+        result = ContentConverter.serialize_tool_result_content(content)
+        assert "Dict as text block" in result
+
+    def test_serialize_tool_result_cached_with_non_serializable(self):
+        """Test cached path with non-serializable items that can't be JSON dumped."""
+        # This tests lines 36-39 in the cached helper method
+        # We need to test the cached path, which is hit when content is a list
+        # that can be JSON serialized. Within the cached method, individual items
+        # that aren't text blocks will go through json.dumps(), and if that fails,
+        # the exception handler creates an <unserializable_item> message.
+
+        # Create a custom object that will fail json.dumps() but won't fail
+        # the initial cache key creation
+        class NonSerializableClass:
+            pass
+
+        non_serializable_obj = NonSerializableClass()
+
+        # This will hit the non-cached path (lines 83-86) since the list contains
+        # a non-JSON-serializable object
+        content_non_cached = [
+            {"type": "text", "text": "Valid text"},
+            non_serializable_obj,
+        ]
+
+        result = ContentConverter.serialize_tool_result_content(content_non_cached)
+        assert "Valid text" in result
+        assert "<unserializable_item" in result
+
+    def test_extract_system_text_with_mixed_block_types(self):
+        """Test extracting system text when list contains non-text blocks."""
+        # This tests line 147 - the warning path
+        from ccproxy.domain.models import SystemContent
+
+        # Create a mock non-text block (SystemContent only supports type="text",
+        # so we need to create a custom object that will pass the list check
+        # but not the is_system_text_block check)
+        class FakeImageBlock:
+            type = "image"
+            source = "..."
+
+        # Mix of text and non-text block types
+        system = [
+            SystemContent(type="text", text="First instruction"),
+            FakeImageBlock(),  # Non-text block, will be filtered
+            SystemContent(type="text", text="Second instruction"),
+        ]
+
+        result = ContentConverter.extract_system_text(system, request_id="test-warn")
+        # Only text blocks should be included
+        assert "First instruction" in result
+        assert "Second instruction" in result
 
 
 class TestErrorHandling:

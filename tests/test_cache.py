@@ -261,6 +261,306 @@ class TestResponseCache:
         assert stream_iterator is not None
         assert key is not None
 
+    @pytest.mark.anyio
+    async def test_stream_iterator_with_data(self, response_cache, sample_request):
+        """Test stream iterator consumes data correctly."""
+        # Subscribe to stream
+        is_primary, stream_iterator, key = await response_cache.subscribe_stream(
+            sample_request
+        )
+
+        # Publish data in background task
+        async def publish_data():
+            await anyio.sleep(0.01)
+            await response_cache.publish_stream_line(key, "chunk_1")
+            await response_cache.publish_stream_line(key, "chunk_2")
+            await response_cache.finalize_stream(key)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(publish_data)
+
+            # Consume stream
+            chunks = []
+            async for chunk in stream_iterator:
+                chunks.append(chunk)
+
+        assert chunks == ["chunk_1", "chunk_2"]
+
+    @pytest.mark.anyio
+    async def test_cache_disabled_via_circuit_breaker(
+        self, sample_request, sample_response
+    ):
+        """Test caching behavior when circuit breaker is open."""
+        # Create cache with low failure threshold
+        cache = ResponseCache(validation_failure_threshold=1)
+        await cache.start_cleanup_task()
+
+        # Create an invalid response to trigger validation failure
+        invalid_response = MessagesResponse(
+            id="msg_invalid",
+            type="message",
+            role="assistant",
+            model="claude-3-opus-20240229",
+            content=[],  # Empty content - invalid
+            usage=Usage(input_tokens=10, output_tokens=20),
+            stop_reason="end_turn",
+        )
+
+        # Try to cache invalid response to open circuit breaker
+        success = await cache.cache_response(sample_request, invalid_response)
+        assert success is False
+
+        # Circuit breaker should now be open
+        assert cache._circuit_breaker.is_open() is True
+
+        # Try to get from cache - should immediately return None
+        result = await cache.get_cached_response(sample_request)
+        assert result is None
+
+        # Try to cache valid response - should fail due to open circuit
+        success = await cache.cache_response(sample_request, sample_response)
+        assert success is False
+
+        await cache.stop_cleanup_task()
+
+    @pytest.mark.anyio
+    async def test_response_validation_failures(self, sample_request):
+        """Test various response validation failure scenarios."""
+        cache = ResponseCache()
+        await cache.start_cleanup_task()
+
+        # Test 1: Empty content
+        invalid_response1 = MessagesResponse(
+            id="msg_1",
+            type="message",
+            role="assistant",
+            model="claude-3-opus-20240229",
+            content=[],
+            usage=Usage(input_tokens=10, output_tokens=20),
+            stop_reason="end_turn",
+        )
+        success = await cache.cache_response(sample_request, invalid_response1)
+        assert success is False
+
+        # Test 2: Content is not a list (use mock since Pydantic won't allow this)
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock(spec=MessagesResponse)
+        mock_response.content = "not a list"  # Invalid - should be a list
+        # This will fail validation
+        validated = cache._validate_response_for_caching(mock_response)
+        assert validated is False
+
+        # Test 3: Text block without text attribute (use mock to bypass Pydantic)
+        from ccproxy.domain.models import ContentBlockThinking
+
+        mock_block = MagicMock(spec=ContentBlockThinking)
+        mock_block.text = None
+        # Override hasattr to return True for 'text'
+
+        mock_response3 = MagicMock(spec=MessagesResponse)
+        mock_response3.content = [mock_block]
+        validated = cache._validate_response_for_caching(mock_response3)
+        assert validated is False
+
+        await cache.stop_cleanup_task()
+
+    @pytest.mark.anyio
+    async def test_redact_sensitive_data(self):
+        """Test sensitive data redaction."""
+        cache = ResponseCache(redact_fields=["api_key", "password", "secret"])
+
+        # Test dict redaction
+        data_dict = {
+            "api_key": "secret123",
+            "password": "pass456",
+            "username": "user",
+            "nested": {"secret": "hidden", "public": "visible"},
+        }
+        redacted = cache._redact_sensitive_data(data_dict)
+        assert redacted["api_key"] == "***REDACTED***"
+        assert redacted["password"] == "***REDACTED***"
+        assert redacted["username"] == "user"
+        assert redacted["nested"]["secret"] == "***REDACTED***"
+        assert redacted["nested"]["public"] == "visible"
+
+        # Test list redaction
+        data_list = [
+            {"api_key": "key1", "data": "value1"},
+            {"password": "pass2", "data": "value2"},
+        ]
+        redacted_list = cache._redact_sensitive_data(data_list)
+        assert redacted_list[0]["api_key"] == "***REDACTED***"
+        assert redacted_list[0]["data"] == "value1"
+        assert redacted_list[1]["password"] == "***REDACTED***"
+
+        # Test primitive types (no redaction)
+        assert cache._redact_sensitive_data("string") == "string"
+        assert cache._redact_sensitive_data(123) == 123
+        assert cache._redact_sensitive_data(None) is None
+
+    @pytest.mark.anyio
+    async def test_cleanup_expired_with_evictions(
+        self, sample_request, sample_response
+    ):
+        """Test cleanup loop evicts expired entries."""
+        # Create cache with very short TTL and cleanup interval
+        cache = ResponseCache(ttl_seconds=0.05, cleanup_interval_seconds=0.1)
+        await cache.start_cleanup_task()
+
+        # Cache multiple responses
+        for i in range(3):
+            req = MessagesRequest(
+                model="claude-3-opus-20240229",
+                messages=[
+                    Message(
+                        role="user",
+                        content=[ContentBlockText(type="text", text=f"Test {i}")],
+                    )
+                ],
+                max_tokens=100,
+                stream=False,
+            )
+            await cache.cache_response(req, sample_response)
+
+        # Wait for entries to expire
+        await anyio.sleep(0.15)
+
+        # Trigger cleanup
+        await cache._cleanup_expired()
+
+        # Check that evictions were recorded
+        stats = cache.get_stats()
+        assert stats["evictions"] > 0
+
+        await cache.stop_cleanup_task()
+
+    @pytest.mark.anyio
+    async def test_cleanup_task_exception_handling(self, sample_request):
+        """Test that cleanup task handles exceptions gracefully."""
+        cache = ResponseCache(cleanup_interval_seconds=0.05)
+        await cache.start_cleanup_task()
+
+        # Let cleanup run for a bit to ensure it's working
+        await anyio.sleep(0.15)
+
+        # Stop cleanup - should handle cleanup gracefully
+        await cache.stop_cleanup_task()
+
+        # Verify cleanup task is stopped
+        assert cache._cleanup_task_group is None
+
+    @pytest.mark.anyio
+    async def test_stop_cleanup_with_exception(self, sample_request):
+        """Test stop_cleanup_task handles exceptions."""
+        cache = ResponseCache()
+        await cache.start_cleanup_task()
+
+        # Manually trigger exception path by canceling and stopping
+        if cache._cleanup_task_group:
+            cache._cleanup_task_group.cancel_scope.cancel()
+
+        # This should handle exception in __aexit__
+        await cache.stop_cleanup_task()
+        assert cache._cleanup_task_group is None
+
+    @pytest.mark.anyio
+    async def test_pending_request_timeout(self, response_cache, sample_request):
+        """Test timeout when waiting for pending request."""
+        # Mark request as pending but never complete it
+        await response_cache.mark_request_pending(sample_request)
+
+        # Try to get with timeout - should timeout and continue
+        result = await response_cache.get_cached_response(
+            sample_request, wait_for_pending=True, timeout_seconds=0.1
+        )
+        assert result is None
+
+        # Clean up pending request
+        await response_cache.clear_pending_request(sample_request)
+
+    @pytest.mark.anyio
+    async def test_clear_with_pending_requests(
+        self, response_cache, sample_request, sample_response
+    ):
+        """Test clearing cache with pending requests sets events."""
+        # Mark multiple requests as pending
+        requests = []
+        for i in range(3):
+            req = MessagesRequest(
+                model="claude-3-opus-20240229",
+                messages=[
+                    Message(
+                        role="user",
+                        content=[ContentBlockText(type="text", text=f"Test {i}")],
+                    )
+                ],
+                max_tokens=100,
+                stream=False,
+            )
+            requests.append(req)
+            await response_cache.mark_request_pending(req)
+
+        # Cache should have pending requests
+        assert len(response_cache._pending_requests) == 3
+
+        # Clear cache should set all events and clear pending
+        await response_cache.clear()
+
+        # Pending requests should be cleared
+        assert len(response_cache._pending_requests) == 0
+
+    @pytest.mark.anyio
+    async def test_validation_with_redacted_thinking_blocks(self, sample_request):
+        """Test validation accepts ContentBlockRedactedThinking."""
+        from ccproxy.domain.models import ContentBlockRedactedThinking
+
+        cache = ResponseCache()
+        await cache.start_cleanup_task()
+
+        # Response with redacted thinking block (valid without text attribute)
+        response = MessagesResponse(
+            id="msg_redacted",
+            type="message",
+            role="assistant",
+            model="claude-3-opus-20240229",
+            content=[
+                ContentBlockText(type="text", text="Response"),
+                ContentBlockRedactedThinking(
+                    type="redacted_thinking", data="[redacted]"
+                ),
+            ],
+            usage=Usage(input_tokens=10, output_tokens=20),
+            stop_reason="end_turn",
+        )
+
+        # Should validate successfully
+        valid = cache._validate_response_for_caching(response)
+        assert valid is True
+
+        # Should cache successfully
+        success = await cache.cache_response(sample_request, response)
+        assert success is True
+
+        await cache.stop_cleanup_task()
+
+    @pytest.mark.anyio
+    async def test_validation_json_serialization_error(self, sample_request):
+        """Test validation handles JSON serialization errors."""
+        cache = ResponseCache()
+
+        # Create a response that will fail JSON serialization
+        # (This is hard to trigger with real Pydantic models, so we'll use mocking)
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock(spec=MessagesResponse)
+        mock_response.content = [ContentBlockText(type="text", text="Valid")]
+        mock_response.model_dump_json.side_effect = Exception("JSON error")
+
+        # Validation should fail gracefully
+        valid = cache._validate_response_for_caching(mock_response)
+        assert valid is False
+
 
 class TestMemoryManager:
     """Test cases for CacheMemoryManager class."""
@@ -546,6 +846,161 @@ class TestStreamDeduplicator:
         is_primary_new, _ = await stream_deduplicator.register(stream_id)
         # Should be primary again since previous stream was cleaned up
         assert is_primary_new is True
+
+    @pytest.mark.anyio
+    async def test_publish_to_nonexistent_stream(self, stream_deduplicator):
+        """Test publishing to a stream that doesn't exist."""
+        # Publish to a key that was never registered
+        # Should return early without error (line 93)
+        await stream_deduplicator.publish("nonexistent_key", "test_data")
+        # No assertion needed - just verifying it doesn't raise an error
+
+    @pytest.mark.anyio
+    async def test_finalize_nonexistent_stream(self, stream_deduplicator):
+        """Test finalizing a stream that doesn't exist."""
+        # Finalize a key that was never registered
+        # Should return early without error (line 126)
+        await stream_deduplicator.finalize("nonexistent_key")
+        # No assertion needed - just verifying it doesn't raise an error
+
+    @pytest.mark.anyio
+    async def test_publish_with_full_queue(self, stream_deduplicator):
+        """Test publishing when subscriber queue is full (WouldBlock)."""
+        # Create a stream with very small buffer to trigger WouldBlock
+        small_buffer_deduplicator = StreamDeduplicator(max_queue_size=2)
+        stream_id = "full_queue_test"
+
+        # Register subscriber
+        is_primary, queue = await small_buffer_deduplicator.register(stream_id)
+        assert is_primary is True
+
+        # Fill the queue without consuming
+        await small_buffer_deduplicator.publish(stream_id, "msg1")
+        await small_buffer_deduplicator.publish(stream_id, "msg2")
+
+        # Next publish should trigger WouldBlock and mark stream as dead
+        await small_buffer_deduplicator.publish(stream_id, "msg3")
+
+        # The dead stream should have been removed (line 115)
+        # Verify by checking subscriber count decreased
+        assert small_buffer_deduplicator.get_subscriber_count(stream_id) == 0
+
+    @pytest.mark.anyio
+    async def test_publish_with_closed_stream(self, stream_deduplicator):
+        """Test publishing to a closed stream."""
+        stream_id = "closed_stream_test"
+
+        # Register and immediately close the stream
+        is_primary, queue = await stream_deduplicator.register(stream_id)
+        assert is_primary is True
+
+        # Manually close the channels to trigger ClosedResourceError
+        for send, recv in stream_deduplicator.subscribers[stream_id]:
+            await send.aclose()
+            await recv.aclose()
+
+        # Publishing should handle ClosedResourceError and remove dead stream
+        await stream_deduplicator.publish(stream_id, "test_data")
+
+        # Dead stream should be removed from the list (lines 109-111, 115)
+        # The key still exists but list is empty
+        assert len(stream_deduplicator.subscribers.get(stream_id, [])) == 0
+
+    @pytest.mark.anyio
+    async def test_finalize_with_exceptions(self, stream_deduplicator):
+        """Test finalize handles WouldBlock and ClosedResourceError."""
+        # Create stream with small buffer
+        small_deduplicator = StreamDeduplicator(max_queue_size=1)
+        stream_id = "finalize_exception_test"
+
+        # Register subscriber
+        is_primary, queue = await small_deduplicator.register(stream_id)
+        assert is_primary is True
+
+        # Fill queue to trigger WouldBlock on finalize
+        await small_deduplicator.publish(stream_id, "fill")
+
+        # Finalize should handle WouldBlock exception (lines 132-133)
+        await small_deduplicator.finalize(stream_id)
+
+        # Stream should be marked inactive
+        assert small_deduplicator.is_active(stream_id) is False
+
+    @pytest.mark.anyio
+    async def test_is_active_method(self, stream_deduplicator):
+        """Test is_active method."""
+        stream_id = "active_test"
+
+        # Initially not active
+        assert stream_deduplicator.is_active(stream_id) is False
+
+        # Register stream - becomes active
+        is_primary, queue = await stream_deduplicator.register(stream_id)
+        assert is_primary is True
+        assert stream_deduplicator.is_active(stream_id) is True
+
+        # Finalize stream - becomes inactive
+        await stream_deduplicator.finalize(stream_id)
+        assert stream_deduplicator.is_active(stream_id) is False
+
+    @pytest.mark.anyio
+    async def test_has_subscribers_method(self, stream_deduplicator):
+        """Test has_subscribers method."""
+        stream_id = "subscribers_test"
+
+        # Initially no subscribers
+        assert stream_deduplicator.has_subscribers(stream_id) is False
+
+        # Register subscriber
+        is_primary, queue = await stream_deduplicator.register(stream_id)
+        assert is_primary is True
+        assert stream_deduplicator.has_subscribers(stream_id) is True
+
+        # Unregister subscriber
+        await stream_deduplicator.unregister(stream_id, queue)
+        assert stream_deduplicator.has_subscribers(stream_id) is False
+
+    @pytest.mark.anyio
+    async def test_get_subscriber_count_method(self, stream_deduplicator):
+        """Test get_subscriber_count method."""
+        stream_id = "count_test"
+
+        # Initially 0 subscribers
+        assert stream_deduplicator.get_subscriber_count(stream_id) == 0
+
+        # Register multiple subscribers
+        _, queue1 = await stream_deduplicator.register(stream_id)
+        assert stream_deduplicator.get_subscriber_count(stream_id) == 1
+
+        _, queue2 = await stream_deduplicator.register(stream_id)
+        assert stream_deduplicator.get_subscriber_count(stream_id) == 2
+
+        _, queue3 = await stream_deduplicator.register(stream_id)
+        assert stream_deduplicator.get_subscriber_count(stream_id) == 3
+
+        # Unregister one
+        await stream_deduplicator.unregister(stream_id, queue1)
+        assert stream_deduplicator.get_subscriber_count(stream_id) == 2
+
+    @pytest.mark.anyio
+    async def test_clear_with_full_queues(self):
+        """Test clear handles WouldBlock when finalizing streams."""
+        # Create deduplicator with small buffer
+        small_deduplicator = StreamDeduplicator(max_queue_size=1)
+
+        # Register multiple streams and fill their queues
+        for i in range(3):
+            stream_id = f"clear_test_{i}"
+            _, queue = await small_deduplicator.register(stream_id)
+            # Fill queue to cause WouldBlock on clear
+            await small_deduplicator.publish(stream_id, "data")
+
+        # Clear should handle WouldBlock exceptions (lines 167-171)
+        await small_deduplicator.clear()
+
+        # All streams should be cleared
+        assert len(small_deduplicator.subscribers) == 0
+        assert len(small_deduplicator.active_streams) == 0
 
 
 class TestCacheStatistics:
