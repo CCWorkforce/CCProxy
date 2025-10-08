@@ -486,6 +486,7 @@ class TestContentConverter:
 
     def test_serialize_tool_result_dict_unserializable(self):
         """Test serializing dict with unserializable content."""
+
         # Create a dict with unserializable value
         class CustomObject:
             pass
@@ -539,7 +540,9 @@ class TestContentConverter:
                 return "custom_object_string"
 
         obj = CustomObject()
-        result = ContentConverter.serialize_tool_result_content(obj, request_id="test-123")
+        result = ContentConverter.serialize_tool_result_content(
+            obj, request_id="test-123"
+        )
         assert result == "custom_object_string"
 
     def test_extract_system_text_from_string(self):

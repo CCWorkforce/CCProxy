@@ -316,3 +316,386 @@ class TestCacheWarmupManager:
         # Should have loaded entries from log
         assert count >= 0  # May be 0 if filtering happens
         # The actual caching depends on implementation details
+
+    @pytest.mark.anyio
+    async def test_stop_with_exception(self, mock_cache, warmup_config):
+        """Test stop() handles exceptions from task group cleanup."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Start the manager
+        await manager.start()
+
+        # Mock __aexit__ to raise an exception
+        if manager._task_group:
+            original_aexit = manager._task_group.__aexit__
+
+            async def failing_aexit(*args):
+                raise RuntimeError("Task group cleanup failed")
+
+            manager._task_group.__aexit__ = failing_aexit
+
+        # Stop should handle the exception gracefully
+        await manager.stop()
+        assert manager._task_group is None
+
+    @pytest.mark.anyio
+    async def test_load_from_warmup_file(self, mock_cache, warmup_config, tmp_path):
+        """Test loading warmup items from file."""
+        # Create warmup file
+        warmup_file = tmp_path / "warmup.json"
+        warmup_data = [
+            {
+                "messages": [{"role": "user", "content": "Test message"}],
+                "model": "claude-3-opus-20240229",
+                "max_tokens": 100,
+                "response": {
+                    "id": "msg_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Test response"}],
+                    "usage": {"input_tokens": 5, "output_tokens": 5},
+                    "stop_reason": "end_turn",
+                },
+            }
+        ]
+
+        with open(warmup_file, "w") as f:
+            json.dump(warmup_data, f)
+
+        warmup_config.warmup_file_path = str(warmup_file)
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Warmup should load from file
+        await manager._warmup_cache()
+
+        # Should have called cache.set for loaded items
+        assert mock_cache.set.call_count >= len(warmup_data)
+
+    @pytest.mark.anyio
+    async def test_load_from_invalid_warmup_file(self, mock_cache, warmup_config, tmp_path):
+        """Test handling of invalid warmup file."""
+        # Create invalid warmup file
+        warmup_file = tmp_path / "warmup.json"
+        with open(warmup_file, "w") as f:
+            f.write("invalid json{{{")
+
+        warmup_config.warmup_file_path = str(warmup_file)
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Should handle invalid file gracefully
+        await manager._warmup_cache()
+
+    @pytest.mark.anyio
+    async def test_warmup_cache_exception(self, mock_cache, warmup_config):
+        """Test _warmup_cache handles exceptions."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Mock _load_warmup_item to raise an exception
+        with patch.object(
+            manager, "_load_warmup_item", side_effect=RuntimeError("Load failed")
+        ):
+            # Should handle exception gracefully
+            await manager._warmup_cache()
+
+    @pytest.mark.anyio
+    async def test_load_warmup_item_exception(self, mock_cache, warmup_config):
+        """Test _load_warmup_item handles exceptions."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Create invalid warmup item
+        invalid_item = {
+            "messages": "invalid",  # Should be a list
+            "response": {},
+        }
+
+        # Should handle exception gracefully
+        await manager._load_warmup_item(invalid_item)
+
+    @pytest.mark.anyio
+    async def test_auto_save_loop_exception(self, mock_cache, warmup_config):
+        """Test _auto_save_loop handles non-cancellation exceptions."""
+        import anyio
+
+        warmup_config.save_interval_seconds = 0.05
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Mock _save_popular_items to raise an exception
+        call_count = 0
+        original_save = manager._save_popular_items
+
+        async def failing_save():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Save failed")
+            await original_save()
+
+        with patch.object(manager, "_save_popular_items", side_effect=failing_save):
+            await manager.start()
+
+            # Wait for exception to occur
+            await anyio.sleep(0.15)
+
+            # Stop the manager
+            await manager.stop()
+
+            # Should have attempted save at least once
+            assert call_count >= 1
+
+    @pytest.mark.anyio
+    async def test_save_popular_items_creates_directory(self, mock_cache, tmp_path):
+        """Test _save_popular_items creates parent directory if needed."""
+        # Use a nested path that doesn't exist
+        warmup_file = tmp_path / "nested" / "dir" / "warmup.json"
+        config = CacheWarmupConfig(
+            enabled=True,
+            warmup_file_path=str(warmup_file),
+            auto_save_popular=True,
+            popularity_threshold=2,
+        )
+
+        manager = CacheWarmupManager(cache=mock_cache, config=config)
+
+        # Track popular items
+        manager._popular_items = {"key1": 3, "key2": 5}
+
+        # Save should create directory
+        await manager._save_popular_items()
+
+        # Directory should exist
+        assert warmup_file.parent.exists()
+
+    @pytest.mark.anyio
+    async def test_save_popular_items_exception(self, mock_cache, warmup_config):
+        """Test _save_popular_items handles exceptions."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Track popular items
+        manager._popular_items = {"key1": 5}
+
+        # Mock anyio.Path to raise an exception
+        import anyio
+
+        with patch("ccproxy.application.cache.warmup.anyio.Path") as mock_path:
+            mock_path.side_effect = RuntimeError("Path error")
+
+            # Should handle exception gracefully
+            await manager._save_popular_items()
+
+    @pytest.mark.anyio
+    async def test_track_cache_hit_disabled(self, mock_cache):
+        """Test track_cache_hit when auto_save_popular is disabled."""
+        config = CacheWarmupConfig(
+            enabled=True,
+            auto_save_popular=False,
+        )
+
+        manager = CacheWarmupManager(cache=mock_cache, config=config)
+
+        # Track cache hit
+        manager.track_cache_hit("test_key")
+
+        # Should not track when disabled
+        assert "test_key" not in manager._popular_items
+
+    @pytest.mark.anyio
+    async def test_preload_responses_mismatched_lengths(self, mock_cache, warmup_config):
+        """Test preload_responses with mismatched request/response lengths."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        requests = [
+            MessagesRequest(
+                model="claude-3-opus-20240229",
+                messages=[
+                    Message(
+                        role="user",
+                        content=[ContentBlockText(type="text", text="Test")],
+                    )
+                ],
+                max_tokens=100,
+                stream=False,
+            )
+        ]
+
+        responses = [
+            MessagesResponse(
+                id="msg_1",
+                type="message",
+                role="assistant",
+                model="claude-3-opus-20240229",
+                content=[ContentBlockText(type="text", text="Response 1")],
+                usage=Usage(input_tokens=10, output_tokens=10),
+                stop_reason="end_turn",
+            ),
+            MessagesResponse(
+                id="msg_2",
+                type="message",
+                role="assistant",
+                model="claude-3-opus-20240229",
+                content=[ContentBlockText(type="text", text="Response 2")],
+                usage=Usage(input_tokens=10, output_tokens=10),
+                stop_reason="end_turn",
+            ),
+        ]
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match="same length"):
+            await manager.preload_responses(requests, responses)
+
+    @pytest.mark.anyio
+    async def test_preload_responses_with_exception(self, mock_cache, warmup_config):
+        """Test preload_responses handles exceptions during cache set."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Make cache.set fail
+        mock_cache.set = AsyncMock(side_effect=RuntimeError("Cache error"))
+
+        requests = [
+            MessagesRequest(
+                model="claude-3-opus-20240229",
+                messages=[
+                    Message(
+                        role="user",
+                        content=[ContentBlockText(type="text", text="Test")],
+                    )
+                ],
+                max_tokens=100,
+                stream=False,
+            )
+        ]
+
+        responses = [
+            MessagesResponse(
+                id="msg_1",
+                type="message",
+                role="assistant",
+                model="claude-3-opus-20240229",
+                content=[ContentBlockText(type="text", text="Response")],
+                usage=Usage(input_tokens=10, output_tokens=10),
+                stop_reason="end_turn",
+            )
+        ]
+
+        # Should handle exception and return 0
+        count = await manager.preload_responses(requests, responses)
+        assert count == 0
+
+    @pytest.mark.anyio
+    async def test_warmup_from_nonexistent_log(self, mock_cache, warmup_config):
+        """Test warmup_from_log with non-existent file."""
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Try to load from non-existent file
+        count = await manager.warmup_from_log("/nonexistent/path/log.jsonl", max_items=10)
+
+        # Should return 0
+        assert count == 0
+
+    @pytest.mark.anyio
+    async def test_warmup_from_log_max_items(self, mock_cache, warmup_config, tmp_path):
+        """Test warmup_from_log respects max_items limit."""
+        log_file = tmp_path / "test_log.jsonl"
+
+        # Create log file with multiple entries
+        log_entries = [
+            {
+                "request": {
+                    "model": "claude-3-opus-20240229",
+                    "messages": [{"role": "user", "content": f"Test {i}"}],
+                    "max_tokens": 100,
+                },
+                "response": {
+                    "id": f"msg_{i}",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-3-opus-20240229",
+                    "content": [{"type": "text", "text": f"Response {i}"}],
+                    "usage": {"input_tokens": 5, "output_tokens": 5},
+                    "stop_reason": "end_turn",
+                },
+            }
+            for i in range(10)
+        ]
+
+        with open(log_file, "w") as f:
+            for entry in log_entries:
+                f.write(json.dumps(entry) + "\n")
+
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Load with max_items=3
+        count = await manager.warmup_from_log(str(log_file), max_items=3)
+
+        # Should load at most 3 items
+        assert count <= 3
+
+    @pytest.mark.anyio
+    async def test_warmup_from_log_with_exception(self, mock_cache, warmup_config, tmp_path):
+        """Test warmup_from_log handles exceptions during file processing."""
+        log_file = tmp_path / "test_log.jsonl"
+
+        # Create log file
+        with open(log_file, "w") as f:
+            f.write('{"request": {}, "response": {}}\n')
+
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Mock aiofiles.open to raise an exception
+        with patch("ccproxy.application.cache.warmup.aiofiles.open") as mock_open:
+            mock_open.side_effect = RuntimeError("File error")
+
+            # Should handle exception and return 0
+            count = await manager.warmup_from_log(str(log_file), max_items=10)
+            assert count == 0
+
+    @pytest.mark.anyio
+    async def test_warmup_from_log_invalid_json_entries(self, mock_cache, warmup_config, tmp_path):
+        """Test warmup_from_log skips invalid JSON entries."""
+        log_file = tmp_path / "test_log.jsonl"
+
+        # Create log file with mix of valid and invalid entries
+        with open(log_file, "w") as f:
+            # Valid entry
+            f.write(json.dumps({
+                "request": {
+                    "model": "claude-3-opus-20240229",
+                    "messages": [{"role": "user", "content": "Test"}],
+                    "max_tokens": 100,
+                },
+                "response": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-3-opus-20240229",
+                    "content": [{"type": "text", "text": "Response"}],
+                    "usage": {"input_tokens": 5, "output_tokens": 5},
+                    "stop_reason": "end_turn",
+                },
+            }) + "\n")
+            # Invalid JSON line
+            f.write("invalid json line{{{[\n")
+            # Another valid entry
+            f.write(json.dumps({
+                "request": {
+                    "model": "claude-3-opus-20240229",
+                    "messages": [{"role": "user", "content": "Test 2"}],
+                    "max_tokens": 100,
+                },
+                "response": {
+                    "id": "msg_2",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-3-opus-20240229",
+                    "content": [{"type": "text", "text": "Response 2"}],
+                    "usage": {"input_tokens": 5, "output_tokens": 5},
+                    "stop_reason": "end_turn",
+                },
+            }) + "\n")
+
+        manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
+
+        # Should skip invalid entries and load valid ones
+        count = await manager.warmup_from_log(str(log_file), max_items=10)
+
+        # Should have loaded 2 valid entries (skipping the invalid one)
+        assert count == 2
