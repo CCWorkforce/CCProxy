@@ -95,17 +95,26 @@ def create_app(settings: Settings) -> FastAPI:
         finally:
             logging.info("Initiating application shutdown")
             try:
-                await app.state.response_cache.stop_cleanup_task()
-                logging.info("Response cache cleanup stopped")
+                try:
+                    await app.state.response_cache.stop_cleanup_task()
+                    logging.info("Response cache cleanup stopped")
+                except Exception as e:
+                    logging.error(f"Error stopping response cache: {str(e)}")
 
-                await app.state.error_tracker.shutdown()
-                logging.info("Error tracker shutdown")
+                try:
+                    await app.state.error_tracker.shutdown()
+                    logging.info("Error tracker shutdown")
+                except Exception as e:
+                    logging.error(f"Error shutting down error tracker: {str(e)}")
 
                 # Stop cache warmup manager if it exists
                 if hasattr(app.state, "cache_warmup_manager"):
-                    logging.info("Stopping cache warmup manager")
-                    await app.state.cache_warmup_manager.stop()
-                    logging.info("Cache warmup manager stopped")
+                    try:
+                        logging.info("Stopping cache warmup manager")
+                        await app.state.cache_warmup_manager.stop()
+                        logging.info("Cache warmup manager stopped")
+                    except Exception as e:
+                        logging.error(f"Error stopping cache warmup manager: {str(e)}")
             finally:
                 provider = getattr(app.state, "provider", None)
                 if provider and hasattr(provider, "close"):

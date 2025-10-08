@@ -4,6 +4,7 @@ import anyio
 from anyio import create_memory_object_stream
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
 from asyncer import create_task_group
+import asyncio
 import json
 import re
 import traceback
@@ -170,23 +171,65 @@ class ErrorTracker:
 
     async def shutdown(self):
         """Shutdown the error tracker gracefully."""
-        if self._writer_task:
-            # Signal shutdown by sending None through channel
-            await self._write_send.send(None)
-            # Close the task group
-            if hasattr(self, "_task_group"):
-                await self._task_group.__aexit__(None, None, None)
-            self._writer_task = None
+        try:
+            if self._writer_task:
+                # Signal shutdown by sending None through channel
+                try:
+                    await self._write_send.send(None)
+                except (
+                    asyncio.CancelledError,
+                    anyio.BrokenResourceError,
+                    anyio.ClosedResourceError,
+                ):
+                    # Operation was cancelled or channel already closed, that's fine
+                    pass
+                except Exception:
+                    # Any other error during send, ignore during shutdown
+                    pass
 
-        # Close the channels
-        if self._write_send:
-            await self._write_send.aclose()
-        if self._write_receive:
-            await self._write_receive.aclose()
+                # Close the task group
+                if hasattr(self, "_task_group"):
+                    try:
+                        await self._task_group.__aexit__(None, None, None)
+                    except (asyncio.CancelledError, Exception):
+                        # Ignore errors during task group cleanup
+                        pass
+                self._writer_task = None
 
-        if self._file_handle:
-            self._file_handle.close()
-            self._file_handle = None
+            # Close the channels
+            if self._write_send:
+                try:
+                    await self._write_send.aclose()
+                except (asyncio.CancelledError, Exception):
+                    pass
+            if self._write_receive:
+                try:
+                    await self._write_receive.aclose()
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            if self._file_handle:
+                try:
+                    self._file_handle.close()
+                except Exception:
+                    pass
+                self._file_handle = None
+        except asyncio.CancelledError:
+            # Shutdown was cancelled, clean up synchronously
+            if self._file_handle:
+                try:
+                    self._file_handle.close()
+                except Exception:
+                    pass
+                self._file_handle = None
+        except Exception as e:
+            # Log shutdown error but don't raise it
+            debug(
+                LogRecord(
+                    event=LogEvent.CACHE_EVENT.value,
+                    message=f"Error during error tracker shutdown: {str(e)}",
+                )
+            )
 
     async def _writer_loop(self):
         """Background task to write errors to file."""

@@ -139,7 +139,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("qwen/qwen3-coder-plus", 66_560),
         ("qwen/qwen3-coder-flash", 66_560),
         ("x-ai/grok-4-fast", 30_720),
-        ("z-ai/glm-4.6", 65_536),
+        ("z-ai/glm-4.6", 202_752),
         ("moonshotai/kimi-k2-0905", 30_720),
         ("deepseek/deepseek-v3.1-terminus", 65_536),
         ("deepseek/deepseek-v3.2-exp", 65_536),

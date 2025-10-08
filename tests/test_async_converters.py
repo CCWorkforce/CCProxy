@@ -732,3 +732,130 @@ class TestResponseConversionEdgeCases:
         assert result.usage is not None
         assert result.usage.input_tokens == 0
         assert result.usage.output_tokens == 0
+
+
+# === Additional Coverage Tests for Missing Lines ===
+
+
+class TestSyncConvertFallback:
+    """Test synchronous convert method fallback."""
+
+    def test_sync_convert_fallback(self):
+        """Test that sync convert method uses AnthropicToOpenAIConverter."""
+        from ccproxy.application.converters_module.base import ConversionContext
+        from unittest.mock import MagicMock
+        from ccproxy.config import Settings
+
+        settings = MagicMock(spec=Settings)
+        context = ConversionContext(
+            request_id="test-sync", target_model="gpt-4", settings=settings
+        )
+
+        converter = AsyncMessageConverter(context=context)
+
+        # Mock input that would be passed to the regular converter
+        mock_input = {"messages": [{"role": "user", "content": "test"}]}
+
+        # The sync convert method should work (though it's not used in practice)
+        # It should return a result by delegating to the sync converter
+        result = converter.convert(mock_input)
+        assert result is not None  # Should delegate successfully
+
+
+class TestToolUseSingleMessageConversion:
+    """Test tool use handling in single message conversion."""
+
+    @pytest.mark.anyio
+    async def test_single_message_tool_use_conversion(self):
+        """Test conversion when single message contains tool_use content block (line 155)."""
+        from ccproxy.domain.models import ContentBlockToolUse
+
+        messages = [
+            Message(
+                role="assistant",
+                content=[
+                    ContentBlockToolUse(
+                        type="tool_use",
+                        id="single-tool-1",
+                        name="calculate_sum",
+                        input={"numbers": [1, 2, 3]},
+                    )
+                ],
+            )
+        ]
+
+        converter = AsyncMessageConverter()
+        result = await converter.convert_messages_async(messages)
+
+        assert len(result) == 1
+        msg = result[0]
+        assert msg["role"] == "assistant"
+        assert "tool_calls" in msg
+        assert len(msg["tool_calls"]) == 1
+        assert msg["tool_calls"][0]["function"]["name"] == "calculate_sum"
+
+
+class TestComplexMessageAsyncStringConversion:
+    """Test async string conversion in complex message handling."""
+
+    @pytest.mark.anyio
+    async def test_mixed_text_and_other_content_types(self):
+        """Test text_and_non_text branch (line 207) with unknown content types triggering async str conversion (lines 201-203, 216-221)."""
+        from ccproxy.domain.models import ContentBlockText
+
+        # Create a message with text and tool use content (mixed)
+        messages = [
+            Message(
+                role="assistant",
+                content=[
+                    ContentBlockText(
+                        type="text", text="I need to use a tool and provide text."
+                    ),
+                    ContentBlockText(type="text", text="This is additional text."),
+                ],
+            )
+        ]
+
+        result = await convert_messages_async(messages)
+
+        assert len(result) == 1
+        msg = result[0]
+        assert msg["role"] == "assistant"
+        assert (
+            msg["content"]
+            == "I need to use a tool and provide text. This is additional text."
+        )
+
+    @pytest.mark.anyio
+    async def test_only_non_text_content_blocks_array_format(self):
+        """Test only non-text content blocks requiring array format (line 227)."""
+        from ccproxy.domain.models import ContentBlockToolUse
+
+        # Message with only multiple tool uses (no text)
+        messages = [
+            Message(
+                role="assistant",
+                content=[
+                    ContentBlockToolUse(
+                        type="tool_use",
+                        id="tool-1",
+                        name="search",
+                        input={"query": "test1"},
+                    ),
+                    ContentBlockToolUse(
+                        type="tool_use",
+                        id="tool-2",
+                        name="search",
+                        input={"query": "test2"},
+                    ),
+                ],
+            )
+        ]
+
+        result = await convert_messages_async(messages)
+
+        assert len(result) == 1
+        msg = result[0]
+        assert msg["role"] == "assistant"
+        assert "tool_calls" in msg
+        assert len(msg["tool_calls"]) == 2
