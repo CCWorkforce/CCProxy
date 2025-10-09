@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # FastAPI framework
-fastapi>=0.118.1
+fastapi>=0.118.2
 uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
