@@ -27,12 +27,10 @@ SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
 
 OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
     {
-        "qwen/qwen3-235b-a22b-thinking-2507",
         "deepseek/deepseek-chat-v3.1",
         "deepseek/deepseek-v3.1-terminus",
         "x-ai/grok-code-fast-1",
         "x-ai/grok-4-fast",
-        "qwen/qwen3-vl-235b-a22b-thinking",
         "deepseek/deepseek-v3.2-exp",
     }
 )
@@ -105,6 +103,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("deepseek/deepseek-v3.2-exp", 163_840),
         ("x-ai/grok-code-fast-1", 256_000),
         ("qwen/qwen3-next-80b-a3b-thinking", 262_144),
+        ("qwen/qwen3-vl-30b-a3b-thinking", 262_144),
         ("qwen/qwen3-coder-plus", 128_000),
         ("qwen/qwen3-coder-flash", 128_000),
         ("x-ai/grok-4-fast", 2_000_000),
@@ -112,6 +111,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("moonshotai/kimi-k2-0905", 262_144),
         ("deepseek/deepseek-v3.1-terminus", 131_072),
         ("qwen/qwen3-vl-235b-a22b-thinking", 131_072),
+        ("baidu/ernie-4.5-21b-a3b-thinking", 131_072),
     }
 )
 
@@ -143,7 +143,9 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("moonshotai/kimi-k2-0905", 30_720),
         ("deepseek/deepseek-v3.1-terminus", 65_536),
         ("deepseek/deepseek-v3.2-exp", 65_536),
+        ("baidu/ernie-4.5-21b-a3b-thinking", 65_536),
         ("qwen/qwen3-vl-235b-a22b-thinking", 32_768),
+        ("qwen/qwen3-vl-30b-a3b-thinking", 262_144),
     }
 )
 

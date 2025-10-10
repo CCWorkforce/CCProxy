@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # FastAPI framework
-fastapi>=0.118.1
+fastapi>=0.118.2
 uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
@@ -36,7 +36,7 @@ yarl>=1.22.0
 python-dotenv>=1.1.1
 
 # Async file I/O
-aiofiles>=24.1.0
+aiofiles>=25.1.0
 
 # OpenTelemetry for distributed tracing
 opentelemetry-api>=1.37.0

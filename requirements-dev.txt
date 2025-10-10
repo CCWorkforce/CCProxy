@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # FastAPI framework
-fastapi>=0.118.1
+fastapi>=0.118.2
 uvicorn[standard]>=0.37.0
 orjson>=3.11.3
 
@@ -37,7 +37,7 @@ locust==2.41.5
 python-dotenv>=1.1.1
 
 # Async file I/O
-aiofiles>=24.1.0
+aiofiles>=25.1.0
 
 pytest-sugar>=1.1.1
 
