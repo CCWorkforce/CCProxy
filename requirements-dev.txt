@@ -37,7 +37,7 @@ locust==2.41.5
 python-dotenv>=1.1.1
 
 # Async file I/O
-aiofiles>=24.1.0
+aiofiles>=25.1.0
 
 pytest-sugar>=1.1.1
 
