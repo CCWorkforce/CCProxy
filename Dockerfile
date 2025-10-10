@@ -5,7 +5,7 @@
 # ============================================================================
 # Stage 1: Python dependencies builder (Alpine-based for smaller build)
 # ============================================================================
-FROM python:3.13.5-alpine AS python-builder-alpine
+FROM python:3.14.0-alpine AS python-builder-alpine
 
 # Install build dependencies required for Python packages
 RUN apk add --no-cache \
@@ -31,7 +31,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ============================================================================
 # Stage 2: Python dependencies builder (Debian-based for compatibility)
 # ============================================================================
-FROM python:3.13.5-slim AS python-builder-debian
+FROM python:3.14.0-slim AS python-builder-debian
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ============================================================================
 # Stage 3: Alpine runtime (SMALLEST ~80-120MB)
 # ============================================================================
-FROM python:3.13.5-alpine AS production-alpine
+FROM python:3.14.0-alpine AS production-alpine
 
 # Install only essential runtime dependencies
 RUN apk add --no-cache \
@@ -112,7 +112,7 @@ CMD ["sh", "-c", "exec uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-11434} --w
 # ============================================================================
 # Stage 4: Debian slim runtime (RECOMMENDED ~150-200MB, better compatibility)
 # ============================================================================
-FROM python:3.13.5-slim AS production
+FROM python:3.14.0-slim AS production
 
 # Install runtime dependencies and security updates
 RUN apt-get update && apt-get install -y --no-install-recommends \
