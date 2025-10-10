@@ -158,14 +158,14 @@ fi
 # Check BIG_MODEL_NAME
 if ! check_required_var "BIG_MODEL_NAME"; then
     print_info "Please add to your .env file:"
-    echo "  BIG_MODEL_NAME=gpt-4"
+    echo "  BIG_MODEL_NAME=gpt-5-2025-08-07"
     MISSING_VARS=$((MISSING_VARS + 1))
 fi
 
 # Check SMALL_MODEL_NAME
 if ! check_required_var "SMALL_MODEL_NAME"; then
     print_info "Please add to your .env file:"
-    echo "  SMALL_MODEL_NAME=gpt-3.5-turbo"
+    echo "  SMALL_MODEL_NAME=gpt-5-mini-2025-08-07"
     MISSING_VARS=$((MISSING_VARS + 1))
 fi
 
