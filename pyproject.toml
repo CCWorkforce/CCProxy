@@ -1,25 +1,26 @@
 [project]
 name = "CCProxy"
-version = "1.4.1"
+version = "1.4.2"
 description = "Proxy server enabling Claude Code to work with OpenAI and its compatible API providers"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13.8"
 authors = [
     {name = "CCWorkforce Engineers"}
 ]
 dependencies = [
-    "fastapi[standard]>=0.118.2",
+    "fastapi[standard]>=0.118.3",
     "uvicorn>=0.37.0",
     "httpx[http2]>=0.28.1",
     "pydantic>=2.12.0",
     "python-dotenv>=1.1.1",
-    "openai[aiohttp]>=2.2.0",
+    "openai[aiohttp]>=2.3.0",
     "httpx-aiohttp>=0.1.8",
     "pydantic-settings>=2.11.0",
     "tiktoken>=0.12.0",
     "yarl>=1.22.0",
     "starlette>=0.48.0",
     "standard>=1.0.3",
+    "asyncio>=4.0.0",
     "asyncer>=0.0.9",
     "anyio>=4.11.0",
     "psutil>=7.1.0",
@@ -31,6 +32,8 @@ dependencies = [
     "typer>=0.19.2",
     "typing-extensions>=4.15.0",
     "typing-inspection>=0.4.2",
+    "uvloop>=0.21.0",
+    "httptools>=0.7.1",
 ]
 
 [project.optional-dependencies]

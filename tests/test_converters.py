@@ -471,8 +471,8 @@ class TestContentConverter:
         assert result == "42"
 
         # Float
-        result = ContentConverter.serialize_tool_result_content(3.14)
-        assert result == "3.14"
+        result = ContentConverter.serialize_tool_result_content(3.13.8)
+        assert result == "3.13.8"
 
         # Boolean
         result = ContentConverter.serialize_tool_result_content(True)
