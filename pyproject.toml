@@ -32,6 +32,8 @@ dependencies = [
     "typer>=0.19.2",
     "typing-extensions>=4.15.0",
     "typing-inspection>=0.4.2",
+    "uvloop>=0.21.0",
+    "httptools>=0.7.1",
 ]
 
 [project.optional-dependencies]

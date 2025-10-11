@@ -56,3 +56,5 @@ anyio>=4.11.0
 
 # System monitoring for thread pool management
 psutil>=7.1.0
+uvloop>=0.21.0
+httptools>=0.7.1

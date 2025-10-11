@@ -177,6 +177,7 @@ dependencies = [
     { name = "asyncer" },
     { name = "asyncio" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "httptools" },
     { name = "httpx", extra = ["http2"] },
     { name = "httpx-aiohttp" },
     { name = "openai", extra = ["aiohttp"] },
@@ -196,6 +197,7 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
     { name = "uvicorn" },
+    { name = "uvloop" },
     { name = "yarl" },
 ]
 
@@ -224,6 +226,7 @@ requires-dist = [
     { name = "asyncer", specifier = ">=0.0.9" },
     { name = "asyncio", specifier = ">=4.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.118.3" },
+    { name = "httptools", specifier = ">=0.7.1" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
     { name = "httpx-aiohttp", specifier = ">=0.1.8" },
     { name = "openai", extras = ["aiohttp"], specifier = ">=2.3.0" },
@@ -243,6 +246,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "typing-inspection", specifier = ">=0.4.2" },
     { name = "uvicorn", specifier = ">=0.37.0" },
+    { name = "uvloop", specifier = ">=0.21.0" },
     { name = "yarl", specifier = ">=1.22.0" },
 ]
 provides-extras = ["aiohttp"]
