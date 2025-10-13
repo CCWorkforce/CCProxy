@@ -45,7 +45,7 @@ opentelemetry-exporter-otlp-proto-grpc>=1.37.0
 opentelemetry-exporter-jaeger-thrift>=1.21.0
 
 # Production server (optional, for better performance)
-locust==2.41.5
+locust==2.41.6
 starlette>=0.48.0
 standard>=1.0.3
 asyncio>=4.0.0
