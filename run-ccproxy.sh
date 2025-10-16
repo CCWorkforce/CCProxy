@@ -225,6 +225,10 @@ echo "  PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-unset}"
 echo "  PROVIDER_RETRY_BASE_DELAY: ${PROVIDER_RETRY_BASE_DELAY:-unset}"
 echo "  PROVIDER_RETRY_JITTER: ${PROVIDER_RETRY_JITTER:-unset}"
 
+print_info "Cython optimization configuration:"
+echo "  CCPROXY_ENABLE_CYTHON: ${CCPROXY_ENABLE_CYTHON:-true (default - enabled)}"
+echo "  CCPROXY_BUILD_CYTHON: ${CCPROXY_BUILD_CYTHON:-true (default - enabled)}"
+
 # Check required files
 if [ ! -f "wsgi.py" ]; then
     print_error "wsgi.py not found in $SCRIPT_DIR"

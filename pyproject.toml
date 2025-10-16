@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=80.9.0", "wheel", "cython>=3.1.4"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "CCProxy"
 version = "1.4.2"
@@ -52,10 +56,14 @@ dev = [
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
+    "pytest-benchmark>=5.1.0",
     "aiofiles>=25.1.0",
     "respx>=0.22.0",
     "ruff>=0.14.0",
     "mypy>=1.18.2",
+    "cython>=3.1.4",
+    "line-profiler>=5.0.0",
+    "setuptools>=80.9.0",
 ]
 
 [tool.ruff]
