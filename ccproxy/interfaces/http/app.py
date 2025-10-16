@@ -59,9 +59,12 @@ def create_app(settings: Settings) -> FastAPI:
         # Check Cython optimization status
         try:
             from ..._cython import CYTHON_ENABLED
+
             if CYTHON_ENABLED:
                 try:
-                    from ..._cython.type_checks import is_text_block
+                    # Try to import Cython modules to verify they're available
+                    from ..._cython import type_checks  # noqa: F401
+
                     log_info(
                         LogRecord(
                             event="cython_status",
