@@ -28,3 +28,4 @@
 - **Error handling**: Graceful handling of conversion errors with fallback mechanisms
 - **Serialization**: Complex tool result serialization with proper type checking
 - **Type safety**: All converters must implement proper type annotations
+- **Cython optimizations**: Can leverage `ccproxy._cython.serialization` for content serialization (25-35% improvement) and `ccproxy._cython.json_ops` for JSON operations (10.7x faster for size estimation) - integrated in content_converter.py

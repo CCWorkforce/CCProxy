@@ -44,6 +44,9 @@ Cache Warmup (all optional)
 - CACHE_WARMUP_AUTO_SAVE_POPULAR (default True)
 - CACHE_WARMUP_POPULARITY_THRESHOLD (default 3)
 - CACHE_WARMUP_SAVE_INTERVAL_SECONDS (default 3600)
+Cython Optimization (all optional)
+- CCPROXY_ENABLE_CYTHON (default True - enable Cython-compiled modules for 15-35% performance improvement)
+- CCPROXY_BUILD_CYTHON (default True - build Cython extensions during installation)
 Scripts create .env.example and validate env where helpful.
 
 Run options
@@ -80,7 +83,7 @@ Big-picture architecture (Hexagonal/Clean Architecture)
   - Prevents resource exhaustion: reduces threads per worker in multi-worker mode
   - Target total threads = CPU_count × 5 (distributed across workers)
   - Single worker: up to 40 threads; Multi-worker: 4-20 threads per worker
-- ccproxy/application/type_utils.py: Type utilities and helper functions
+- ccproxy/application/type_utils.py: Type utilities and helper functions (uses Cython optimizations for type checking)
 
 ## Infrastructure Layer (ccproxy/infrastructure/)
 - External service integrations and infrastructure concerns
@@ -100,6 +103,21 @@ Big-picture architecture (Hexagonal/Clean Architecture)
   - guardrails.py: Input validation and security guards
   - http_status.py: HTTP status code utilities
   - upstream_limits.py: Upstream service rate limiting
+
+## Cython Optimization Layer (ccproxy/_cython/)
+- High-performance Cython-compiled modules for CPU-bound operations (15-35% performance improvement)
+- ccproxy/_cython/type_checks.pyx: Optimized type checking and dispatch (30-50% improvement) - integrated
+- ccproxy/_cython/lru_ops.pyx: LRU cache operations (20-40% improvement) - integrated
+- ccproxy/_cython/cache_keys.pyx: Cache key generation (15-25% improvement) - integrated
+- ccproxy/_cython/json_ops.pyx: JSON operations (10.7x faster for size estimation) - integrated
+- ccproxy/_cython/string_ops.pyx: String and pattern matching (40-50% improvement) - integrated
+- ccproxy/_cython/serialization.pyx: Content serialization (25-35% improvement) - integrated
+- ccproxy/_cython/stream_state.pyx: SSE event formatting (20-30% improvement) - integrated
+- ccproxy/_cython/dict_ops.pyx: Dictionary operations (7.83x faster for nested key counting) - integrated
+- ccproxy/_cython/validation.pyx: Validation operations (30-40% improvement) - integrated
+- See CYTHON_INTEGRATION.md for detailed documentation and benchmarks
+- Automatic fallback to pure Python if Cython unavailable or disabled
+- Control via CCPROXY_ENABLE_CYTHON environment variable (default: enabled)
 
 ## Cross-cutting Concerns
 - ccproxy/config.py: Pydantic Settings with environment validation
@@ -127,6 +145,9 @@ Development notes for Claude Code
 - Use dependency injection through the app factory for testability and loose coupling
 - Error tracking is centralized in application/error_tracker.py for comprehensive monitoring
 - Reasoning support: Implement provider-specific reasoning configurations (OpenRouter vs standard) based on base_url detection
+- Cython optimizations: Enabled by default for 15-35% performance improvement; use CCPROXY_ENABLE_CYTHON=false to disable
+- When integrating Cython modules, always provide pure Python fallback for compatibility
+- Run benchmarks to verify Cython performance gains: pytest benchmarks/ --benchmark-only
 - Run tests with uv: ./run-tests.sh or uv run pytest
 - Always run linting after changes: ./start-lint.sh --check
 

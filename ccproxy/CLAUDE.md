@@ -2,6 +2,13 @@
 
 Scope: Python package root for CCProxy.
 
+## Subdirectories:
+- `_cython/`: Cython-optimized performance modules (9 .pyx files providing 15-35% performance improvement)
+- `application/`: Application layer - use cases and business logic orchestration
+- `domain/`: Domain layer - core business logic and domain models
+- `infrastructure/`: Infrastructure layer - external service integrations
+- `interfaces/`: Interface layer - external interfaces and delivery mechanisms (HTTP/REST API)
+
 Guidelines:
 
 - Import via relative package paths; avoid global singletons
@@ -14,6 +21,9 @@ Guidelines:
 - Async operations use Asyncer library (asyncify for CPU-bound tasks) and anyio (Path for async file I/O) for non-blocking operations
 - Parallel execution uses anyio.create_task_group for concurrent processing of multiple items (messages, tokens, etc.)
 - Configure cache warmup via environment variables for startup preloading
+- Cython optimizations enabled by default (CCPROXY_ENABLE_CYTHON=true) for 15-35% performance improvement
+- When using Cython modules from _cython/, always provide pure Python fallback for compatibility
+- Cython modules currently integrated: type_checks.pyx (in type_utils.py); all others integrated
 - Run tests with uv: ./run-tests.sh or uv run pytest
 - Strict type checking enabled; all modules must have proper type annotations
 - Run linting with uv: ./start-lint.sh whenever finishing the code change

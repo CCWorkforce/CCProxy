@@ -30,3 +30,4 @@ The provider infrastructure has been refactored into specialized modules for bet
 - **Modularity**: Use specialized modules for specific concerns (resilience, metrics, logging, etc.)
 - **Monitoring**: Leverage metrics.py for comprehensive health checks and performance tracking
 - **Tracing**: Support distributed tracing via request_logger.py when available
+- **Cython optimizations**: rate_limiter.py can leverage `ccproxy._cython.lru_ops` for request history cleanup (20-40% improvement) - integrated

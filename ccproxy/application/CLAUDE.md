@@ -27,7 +27,7 @@
   - Supports dynamic scaling based on actual CPU usage patterns
   - Uses anyio's CapacityLimiter for precise thread pool control
   - Default formula: threshold = min(90%, 60% + 2.5% × cores)
-- `type_utils.py`: Type utilities and helper functions for the application
+- `type_utils.py`: Type utilities and helper functions for the application (uses Cython type_checks.pyx for 30-50% performance improvement)
 
 ## Guidelines:
 - **Pure application logic**: No FastAPI or direct I/O side effects
@@ -41,3 +41,9 @@
 - **Dependency injection**: Accept dependencies as parameters for testability
 - **Memory management**: Respect cache limits and TTL configurations
 - **Token Accuracy**: Use tokenizer.py's model-specific tiktoken encoders for precise counting in rate limiting and truncation; fallback to ~4 chars/token on encoder failure.
+- **Cython optimizations**: Leverage Cython modules from `ccproxy._cython` for performance-critical operations:
+  - `type_utils.py` uses `type_checks.pyx` (integrated)
+  - `tokenizer.py` uses `lru_ops.pyx` and `cache_keys.pyx` (integrated)
+  - `request_validator.py` uses `lru_ops.pyx`, `cache_keys.pyx`, `validation.pyx` (integrated)
+  - `error_tracker.py` uses `dict_ops.pyx` for redaction (integrated)
+  - Always provide pure Python fallback when using Cython modules
