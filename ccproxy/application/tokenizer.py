@@ -22,6 +22,63 @@ from ..domain.models import (
 )
 from ..logging import warning, debug, LogRecord, LogEvent, info
 from ccproxy.config import Settings, TruncationConfig
+from .._cython import CYTHON_ENABLED
+
+# Try to import Cython-optimized functions
+if CYTHON_ENABLED:
+    try:
+        from .._cython.lru_ops import (
+            get_shard_index,
+            is_expired,
+            calculate_hit_rate,
+            calculate_max_per_shard,
+        )
+        from .._cython.cache_keys import (
+            compute_sha256_hex_from_str,
+        )
+        from .._cython.json_ops import (
+            json_dumps_sorted,
+            json_dumps_compact,
+        )
+
+        _USING_CYTHON = True
+    except ImportError:
+        _USING_CYTHON = False
+else:
+    _USING_CYTHON = False
+
+# Fallback to pure Python implementations if Cython not available
+if not _USING_CYTHON:
+
+    def get_shard_index(key: str, num_shards: int) -> int:
+        """Get shard index for a key using consistent hashing."""
+        return hash(key) % num_shards
+
+    def is_expired(timestamp: float, current_time: float, ttl_seconds: float) -> bool:
+        """Check if a timestamp has expired based on TTL."""
+        return (current_time - timestamp) > ttl_seconds
+
+    def calculate_hit_rate(hits: int, total: int) -> float:
+        """Calculate hit rate percentage."""
+        return (hits / total * 100) if total > 0 else 0.0
+
+    def calculate_max_per_shard(max_entries: int, num_shards: int) -> int:
+        """Calculate maximum entries per shard."""
+        return max(1, max_entries // num_shards)
+
+    def compute_sha256_hex_from_str(text: str) -> str:
+        """Compute SHA256 hash of string and return hexadecimal digest."""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def json_dumps_sorted(obj: Any) -> str:
+        """JSON serialization with sorted keys for cache consistency."""
+        return json.dumps(
+            obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        )
+
+    def json_dumps_compact(obj: Any) -> str:
+        """Compact JSON serialization with minimal separators."""
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 class TokenEncoder(Protocol):
@@ -81,7 +138,7 @@ def _ensure_shards_initialized(num_shards: int = 16) -> None:
 
 def _get_shard_for_key(key: str) -> TokenCacheShard:
     """Select shard using consistent hashing."""
-    shard_index = hash(key) % _num_shards
+    shard_index = get_shard_index(key, _num_shards)
     return _token_cache_shards[shard_index]
 
 
@@ -141,11 +198,11 @@ async def _stable_hash_for_token_inputs(
         else [s.model_dump(exclude_unset=True) for s in (system or [])],
         "tools": [t.model_dump(exclude_unset=True) for t in (tools or [])],
     }
-    json_dumps_async = asyncify(json.dumps)
-    serialized = await json_dumps_async(payload, sort_keys=True, separators=(",", ":"))
-    hash_compute_async = asyncify(
-        lambda data: hashlib.sha256(data.encode("utf-8")).hexdigest()
-    )
+    # Use Cython-optimized JSON serialization
+    json_dumps_async = asyncify(json_dumps_sorted)
+    serialized = await json_dumps_async(payload)
+    # Use Cython-optimized hashing
+    hash_compute_async = asyncify(compute_sha256_hex_from_str)
     return await hash_compute_async(serialized)
 
 
@@ -294,7 +351,8 @@ async def count_tokens_for_anthropic_request(
         async with shard.lock:
             if key in shard.cache:
                 entry = shard.cache[key]
-                if now - entry.timestamp <= ttl_s:
+                # Use Cython-optimized expiry check
+                if not is_expired(entry.timestamp, now, ttl_s):
                     global _token_count_hits
                     _token_count_hits += 1
                     debug(
@@ -305,7 +363,7 @@ async def count_tokens_for_anthropic_request(
                             {
                                 "key": key[:8],
                                 "age_s": round(now - entry.timestamp, 3),
-                                "shard_id": hash(key) % _num_shards,
+                                "shard_id": get_shard_index(key, _num_shards),
                             },
                         )
                     )
@@ -365,8 +423,8 @@ async def count_tokens_for_anthropic_request(
                 elif isinstance(block, ContentBlockToolUse):
                     encoding_tasks.append(("tool_name", encode_text(block.name)))
                     try:
-                        # Serialize tool input asynchronously
-                        json_dumps_async = asyncify(json.dumps)
+                        # Serialize tool input asynchronously with Cython-optimized JSON
+                        json_dumps_async = asyncify(json_dumps_compact)
                         input_str = await json_dumps_async(block.input)
                         encoding_tasks.append(("tool_input", encode_text(input_str)))
                     except Exception:
@@ -384,8 +442,8 @@ async def count_tokens_for_anthropic_request(
                         if isinstance(block.content, str):
                             content_str = block.content
                         elif isinstance(block.content, list):
-                            # Build content string asynchronously
-                            json_dumps_async = asyncify(json.dumps)
+                            # Build content string asynchronously with Cython-optimized JSON
+                            json_dumps_async = asyncify(json_dumps_compact)
                             for item in block.content:
                                 if (
                                     isinstance(item, dict)
@@ -395,7 +453,7 @@ async def count_tokens_for_anthropic_request(
                                 else:
                                     content_str += await json_dumps_async(item)
                         else:
-                            json_dumps_async = asyncify(json.dumps)
+                            json_dumps_async = asyncify(json_dumps_compact)
                             content_str = await json_dumps_async(block.content)
                         encoding_tasks.append(("tool_result", encode_text(content_str)))
                     except Exception:
@@ -426,7 +484,8 @@ async def count_tokens_for_anthropic_request(
             if tool.description:
                 tool_tasks.append(("tool_desc", encode_text(tool.description)))
             try:
-                json_dumps_async = asyncify(json.dumps)
+                # Use Cython-optimized JSON serialization
+                json_dumps_async = asyncify(json_dumps_compact)
                 schema_str = await json_dumps_async(tool.input_schema)
                 tool_tasks.append(("tool_schema", encode_text(schema_str)))
             except Exception:
@@ -500,7 +559,7 @@ async def count_tokens_for_anthropic_request(
 
             # Evict oldest entries if shard exceeds its capacity
             # Each shard gets a portion of the total max entries
-            max_per_shard = max(1, max_entries // _num_shards)
+            max_per_shard = calculate_max_per_shard(max_entries, _num_shards)
             while len(shard.lru_order) > max_per_shard:
                 evict_key = shard.lru_order.pop(0)
                 shard.cache.pop(evict_key, None)
@@ -530,7 +589,8 @@ async def count_tokens_for_openai_request(
 
         # Create async encode function
         encode_async = asyncify(enc.encode)
-        json_dumps_async = asyncify(json.dumps)
+        # Use Cython-optimized JSON serialization
+        json_dumps_async = asyncify(json_dumps_compact)
 
         # Helper function to encode text
         async def encode_text(text: str) -> int:
@@ -690,7 +750,8 @@ def get_token_cache_stats() -> Dict[str, Any]:
         total_entries += shard_size
 
     total_requests = _token_count_hits + _token_count_misses
-    hit_rate = (_token_count_hits / total_requests * 100) if total_requests > 0 else 0.0
+    # Use Cython-optimized hit rate calculation
+    hit_rate = calculate_hit_rate(_token_count_hits, total_requests)
 
     return {
         "total_entries": total_entries,
