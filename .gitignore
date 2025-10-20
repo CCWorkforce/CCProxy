@@ -168,6 +168,16 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Cython generated files
+*.c
+*.cpp
+*.html
+ccproxy/_cython/*.c
+ccproxy/_cython/*.cpp
+ccproxy/_cython/*.html
+ccproxy/_cython/*.so
+ccproxy/_cython/*.pyd
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

@@ -17,6 +17,27 @@ from ..type_utils import (
     is_serializable_primitive,
 )
 from ...logging import warning, LogRecord, LogEvent
+from ..._cython import CYTHON_ENABLED
+
+# Try to import Cython-optimized functions
+if CYTHON_ENABLED:
+    try:
+        from ..._cython.json_ops import (
+            json_dumps_compact,
+        )
+
+        _USING_CYTHON = True
+    except ImportError:
+        _USING_CYTHON = False
+else:
+    _USING_CYTHON = False
+
+# Fallback to pure Python implementation if Cython not available
+if not _USING_CYTHON:
+
+    def json_dumps_compact(obj: Any) -> str:
+        """Compact JSON serialization with minimal separators."""
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 class ContentConverter:

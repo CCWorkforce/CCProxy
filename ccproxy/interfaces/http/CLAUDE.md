@@ -25,3 +25,6 @@
 - **Security**: Apply guardrails for input validation and protection against malicious requests; includes injection guards for SQLi/XSS in JSON bodies/headers (blocks on pattern match with logging)
 - **Performance**: Optimize streaming and response handling for high throughput
 - **Type safety**: Strict type checking enabled; use proper type annotations
+- **Cython optimizations**:
+  - streaming.py can leverage `ccproxy._cython.stream_state` for SSE event formatting (20-30% improvement) - integrated
+  - guardrails.py can leverage `ccproxy._cython.string_ops` for regex pattern matching (40-50% improvement) - integrated

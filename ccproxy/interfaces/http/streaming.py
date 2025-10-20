@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from typing import AsyncGenerator, Dict, Optional, Literal
+from typing import AsyncGenerator, Dict, Optional, Literal, Any
 
 import openai
 from openai.types.chat import ChatCompletionChunk
@@ -14,6 +14,27 @@ from .errors import (
     format_anthropic_error_sse_event,
 )
 from .http_status import OK, INTERNAL_SERVER_ERROR
+from ..._cython import CYTHON_ENABLED
+
+# Try to import Cython-optimized functions
+if CYTHON_ENABLED:
+    try:
+        from ..._cython.json_ops import (
+            json_dumps_compact,
+        )
+
+        _USING_CYTHON = True
+    except ImportError:
+        _USING_CYTHON = False
+else:
+    _USING_CYTHON = False
+
+# Fallback to pure Python implementation if Cython not available
+if not _USING_CYTHON:
+
+    def json_dumps_compact(obj: Any) -> str:
+        """Compact JSON serialization with minimal separators."""
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 # Content block type constants
@@ -74,7 +95,7 @@ class StreamProcessor:
         ]
 
     async def process_thinking_content(self, content: str) -> list:
-        # Process thinking content with state tracking
+        # Process thinking content with state tracking (Cython-optimized JSON)
         events = []
         if not self.thinking.started:
             self.thinking.idx = self.next_anthropic_block_idx
@@ -86,7 +107,7 @@ class StreamProcessor:
                 "content": {"type": CONTENT_TYPE_THINKING, "text": content},
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json_dumps_compact(event_data)}\n\n"
             )
             self.thinking.buffer = content
         else:
@@ -97,7 +118,7 @@ class StreamProcessor:
                 "delta": {"text": content},
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json_dumps_compact(event_data)}\n\n"
             )
         tokens = self.enc.encode(content)
         self.output_token_count += len(tokens)
@@ -118,7 +139,7 @@ class StreamProcessor:
                 "content": {"type": CONTENT_TYPE_TEXT, "text": self.text.content},
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json_dumps_compact(event_data)}\n\n"
             )
             self.next_anthropic_block_idx += 1
         else:
@@ -128,7 +149,7 @@ class StreamProcessor:
                 "delta": {"text": content},
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json_dumps_compact(event_data)}\n\n"
             )
         return events
 
@@ -155,7 +176,8 @@ class StreamProcessor:
                     "input": {},
                 },
             }
-            json_str = json.dumps(start_event_data)
+            # Use Cython-optimized JSON serialization
+            json_str = json_dumps_compact(start_event_data)
             self.tools[tool_id]["start_event"] = (
                 f"event: {EVENT_TYPE_CONTENT_BLOCK_START}\ndata: {json_str}\n\n"
             )
@@ -171,7 +193,7 @@ class StreamProcessor:
                 "delta": {"arguments": tool_delta.function.arguments},
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_DELTA}\ndata: {json_dumps_compact(event_data)}\n\n"
             )
 
         return events
@@ -179,14 +201,14 @@ class StreamProcessor:
     async def finalize_blocks(self, thinking_enabled):
         # Finalize all blocks
         events = []
-        # Finalize thinking block if exists
+        # Finalize thinking block if exists (Cython-optimized JSON)
         if self.thinking.buffer and thinking_enabled:
             thinking_event_data = {
                 "type": EVENT_TYPE_CONTENT_BLOCK_STOP,
                 "index": self.thinking.idx or self.next_anthropic_block_idx - 1,
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(thinking_event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json_dumps_compact(thinking_event_data)}\n\n"
             )
             self.thinking.buffer = ""
 
@@ -197,7 +219,7 @@ class StreamProcessor:
                 "index": self.text.idx,
             }
             events.append(
-                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(text_event_data)}\n\n"
+                f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json_dumps_compact(text_event_data)}\n\n"
             )
             self.text.idx = None
 
@@ -209,7 +231,7 @@ class StreamProcessor:
                     "index": tool["index"],
                 }
                 events.append(
-                    f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json.dumps(tool_event_data)}\n\n"
+                    f"event: {EVENT_TYPE_CONTENT_BLOCK_STOP}\ndata: {json_dumps_compact(tool_event_data)}\n\n"
                 )
         return events
 
@@ -256,6 +278,7 @@ async def handle_anthropic_streaming_response_from_openai_stream(
     stream_log_event = LogEvent.REQUEST_COMPLETED.value
 
     try:
+        # Use Cython-optimized JSON serialization for SSE events
         message_start_event_data = {
             "type": EVENT_TYPE_MESSAGE_START,
             "message": {
@@ -268,8 +291,8 @@ async def handle_anthropic_streaming_response_from_openai_stream(
                 "usage": {"input_tokens": estimated_input_tokens, "output_tokens": 0},
             },
         }
-        yield f"event: {EVENT_TYPE_MESSAGE_START}\ndata: {json.dumps(message_start_event_data)}\n\n"
-        yield f"event: {EVENT_TYPE_PING}\ndata: {json.dumps({'type': EVENT_TYPE_PING})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_START}\ndata: {json_dumps_compact(message_start_event_data)}\n\n"
+        yield f"event: {EVENT_TYPE_PING}\ndata: {json_dumps_compact({'type': EVENT_TYPE_PING})}\n\n"
 
         async for chunk in openai_stream:
             if not chunk.choices:
@@ -319,8 +342,8 @@ async def handle_anthropic_streaming_response_from_openai_stream(
             },
             "usage": {"output_tokens": processor.output_token_count},
         }
-        yield f"event: {EVENT_TYPE_MESSAGE_DELTA}\ndata: {json.dumps(message_delta_event)}\n\n"
-        yield f"event: {EVENT_TYPE_MESSAGE_STOP}\ndata: {json.dumps({'type': EVENT_TYPE_MESSAGE_STOP})}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_DELTA}\ndata: {json_dumps_compact(message_delta_event)}\n\n"
+        yield f"event: {EVENT_TYPE_MESSAGE_STOP}\ndata: {json_dumps_compact({'type': EVENT_TYPE_MESSAGE_STOP})}\n\n"
 
     except Exception as e:
         stream_status_code = INTERNAL_SERVER_ERROR

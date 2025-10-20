@@ -12,6 +12,50 @@ from typing import Any, Dict, Optional, Tuple, List
 from logging import Handler
 
 from .config import Settings
+from ._cython import CYTHON_ENABLED
+
+# Try to import Cython-optimized functions
+if CYTHON_ENABLED:
+    try:
+        from ._cython.dict_ops import (
+            recursive_filter_none,
+        )
+        from ._cython.json_ops import (
+            json_dumps_compact,
+            is_json_serializable,
+        )
+
+        _USING_CYTHON = True
+    except ImportError:
+        _USING_CYTHON = False
+else:
+    _USING_CYTHON = False
+
+# Fallback to pure Python implementations if Cython not available
+if not _USING_CYTHON:
+
+    def recursive_filter_none(data: Any) -> Any:
+        """Recursively remove None values."""
+        if isinstance(data, dict):
+            return {
+                k: recursive_filter_none(v) for k, v in data.items() if v is not None
+            }
+        elif isinstance(data, list):
+            return [recursive_filter_none(item) for item in data if item is not None]
+        return data
+
+    def json_dumps_compact(obj: Any) -> str:
+        """Compact JSON serialization with minimal separators."""
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+    def is_json_serializable(obj: Any) -> bool:
+        """Check if object is JSON serializable."""
+        try:
+            json.dumps(obj)
+            return True
+        except (TypeError, ValueError):
+            return False
+
 
 _REDACT_KEYS: set[str] = set()
 
@@ -58,13 +102,12 @@ def _sanitize_for_json(obj: Any) -> Any:
         return redacted
     if isinstance(obj, (list, tuple, set)):
         sanitized_list = [_sanitize_for_json(x) for x in obj]
-        # Filter out None values from lists
-        return [x for x in sanitized_list if x is not None]
-    try:
-        json.dumps(obj)
+        # Filter out None values from lists (Cython-optimized)
+        return recursive_filter_none(sanitized_list)
+    # Use Cython-optimized JSON serialization check
+    if is_json_serializable(obj):
         return obj
-    except TypeError:
-        return repr(obj)
+    return repr(obj)
 
 
 class LogEvent(enum.Enum):
@@ -189,9 +232,8 @@ class JSONFormatter(logging.Formatter):
                         else [],
                     }
                 )
-        return json.dumps(
-            _sanitize_for_json(header), ensure_ascii=False, separators=(",", ":")
-        )
+        # Use Cython-optimized JSON serialization
+        return json_dumps_compact(_sanitize_for_json(header))
 
 
 class ConsoleJSONFormatter(JSONFormatter):
@@ -232,7 +274,8 @@ class ConsoleJSONFormatter(JSONFormatter):
                         else [],
                     }
                 )
-        return json.dumps(_sanitize_for_json(header), separators=(",", ":"))
+        # Use Cython-optimized JSON serialization
+        return json_dumps_compact(_sanitize_for_json(header))
 
 
 def init_logging(settings: Settings) -> logging.Logger:

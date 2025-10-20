@@ -22,6 +22,99 @@ from .thread_pool import asyncify
 
 from ..config import Settings
 from ..logging import debug, info, warning, LogRecord, LogEvent
+from .._cython import CYTHON_ENABLED
+
+# Try to import Cython-optimized functions
+if CYTHON_ENABLED:
+    try:
+        from .._cython.dict_ops import (
+            recursive_redact,
+            sanitize_for_logging,
+            recursive_filter_none,
+        )
+        from .._cython.string_ops import (
+            contains_sensitive_keyword,
+        )
+        from .._cython.json_ops import (
+            json_dumps_compact,
+            json_loads_safe,
+        )
+
+        _USING_CYTHON = True
+    except ImportError:
+        _USING_CYTHON = False
+else:
+    _USING_CYTHON = False
+
+# Fallback to pure Python implementations if Cython not available
+if not _USING_CYTHON:
+
+    def recursive_redact(
+        data: Any, sensitive_keys: set, redaction_value: str = "[REDACTED]"
+    ) -> Any:
+        """Recursively redact sensitive fields from nested dicts."""
+        if isinstance(data, dict):
+            return {
+                k: (
+                    redaction_value
+                    if k.lower() in sensitive_keys
+                    else recursive_redact(v, sensitive_keys, redaction_value)
+                )
+                for k, v in data.items()
+            }
+        elif isinstance(data, list):
+            return [
+                recursive_redact(item, sensitive_keys, redaction_value) for item in data
+            ]
+        return data
+
+    def sanitize_for_logging(
+        data: Any,
+        sensitive_keys: set,
+        max_string_length: int = 5000,
+        redaction_value: str = "[REDACTED]",
+    ) -> Any:
+        """Comprehensive sanitization: redact + filter + truncate."""
+        # First redact sensitive keys
+        redacted = recursive_redact(data, sensitive_keys, redaction_value)
+        # Then truncate large strings
+        return _truncate_strings(redacted, max_string_length)
+
+    def _truncate_strings(data: Any, max_length: int) -> Any:
+        """Helper to truncate strings."""
+        if isinstance(data, str) and len(data) > max_length:
+            return data[:max_length] + f"...[truncated {len(data) - max_length} chars]"
+        elif isinstance(data, dict):
+            return {k: _truncate_strings(v, max_length) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [_truncate_strings(item, max_length) for item in data]
+        return data
+
+    def recursive_filter_none(data: Any) -> Any:
+        """Recursively remove None values."""
+        if isinstance(data, dict):
+            return {
+                k: recursive_filter_none(v) for k, v in data.items() if v is not None
+            }
+        elif isinstance(data, list):
+            return [recursive_filter_none(item) for item in data if item is not None]
+        return data
+
+    def contains_sensitive_keyword(text: str, keywords: list) -> bool:
+        """Check if text contains any sensitive keyword."""
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in keywords)
+
+    def json_dumps_compact(obj: Any) -> str:
+        """Compact JSON serialization with minimal separators."""
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), default=str)
+
+    def json_loads_safe(text: str) -> Any:
+        """Safe JSON parsing with error handling."""
+        try:
+            return json.loads(text) if text else None
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
 
 
 class ErrorType(str, Enum):
@@ -267,8 +360,8 @@ class ErrorTracker:
             if not self._file_handle:
                 self._file_handle = open(self._settings.error_tracking_file, "a")
 
-            # Serialize JSON asynchronously for large error contexts
-            json_dumps_async = asyncify(lambda obj: json.dumps(obj, default=str))
+            # Serialize JSON asynchronously for large error contexts (Cython-optimized)
+            json_dumps_async = asyncify(json_dumps_compact)
             json_line = await json_dumps_async(error_context.to_dict())
 
             # Write to file (could use aiofiles but keeping sync for simplicity here)
@@ -348,18 +441,18 @@ class ErrorTracker:
             pass  # Best effort cleanup
 
     async def _redact_sensitive_data_async(self, data: Any) -> Any:
-        """Recursively redact sensitive data asynchronously."""
+        """Recursively redact sensitive data asynchronously (Cython-optimized)."""
+        # Define sensitive keywords
+        sensitive_keywords = ["password", "secret", "token", "key", "auth"]
+
         if isinstance(data, dict):
             # Process dictionary values in parallel for better performance
             redacted = {}
             items_to_process = []
 
             for key, value in data.items():
-                # Check if key contains sensitive keywords
-                if any(
-                    keyword in key.lower()
-                    for keyword in ["password", "secret", "token", "key", "auth"]
-                ):
+                # Use Cython-optimized keyword checking
+                if contains_sensitive_keyword(key, sensitive_keywords):
                     redacted[key] = "[REDACTED]"
                 else:
                     items_to_process.append((key, value))
@@ -401,15 +494,15 @@ class ErrorTracker:
         return result
 
     def _redact_sensitive_data(self, data: Any) -> Any:
-        """Synchronous version for backward compatibility."""
+        """Synchronous version for backward compatibility (Cython-optimized)."""
+        # Define sensitive keywords
+        sensitive_keywords = ["password", "secret", "token", "key", "auth"]
+
         if isinstance(data, dict):
             redacted = {}
             for key, value in data.items():
-                # Check if key contains sensitive keywords
-                if any(
-                    keyword in key.lower()
-                    for keyword in ["password", "secret", "token", "key", "auth"]
-                ):
+                # Use Cython-optimized keyword checking
+                if contains_sensitive_keyword(key, sensitive_keywords):
                     redacted[key] = "[REDACTED]"
                 else:
                     redacted[key] = self._redact_sensitive_data(value)
@@ -457,12 +550,12 @@ class ErrorTracker:
                         request._body = body_bytes  # Cache for later use
                         body = body_bytes.decode("utf-8") if body_bytes else None
 
-                    # Try to parse as JSON
+                    # Try to parse as JSON (Cython-optimized)
                     if body:
-                        try:
-                            body = json.loads(body)
-                        except json.JSONDecodeError:
-                            pass  # Keep as string
+                        parsed = json_loads_safe(body)
+                        if parsed is not None:
+                            body = parsed
+                        # else keep as string
 
                     # Redact and truncate
                     body = self._redact_sensitive_data(body)
