@@ -114,6 +114,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("qwen/qwen3-vl-235b-a22b-thinking", 131_072),
         ("baidu/ernie-4.5-21b-a3b-thinking", 131_072),
         ("inclusionai/ling-1t", 131_072),
+        ("inclusionai/ring-1t", 131_072),
     }
 )
 
@@ -148,6 +149,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("deepseek/deepseek-v3.2-exp", 65_536),
         ("baidu/ernie-4.5-21b-a3b-thinking", 65_536),
         ("inclusionai/ling-1t", 131_072),
+        ("inclusionai/ring-1t", 131_072),
         ("qwen/qwen3-vl-235b-a22b-thinking", 32_768),
         ("qwen/qwen3-vl-30b-a3b-thinking", 262_144),
     }
