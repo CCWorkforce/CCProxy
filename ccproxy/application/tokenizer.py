@@ -5,7 +5,14 @@ import hashlib
 import anyio
 from anyio.abc import Lock as AnyioLock
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union, Tuple, Protocol, Any
+from typing import Dict, List, Optional, Union, Tuple, Protocol, Any, Literal
+
+@dataclass
+class TruncationConfig:
+    """Configuration for message truncation."""
+    strategy: Literal["oldest_first", "newest_first", "system_priority"] = "oldest_first"
+    min_tokens: int = 100
+    preserve_system: bool = True
 
 from .thread_pool import asyncify
 
@@ -21,7 +28,7 @@ from ..domain.models import (
     ContentBlockRedactedThinking,
 )
 from ..logging import warning, debug, LogRecord, LogEvent, info
-from ccproxy.config import Settings, TruncationConfig
+from ccproxy.config import Settings
 from .._cython import CYTHON_ENABLED
 
 # Try to import Cython-optimized functions
@@ -144,7 +151,7 @@ def _ensure_shards_initialized(num_shards: int = 16) -> None:
 def _get_shard_for_key(key: str) -> TokenCacheShard:
     """Select shard using consistent hashing."""
     shard_index = get_shard_index(key, _num_shards)
-    return _token_cache_shards[shard_index]
+    return _token_cache_shards[shard_index]  # type: ignore[no-any-return]
 
 
 def _batch_cleanup_expired_entries(
@@ -269,7 +276,7 @@ async def _stable_hash_for_token_inputs(
     serialized = await json_dumps_async(payload)
     # Use Cython-optimized hashing
     hash_compute_async = asyncify(compute_sha256_hex_from_str)
-    return await hash_compute_async(serialized)
+    return await hash_compute_async(serialized)  # type: ignore[no-any-return]
 
 
 def _truncate_text(
@@ -310,11 +317,9 @@ async def truncate_request(
             break
 
         if config.strategy == "oldest_first":
-            # Remove oldest non-system message
-            for i, msg in enumerate(truncated_messages):
-                if msg.role != "system":
-                    truncated_messages.pop(i)
-                    break
+            # Remove oldest message (system messages handled separately)
+            if truncated_messages:
+                truncated_messages.pop(0)
         elif config.strategy == "newest_first":
             # Remove newest message
             truncated_messages.pop()
@@ -490,7 +495,10 @@ async def count_tokens_for_anthropic_request(
             encoding_tasks.append(("content", encode_text(msg.content)))
         elif isinstance(msg.content, list):
             for block in msg.content:
-                if isinstance(block, ContentBlockText):
+                # Skip SystemContent blocks as they shouldn't be in regular messages
+                if isinstance(block, SystemContent):
+                    continue
+                elif isinstance(block, ContentBlockText):
                     encoding_tasks.append(("text_block", encode_text(block.text)))
                 elif isinstance(block, ContentBlockImage):
                     fixed_tokens += 768  # Fixed token count for images
@@ -578,7 +586,7 @@ async def count_tokens_for_anthropic_request(
             tool_results = []
             async with anyio.create_task_group() as tg:
 
-                async def run_tool_task(coro, idx):
+                async def run_tool_task(coro: Any, idx: int) -> None:
                     result = await coro
                     tool_results.append((idx, result))
 
@@ -596,7 +604,7 @@ async def count_tokens_for_anthropic_request(
         task_results = []
         async with anyio.create_task_group() as tg:
 
-            async def run_encode_task(coro, idx):
+            async def run_encode_task(coro: Any, idx: int) -> None:
                 result = await coro
                 task_results.append((idx, result))
 
@@ -662,7 +670,7 @@ async def count_tokens_for_anthropic_request(
 
 
 async def count_tokens_for_openai_request(
-    messages: List[Dict[str, Union[str, List]]],
+    messages: List[Dict[str, Union[str, List[Any]]]],
     model_name: str = "gpt-4",
     tools: Optional[List[Dict[str, Any]]] = None,
     request_id: Optional[str] = None,
@@ -692,14 +700,14 @@ async def count_tokens_for_openai_request(
             return len(tokens)
 
         # Collect all encoding tasks
-        encoding_tasks = []
+        encoding_tasks: List[Tuple[str, Any]] = []
         fixed_tokens = 0
 
         # Count tokens in messages
         for message in messages:
             # Count role tokens
             role = message.get("role", "")
-            if role:
+            if role and isinstance(role, str):
                 encoding_tasks.append(("role", encode_text(role)))
 
             # Count content tokens
@@ -720,26 +728,36 @@ async def count_tokens_for_openai_request(
             # Count tool/function call tokens
             if "tool_calls" in message:
                 for tool_call in message.get("tool_calls", []):
-                    if "function" in tool_call:
+                    if isinstance(tool_call, dict) and "function" in tool_call:
                         func = tool_call["function"]
-                        encoding_tasks.append(
-                            ("func_name", encode_text(func.get("name", "")))
-                        )
-                        if "arguments" in func:
-                            encoding_tasks.append(
-                                ("func_args", encode_text(func.get("arguments", "")))
-                            )
+                        if isinstance(func, dict):
+                            name = func.get("name", "")
+                            if isinstance(name, str):
+                                encoding_tasks.append(
+                                    ("func_name", encode_text(name))
+                                )
+                            if "arguments" in func:
+                                args = func.get("arguments", "")
+                                if isinstance(args, str):
+                                    encoding_tasks.append(
+                                        ("func_args", encode_text(args))
+                                    )
 
             # Legacy function_call support
             if "function_call" in message:
                 func = message["function_call"]
-                encoding_tasks.append(
-                    ("legacy_func_name", encode_text(func.get("name", "")))
-                )
-                if "arguments" in func:
-                    encoding_tasks.append(
-                        ("legacy_func_args", encode_text(func.get("arguments", "")))
-                    )
+                if isinstance(func, dict):
+                    name = func.get("name", "")
+                    if isinstance(name, str):
+                        encoding_tasks.append(
+                            ("legacy_func_name", encode_text(name))
+                        )
+                    if "arguments" in func:
+                        args = func.get("arguments", "")
+                        if isinstance(args, str):
+                            encoding_tasks.append(
+                                ("legacy_func_args", encode_text(args))
+                            )
 
         # Count tokens in tools/functions
         if tools:
@@ -771,7 +789,7 @@ async def count_tokens_for_openai_request(
             task_results = []
             async with anyio.create_task_group() as tg:
 
-                async def run_encode_task(coro, idx):
+                async def run_encode_task(coro: Any, idx: int) -> None:
                     result = await coro
                     task_results.append((idx, result))
 

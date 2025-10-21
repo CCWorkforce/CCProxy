@@ -1,6 +1,8 @@
 """Benchmark for Cython-optimized dictionary operations."""
 
 import time
+from typing import Any, List, Dict, Optional, Tuple
+
 
 CYTHON_AVAILABLE = False
 cython_dict_ops = None
@@ -96,7 +98,7 @@ def recursive_filter_none_python(data: dict) -> dict:
 
 def benchmark_recursive_redact(iterations=10000):
     """Benchmark recursive redaction on nested dictionaries."""
-    print("\n=== Recursive Redact (Nested Dict) ===")
+    print("\n=== Recursive Redact (Nested Dict[str, Any]) ===")
 
     # Baseline: Pure Python
     start = time.time()

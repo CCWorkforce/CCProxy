@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable, Pattern, AsyncIterator
 from fastapi import Request, Response
 from .thread_pool import asyncify
 
@@ -50,7 +50,7 @@ else:
 if not _USING_CYTHON:
 
     def recursive_redact(
-        data: Any, sensitive_keys: set, redaction_value: str = "[REDACTED]"
+        data: Any, sensitive_keys: set[str], redaction_value: str = "[REDACTED]"
     ) -> Any:
         """Recursively redact sensitive fields from nested dicts."""
         if isinstance(data, dict):
@@ -70,7 +70,7 @@ if not _USING_CYTHON:
 
     def sanitize_for_logging(
         data: Any,
-        sensitive_keys: set,
+        sensitive_keys: set[str],
         max_string_length: int = 5000,
         redaction_value: str = "[REDACTED]",
     ) -> Any:
@@ -100,7 +100,7 @@ if not _USING_CYTHON:
             return [recursive_filter_none(item) for item in data if item is not None]
         return data
 
-    def contains_sensitive_keyword(text: str, keywords: list) -> bool:
+    def contains_sensitive_keyword(text: str, keywords: list[str]) -> bool:
         """Check if text contains any sensitive keyword."""
         text_lower = text.lower()
         return any(keyword in text_lower for keyword in keywords)
@@ -191,31 +191,31 @@ class ErrorTracker:
     - Performance metrics tracking
     """
 
-    _instance = None
+    _instance: Optional['ErrorTracker'] = None
     _lock = anyio.Lock()
 
-    def __new__(cls):
+    def __new__(cls) -> 'ErrorTracker':
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if hasattr(self, "_initialized"):
             return
         self._initialized = True
         self._settings: Optional[Settings] = None
-        self._file_handle = None
-        self._write_send: Optional[MemoryObjectSendStream] = None
-        self._write_receive: Optional[MemoryObjectReceiveStream] = None
+        self._file_handle: Any = None
+        self._write_send: Optional[MemoryObjectSendStream[ErrorContext]] = None
+        self._write_receive: Optional[MemoryObjectReceiveStream[ErrorContext]] = None
         self._writer_task = None
-        self._redact_patterns: List[re.Pattern] = []
+        self._redact_patterns: List[Pattern[str]] = []
         self._setup_redaction_patterns()
         # Create the channel with buffer size
         send, receive = create_memory_object_stream(max_buffer_size=1000)
         self._write_send = send
         self._write_receive = receive
 
-    def _setup_redaction_patterns(self):
+    def _setup_redaction_patterns(self) -> None:
         """Setup regex patterns for sensitive data redaction."""
         # API keys and tokens
         self._redact_patterns.extend(
@@ -231,7 +231,7 @@ class ErrorTracker:
             ]
         )
 
-    async def initialize(self, settings: Settings):
+    async def initialize(self, settings: Settings) -> None:
         """Initialize the error tracker with settings."""
         self._settings = settings
 
@@ -253,7 +253,7 @@ class ErrorTracker:
             # Store task group for background task
             self._task_group = create_task_group()
             await self._task_group.__aenter__()
-            self._writer_task = self._task_group.soonify(self._writer_loop)()
+            self._writer_task = self._task_group.soonify(self._writer_loop)()  # type: ignore[assignment]
 
         info(
             LogRecord(
@@ -262,13 +262,14 @@ class ErrorTracker:
             )
         )
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the error tracker gracefully."""
         try:
             if self._writer_task:
                 # Signal shutdown by sending None through channel
                 try:
-                    await self._write_send.send(None)
+                    if self._write_send is not None:
+                        await self._write_send.send(None)
                 except (
                     asyncio.CancelledError,
                     anyio.BrokenResourceError,
@@ -324,11 +325,13 @@ class ErrorTracker:
                 )
             )
 
-    async def _writer_loop(self):
+    async def _writer_loop(self) -> None:
         """Background task to write errors to file."""
         while True:
             try:
                 # Get error context from channel
+                if self._write_receive is None:
+                    break
                 error_context = await self._write_receive.receive()
 
                 # Check for shutdown signal
@@ -347,7 +350,7 @@ class ErrorTracker:
                     )
                 )
 
-    async def _write_error(self, error_context: ErrorContext):
+    async def _write_error(self, error_context: ErrorContext) -> None:
         """Write error context to file."""
         if not self._settings or not self._settings.error_tracking_enabled:
             return
@@ -376,7 +379,7 @@ class ErrorTracker:
                 )
             )
 
-    async def _rotate_log_if_needed(self):
+    async def _rotate_log_if_needed(self) -> None:
         """Rotate log file if it exceeds size limit."""
         if not self._settings:
             return
@@ -417,7 +420,7 @@ class ErrorTracker:
                 )
             )
 
-    async def _clean_old_logs(self):
+    async def _clean_old_logs(self) -> None:
         """Remove old rotated logs based on retention policy."""
         if not self._settings:
             return
@@ -493,7 +496,7 @@ class ErrorTracker:
                         tg.soonify(self._redact_sensitive_data_async)(item)
                         for item in data
                     ]
-                return [sv.value for sv in soon_values]
+                return [sv.value for sv in soon_values]  # type: ignore[attr-defined]
             return []
         elif isinstance(data, str):
             # Apply redaction patterns (CPU-intensive for large strings)
@@ -521,10 +524,8 @@ class ErrorTracker:
                 # Fallback to Python implementation
                 redacted = {}
                 for key, value in data.items():
-                    # Use Cython-optimized keyword checking if available
-                    if _USING_CYTHON and contains_sensitive_keyword(key, sensitive_keywords):
-                        redacted[key] = "[REDACTED]"
-                    elif not _USING_CYTHON and any(kw in key.lower() for kw in sensitive_keywords):
+                    # Check for sensitive keywords
+                    if any(kw in key.lower() for kw in sensitive_keywords):
                         redacted[key] = "[REDACTED]"
                     else:
                         redacted[key] = self._redact_sensitive_data(value)
@@ -546,7 +547,7 @@ class ErrorTracker:
             return self._apply_redaction_patterns(data)
         return data
 
-    def _truncate_large_data(self, data: Any, max_size: int = None) -> Any:
+    def _truncate_large_data(self, data: Any, max_size: Optional[int] = None) -> Any:
         """Truncate large data structures to prevent log bloat."""
         max_size = max_size or (
             self._settings.error_tracking_max_body_size if self._settings else 10000
@@ -570,17 +571,19 @@ class ErrorTracker:
             headers = self._redact_sensitive_data(headers)
 
             # Get body if configured
-            body = None
+            body: Any = None
             if self._settings and self._settings.error_tracking_capture_request:
                 try:
                     # Try to get cached body first
                     if hasattr(request, "_body"):
-                        body = request._body
+                        body_bytes = request._body
                     else:
                         # Read body (this consumes the stream)
                         body_bytes = await request.body()
                         request._body = body_bytes  # Cache for later use
-                        body = body_bytes.decode("utf-8") if body_bytes else None
+
+                    # Decode body
+                    body = body_bytes.decode("utf-8") if body_bytes else None
 
                     # Try to parse as JSON (Cython-optimized)
                     if body:
@@ -656,7 +659,7 @@ class ErrorTracker:
         request_snapshot: Optional[RequestSnapshot] = None,
         response_snapshot: Optional[ResponseSnapshot] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Track an error with full context."""
         if not self._settings or not self._settings.error_tracking_enabled:
             return
@@ -676,7 +679,8 @@ class ErrorTracker:
             # Send to channel for async write (non-blocking)
             try:
                 # Try to send with nowait to check if channel is full
-                self._write_send.send_nowait(error_context)
+                if self._write_send is not None:
+                    self._write_send.send_nowait(error_context)
             except anyio.WouldBlock:
                 # Channel is full, log a warning
                 warning(
@@ -703,7 +707,7 @@ class ErrorTracker:
         error_type: ErrorType,
         request_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> AsyncIterator[None]:
         """Context manager for error tracking."""
         try:
             yield
@@ -720,12 +724,12 @@ class ErrorTracker:
         self,
         error_type: ErrorType = ErrorType.INTERNAL_ERROR,
         include_request: bool = True,
-    ):
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator for automatic error tracking."""
 
-        def decorator(func: Callable):
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             @wraps(func)
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
                     return await func(*args, **kwargs)
                 except Exception as e:
@@ -752,7 +756,7 @@ class ErrorTracker:
                     raise
 
             @wraps(func)
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
@@ -784,7 +788,7 @@ async def track_error(
     request: Optional[Request] = None,
     response: Optional[Response] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> None:
     """Convenience function to track errors."""
     request_snapshot = None
     if request:
