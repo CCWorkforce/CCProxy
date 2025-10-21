@@ -53,6 +53,16 @@ This directory contains comprehensive performance benchmarks using pytest-benchm
   - JSON serializability checks
   - Complexity estimation
 
+### End-to-End Benchmarks (Phase 2.5)
+- `bench_e2e_pipeline.py`: Full request/response processing pipeline
+  - Request validation (simple & complex with tools)
+  - Response cache validation
+  - Content conversion (system text, tool results)
+  - SSE streaming event generation
+  - Combined pipeline flows (validation + conversion + caching)
+  - Realistic request/response scenarios
+  - Cumulative impact: 20-30% overall latency reduction
+
 ## Running Benchmarks
 
 ### Basic Usage

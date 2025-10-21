@@ -105,6 +105,7 @@ class TokenCacheShard:
     lock: AnyioLock = field(default_factory=lambda: anyio.Lock())
     cache: Dict[str, CacheEntry] = field(default_factory=dict)
     lru_order: List[str] = field(default_factory=list)
+    last_cleanup_time: float = field(default_factory=lambda: time.time())
 
 
 # Global cache for token encoders (doesn't need sharding - small and rarely accessed)
@@ -118,6 +119,10 @@ _shards_initialized: bool = False
 # Global statistics (shared across all shards)
 _token_count_hits = 0
 _token_count_misses = 0
+
+# Background cleanup task state
+_cleanup_task: Optional[anyio.abc.CancelScope] = None
+_cleanup_enabled: bool = False
 
 
 def _ensure_shards_initialized(num_shards: int = 16) -> None:
@@ -140,6 +145,67 @@ def _get_shard_for_key(key: str) -> TokenCacheShard:
     """Select shard using consistent hashing."""
     shard_index = get_shard_index(key, _num_shards)
     return _token_cache_shards[shard_index]
+
+
+def _batch_cleanup_expired_entries(
+    shard: TokenCacheShard, current_time: float, ttl_seconds: float
+) -> int:
+    """Remove all expired entries from a shard in one pass.
+
+    This is more efficient than removing expired entries one at a time during lookups.
+    Should be called while holding the shard lock.
+
+    Args:
+        shard: The cache shard to clean up
+        current_time: Current timestamp
+        ttl_seconds: TTL in seconds for cache entries
+
+    Returns:
+        Number of entries removed
+    """
+    removed_count = 0
+    keys_to_remove = []
+
+    # Identify all expired entries
+    for key, entry in shard.cache.items():
+        if is_expired(entry.timestamp, current_time, ttl_seconds):
+            keys_to_remove.append(key)
+
+    # Remove expired entries
+    for key in keys_to_remove:
+        shard.cache.pop(key, None)
+        try:
+            shard.lru_order.remove(key)
+        except ValueError:
+            pass
+        removed_count += 1
+
+    if removed_count > 0:
+        shard.last_cleanup_time = current_time
+
+    return removed_count
+
+
+def _should_trigger_cleanup(
+    shard: TokenCacheShard,
+    max_per_shard: int,
+    cleanup_threshold_multiplier: float = 1.5,
+) -> bool:
+    """Determine if cleanup should be triggered based on shard size.
+
+    Uses lazy cleanup strategy: only trigger when cache exceeds threshold.
+    Default threshold is 150% of max_per_shard to reduce cleanup frequency.
+
+    Args:
+        shard: The cache shard to check
+        max_per_shard: Maximum entries per shard
+        cleanup_threshold_multiplier: Multiplier for cleanup threshold (default 1.5 = 150%)
+
+    Returns:
+        True if cleanup should be triggered
+    """
+    threshold = int(max_per_shard * cleanup_threshold_multiplier)
+    return len(shard.cache) > threshold
 
 
 def get_token_encoder(
@@ -373,13 +439,21 @@ async def count_tokens_for_anthropic_request(
                     shard.lru_order.append(key)
                     return entry.count
                 else:
-                    # expired; evict
-                    # Safe to del since key existence confirmed
-                    del shard.cache[key]
-                    try:
-                        shard.lru_order.remove(key)
-                    except ValueError:
-                        pass
+                    # Entry is expired - trigger batch cleanup of all expired entries
+                    # This is more efficient than cleaning one at a time
+                    removed_count = _batch_cleanup_expired_entries(shard, now, ttl_s)
+                    if removed_count > 0:
+                        debug(
+                            LogRecord(
+                                LogEvent.TOKEN_COUNT.value,
+                                f"Batch cleaned {removed_count} expired entries from shard",
+                                request_id,
+                                {
+                                    "removed_count": removed_count,
+                                    "shard_id": get_shard_index(key, _num_shards),
+                                },
+                            )
+                        )
             # miss path after lock
         global _token_count_misses
         _token_count_misses += 1
@@ -557,12 +631,32 @@ async def count_tokens_for_anthropic_request(
             # Store using CacheEntry for structured timestamp management
             shard.cache[key] = CacheEntry(total_tokens, now)
 
-            # Evict oldest entries if shard exceeds its capacity
-            # Each shard gets a portion of the total max entries
+            # Lazy cleanup strategy: only trigger cleanup when cache exceeds 150% of max size
+            # This reduces cleanup frequency and improves performance
             max_per_shard = calculate_max_per_shard(max_entries, _num_shards)
-            while len(shard.lru_order) > max_per_shard:
-                evict_key = shard.lru_order.pop(0)
-                shard.cache.pop(evict_key, None)
+
+            if _should_trigger_cleanup(shard, max_per_shard, cleanup_threshold_multiplier=1.5):
+                # First, try to clean up expired entries
+                removed_count = _batch_cleanup_expired_entries(shard, now, ttl_s)
+
+                if removed_count > 0:
+                    debug(
+                        LogRecord(
+                            LogEvent.TOKEN_COUNT.value,
+                            f"Lazy cleanup removed {removed_count} expired entries",
+                            request_id,
+                            {
+                                "removed_count": removed_count,
+                                "shard_size": len(shard.cache),
+                                "shard_id": get_shard_index(key, _num_shards),
+                            },
+                        )
+                    )
+
+                # If still over capacity after expiry cleanup, evict oldest entries via LRU
+                while len(shard.lru_order) > max_per_shard:
+                    evict_key = shard.lru_order.pop(0)
+                    shard.cache.pop(evict_key, None)
 
     return total_tokens
 
@@ -739,6 +833,7 @@ def get_token_cache_stats() -> Dict[str, Any]:
             "shard_distribution": [],
             "num_shards": 0,
             "initialized": False,
+            "cleanup_enabled": _cleanup_enabled,
         }
 
     shard_sizes = []
@@ -766,4 +861,68 @@ def get_token_cache_stats() -> Dict[str, Any]:
         else -1,
         "avg_entries_per_shard": total_entries / _num_shards if _num_shards > 0 else 0,
         "initialized": True,
+        "cleanup_enabled": _cleanup_enabled,
     }
+
+
+async def periodic_cache_cleanup(
+    interval_seconds: int = 60, ttl_seconds: float = 300
+) -> None:
+    """Background task that periodically cleans up expired entries from all shards.
+
+    This function should be run as a background task during application startup.
+    It will continuously run until cancelled, cleaning up expired entries from all
+    cache shards at regular intervals.
+
+    Args:
+        interval_seconds: Time between cleanup runs (default: 60 seconds)
+        ttl_seconds: TTL for cache entries (default: 300 seconds / 5 minutes)
+    """
+    global _cleanup_enabled
+    _cleanup_enabled = True
+
+    info(
+        LogRecord(
+            event=LogEvent.TOKEN_COUNT.value,
+            message=f"Started periodic token cache cleanup (interval={interval_seconds}s, ttl={ttl_seconds}s)",
+            data={"interval_seconds": interval_seconds, "ttl_seconds": ttl_seconds},
+        )
+    )
+
+    try:
+        while True:
+            await anyio.sleep(interval_seconds)
+
+            if not _shards_initialized:
+                continue
+
+            total_removed = 0
+            now = time.time()
+
+            # Clean up each shard
+            for i, shard in enumerate(_token_cache_shards):
+                async with shard.lock:
+                    removed_count = _batch_cleanup_expired_entries(shard, now, ttl_seconds)
+                    total_removed += removed_count
+
+            if total_removed > 0:
+                info(
+                    LogRecord(
+                        event=LogEvent.TOKEN_COUNT.value,
+                        message=f"Periodic cleanup removed {total_removed} expired entries across {_num_shards} shards",
+                        data={
+                            "removed_count": total_removed,
+                            "num_shards": _num_shards,
+                            "avg_per_shard": total_removed / _num_shards if _num_shards > 0 else 0,
+                        },
+                    )
+                )
+    except anyio.get_cancelled_exc_class():
+        _cleanup_enabled = False
+        info(
+            LogRecord(
+                event=LogEvent.TOKEN_COUNT.value,
+                message="Periodic token cache cleanup task cancelled",
+            )
+        )
+        raise

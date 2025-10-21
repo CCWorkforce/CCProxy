@@ -158,10 +158,15 @@ Testing
 - Comprehensive test coverage for error_tracker, converters, cache, routes, async components, and rate_limiter
 
 CI/CD and tooling
+- GitHub Actions workflows in .github/workflows/
+  - ci.yml: Comprehensive CI pipeline (lint, test with/without Cython, benchmarks, Docker)
+  - performance.yml: Performance regression detection on PRs
+  - See .github/README.md for workflow documentation
 - Ruff and mypy configured in pyproject.toml (strict type checking enabled)
 - Mypy strict mode: disallow_untyped_defs=true, warn_return_any=true, strict_optional=true
 - Dockerfile includes production (Debian) and Alpine targets; docker-compose.yml wires healthcheck and volumes
 - start-lint.sh provides lint workflow; docker-compose-run.sh wraps common compose actions
+- scripts/test-cython-build.sh: Local verification of Cython build and fallback behavior
 
 ## Important Instruction Reminders
 - Do what has been asked; nothing more, nothing less.
