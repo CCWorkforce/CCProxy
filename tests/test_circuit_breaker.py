@@ -9,7 +9,7 @@ from ccproxy.application.cache.circuit_breaker import CacheCircuitBreaker
 class TestCacheCircuitBreaker:
     """Test cases for CacheCircuitBreaker."""
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test circuit breaker initialization."""
         breaker = CacheCircuitBreaker(failure_threshold=5, reset_time=60)
         assert breaker.failure_threshold == 5
@@ -18,13 +18,13 @@ class TestCacheCircuitBreaker:
         assert breaker.disabled_until == 0
         assert not breaker.is_open()
 
-    def test_initial_state_is_closed(self):
+    def test_initial_state_is_closed(self) -> None:
         """Test that circuit breaker starts in closed state."""
         breaker = CacheCircuitBreaker()
         assert not breaker.is_open()
         assert breaker.consecutive_failures == 0
 
-    def test_circuit_opens_after_threshold_failures(self):
+    def test_circuit_opens_after_threshold_failures(self) -> None:
         """Test that circuit opens after reaching failure threshold."""
         breaker = CacheCircuitBreaker(failure_threshold=3, reset_time=60)
 
@@ -37,7 +37,7 @@ class TestCacheCircuitBreaker:
         breaker.record_failure()
         assert breaker.is_open()
 
-    def test_record_success_decrements_failures(self):
+    def test_record_success_decrements_failures(self) -> None:
         """Test that recording success decrements failure count."""
         breaker = CacheCircuitBreaker(failure_threshold=5)
 
@@ -50,7 +50,7 @@ class TestCacheCircuitBreaker:
         breaker.record_success()
         assert breaker.consecutive_failures == 1
 
-    def test_success_does_not_go_below_zero(self):
+    def test_success_does_not_go_below_zero(self) -> None:
         """Test that failure count doesn't go below zero."""
         breaker = CacheCircuitBreaker()
 
@@ -58,7 +58,7 @@ class TestCacheCircuitBreaker:
         breaker.record_success()
         assert breaker.consecutive_failures == 0
 
-    def test_success_resets_disabled_until_when_failures_reach_zero(self):
+    def test_success_resets_disabled_until_when_failures_reach_zero(self) -> None:
         """Test that disabled_until is cleared when failures reach zero."""
         breaker = CacheCircuitBreaker(failure_threshold=2, reset_time=60)
 
@@ -74,7 +74,7 @@ class TestCacheCircuitBreaker:
         assert breaker.consecutive_failures == 0
         assert breaker.disabled_until == 0
 
-    def test_circuit_closes_after_reset_time(self):
+    def test_circuit_closes_after_reset_time(self) -> None:
         """Test that circuit closes after reset time expires."""
         breaker = CacheCircuitBreaker(failure_threshold=2, reset_time=1)  # 1 second
 
@@ -91,7 +91,7 @@ class TestCacheCircuitBreaker:
         breaker.reset()
         assert not breaker.is_open()
 
-    def test_exponential_backoff_on_repeated_failures(self):
+    def test_exponential_backoff_on_repeated_failures(self) -> None:
         """Test exponential backoff increases disabled duration."""
         breaker = CacheCircuitBreaker(failure_threshold=2, reset_time=10)
 
@@ -113,7 +113,7 @@ class TestCacheCircuitBreaker:
             # Second disabled period should be longer
             assert second_disabled_until > first_disabled_until
 
-    def test_max_consecutive_failures_cap(self):
+    def test_max_consecutive_failures_cap(self) -> None:
         """Test that consecutive failures are capped."""
         breaker = CacheCircuitBreaker(failure_threshold=5)
         max_failures = breaker.max_consecutive_failures
@@ -125,7 +125,7 @@ class TestCacheCircuitBreaker:
         # Should be capped
         assert breaker.consecutive_failures == max_failures
 
-    def test_reset_clears_all_state(self):
+    def test_reset_clears_all_state(self) -> None:
         """Test that reset clears all circuit breaker state."""
         breaker = CacheCircuitBreaker(failure_threshold=2)
 
@@ -142,7 +142,7 @@ class TestCacheCircuitBreaker:
         assert breaker.disabled_until == 0
         assert not breaker.is_open()
 
-    def test_get_status_when_closed(self):
+    def test_get_status_when_closed(self) -> None:
         """Test get_status returns correct info when circuit is closed."""
         breaker = CacheCircuitBreaker(failure_threshold=5)
         breaker.record_failure()
@@ -154,7 +154,7 @@ class TestCacheCircuitBreaker:
         assert status["failure_threshold"] == 5
         assert status["disabled_until"] is None
 
-    def test_get_status_when_open(self):
+    def test_get_status_when_open(self) -> None:
         """Test get_status returns correct info when circuit is open."""
         breaker = CacheCircuitBreaker(failure_threshold=2, reset_time=60)
 
@@ -169,7 +169,7 @@ class TestCacheCircuitBreaker:
         assert status["disabled_until"] is not None
         assert status["time_until_reset"] > 0
 
-    def test_backoff_multiplier_capped_at_10(self):
+    def test_backoff_multiplier_capped_at_10(self) -> None:
         """Test that backoff multiplier is capped at 10."""
         breaker = CacheCircuitBreaker(failure_threshold=1, reset_time=10)
 
@@ -188,7 +188,7 @@ class TestCacheCircuitBreaker:
 
             assert actual_duration <= max_expected_duration
 
-    def test_concurrent_failure_recording(self):
+    def test_concurrent_failure_recording(self) -> None:
         """Test that recording multiple failures works correctly."""
         breaker = CacheCircuitBreaker(failure_threshold=10)
 
@@ -197,7 +197,7 @@ class TestCacheCircuitBreaker:
             breaker.record_failure()
             assert breaker.consecutive_failures == i + 1
 
-    def test_mixed_success_and_failure(self):
+    def test_mixed_success_and_failure(self) -> None:
         """Test alternating success and failure recordings."""
         breaker = CacheCircuitBreaker(failure_threshold=5)
 
@@ -211,7 +211,7 @@ class TestCacheCircuitBreaker:
         assert breaker.consecutive_failures == 3
         assert not breaker.is_open()
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that default values are used when not specified."""
         breaker = CacheCircuitBreaker()
 

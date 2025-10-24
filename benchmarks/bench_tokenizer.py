@@ -1,6 +1,7 @@
 """Benchmarks for token counting operations."""
 
 import asyncio
+from typing import Any
 from ccproxy.application.tokenizer import (
     count_tokens_for_anthropic_request,
     count_tokens_for_openai_request,
@@ -67,10 +68,10 @@ TOOLS = [
 class TestTokenCountingPerformance:
     """Benchmark token counting operations."""
 
-    def test_anthropic_simple_messages(self, benchmark):
+    def test_anthropic_simple_messages(self: Any, benchmark: Any) -> Any:
         """Benchmark token counting for simple Anthropic messages."""
 
-        async def count_tokens():
+        async def count_tokens() -> Any:
             return await count_tokens_for_anthropic_request(
                 messages=SIMPLE_MESSAGES,
                 system=None,
@@ -83,10 +84,10 @@ class TestTokenCountingPerformance:
         result = benchmark(asyncio.run, count_tokens())
         assert result > 0
 
-    def test_anthropic_complex_messages_with_tools(self, benchmark):
+    def test_anthropic_complex_messages_with_tools(self: Any, benchmark: Any) -> Any:
         """Benchmark token counting for complex messages with tools."""
 
-        async def count_tokens():
+        async def count_tokens() -> Any:
             return await count_tokens_for_anthropic_request(
                 messages=COMPLEX_MESSAGES,
                 system="You are a helpful assistant.",
@@ -99,10 +100,10 @@ class TestTokenCountingPerformance:
         result = benchmark(asyncio.run, count_tokens())
         assert result > 0
 
-    def test_anthropic_with_cache_hit(self, benchmark):
+    def test_anthropic_with_cache_hit(self: Any, benchmark: Any) -> Any:
         """Benchmark token counting with cache hit."""
 
-        async def count_tokens_cached():
+        async def count_tokens_cached() -> Any:
             # First call to populate cache
             await count_tokens_for_anthropic_request(
                 messages=SIMPLE_MESSAGES,
@@ -126,10 +127,10 @@ class TestTokenCountingPerformance:
         result = benchmark(asyncio.run, count_tokens_cached())
         assert result > 0
 
-    def test_openai_simple_messages(self, benchmark):
+    def test_openai_simple_messages(self: Any, benchmark: Any) -> Any:
         """Benchmark token counting for simple OpenAI messages."""
 
-        async def count_tokens():
+        async def count_tokens() -> Any:
             return await count_tokens_for_openai_request(
                 messages=[
                     {"role": "user", "content": "Hello, how are you?"},
@@ -143,16 +144,16 @@ class TestTokenCountingPerformance:
         result = benchmark(asyncio.run, count_tokens())
         assert result > 0
 
-    def test_openai_with_tools(self, benchmark):
+    def test_openai_with_tools(self: Any, benchmark: Any) -> Any:
         """Benchmark token counting for OpenAI messages with tools."""
 
-        async def count_tokens():
+        async def count_tokens() -> Any:
             return await count_tokens_for_openai_request(
                 messages=[
                     {"role": "user", "content": "What's the weather like?"},
                     {
                         "role": "assistant",
-                        "content": None,
+                        "content": None,  # type: ignore[dict-item]
                         "tool_calls": [
                             {
                                 "id": "call_123",
@@ -193,12 +194,12 @@ class TestTokenCountingPerformance:
 class TestTokenEncoderPerformance:
     """Benchmark token encoder operations."""
 
-    def test_get_token_encoder(self, benchmark):
+    def test_get_token_encoder(self, benchmark) -> None:  # type: ignore[no-untyped-def]
         """Benchmark token encoder retrieval (with caching)."""
         result = benchmark(get_token_encoder, "gpt-4")
         assert result is not None
 
-    def test_tiktoken_encode_small(self, benchmark):
+    def test_tiktoken_encode_small(self, benchmark) -> None:  # type: ignore[no-untyped-def]
         """Benchmark tiktoken encoding for small text."""
         encoder = get_token_encoder("gpt-4")
         text = "Hello, world!"
@@ -206,7 +207,7 @@ class TestTokenEncoderPerformance:
         result = benchmark(encoder.encode, text)
         assert len(result) > 0
 
-    def test_tiktoken_encode_medium(self, benchmark):
+    def test_tiktoken_encode_medium(self, benchmark) -> None:  # type: ignore[no-untyped-def]
         """Benchmark tiktoken encoding for medium text."""
         encoder = get_token_encoder("gpt-4")
         text = "This is a longer piece of text that contains multiple sentences. " * 10
@@ -214,7 +215,7 @@ class TestTokenEncoderPerformance:
         result = benchmark(encoder.encode, text)
         assert len(result) > 0
 
-    def test_tiktoken_encode_large(self, benchmark):
+    def test_tiktoken_encode_large(self, benchmark) -> None:  # type: ignore[no-untyped-def]
         """Benchmark tiktoken encoding for large text."""
         encoder = get_token_encoder("gpt-4")
         text = "This is a very long piece of text with many repetitions. " * 100

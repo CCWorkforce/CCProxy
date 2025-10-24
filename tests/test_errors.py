@@ -19,7 +19,7 @@ from ccproxy.domain.models import (
 class TestExtractProviderErrorDetails:
     """Test provider error metadata extraction."""
 
-    def test_extract_with_valid_metadata(self):
+    def test_extract_with_valid_metadata(self) -> None:
         """Test extracting provider metadata from valid error dict."""
         error_dict = {
             "message": "Error occurred",
@@ -36,7 +36,7 @@ class TestExtractProviderErrorDetails:
         assert result.raw_error is not None
         assert "error" in result.raw_error
 
-    def test_extract_with_dict_raw_error(self):
+    def test_extract_with_dict_raw_error(self) -> None:
         """Test when raw error is already a dict."""
         error_dict = {
             "metadata": {
@@ -52,7 +52,7 @@ class TestExtractProviderErrorDetails:
         assert isinstance(result.raw_error, dict)
         assert result.raw_error["error"]["message"] == "Invalid API key"
 
-    def test_extract_with_invalid_json_raw(self):
+    def test_extract_with_invalid_json_raw(self) -> None:
         """Test when raw string is invalid JSON."""
         error_dict = {"metadata": {"provider_name": "test", "raw": "not valid json {"}}
 
@@ -60,9 +60,9 @@ class TestExtractProviderErrorDetails:
 
         assert result is not None
         assert result.provider_name == "test"
-        assert "raw_string_parse_failed" in result.raw_error
+        assert "raw_string_parse_failed" in result.raw_error  # type: ignore[operator]
 
-    def test_extract_with_no_metadata(self):
+    def test_extract_with_no_metadata(self) -> None:
         """Test when error dict has no metadata."""
         error_dict = {"message": "Error", "code": 500}
 
@@ -70,7 +70,7 @@ class TestExtractProviderErrorDetails:
 
         assert result is None
 
-    def test_extract_with_non_dict_metadata(self):
+    def test_extract_with_non_dict_metadata(self) -> None:
         """Test when metadata is not a dictionary."""
         error_dict = {"metadata": "not a dict"}
 
@@ -78,7 +78,7 @@ class TestExtractProviderErrorDetails:
 
         assert result is None
 
-    def test_extract_with_missing_provider_name(self):
+    def test_extract_with_missing_provider_name(self) -> None:
         """Test when provider_name is missing."""
         error_dict = {"metadata": {"raw": '{"error": "something"}'}}
 
@@ -86,22 +86,22 @@ class TestExtractProviderErrorDetails:
 
         assert result is None
 
-    def test_extract_with_non_dict_input(self):
+    def test_extract_with_non_dict_input(self) -> None:
         """Test when input is not a dictionary."""
-        result = extract_provider_error_details("not a dict")
+        result = extract_provider_error_details("not a dict")  # type: ignore[arg-type]
         assert result is None
 
         result = extract_provider_error_details(None)
         assert result is None
 
-        result = extract_provider_error_details([])
+        result = extract_provider_error_details([])  # type: ignore[arg-type]
         assert result is None
 
 
 class TestGetAnthropicErrorDetailsFromExecution:
     """Test error details extraction from exceptions."""
 
-    def test_generic_exception(self):
+    def test_generic_exception(self) -> None:
         """Test mapping generic Exception."""
         exc = Exception("Something went wrong")
 
@@ -114,7 +114,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert status_code == 500
         assert provider_details is None
 
-    def test_openai_api_error_400(self):
+    def test_openai_api_error_400(self) -> None:
         """Test mapping OpenAI BadRequestError (400)."""
         exc = openai.BadRequestError(
             message="Invalid request",
@@ -130,7 +130,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert message == "Invalid request"
         assert status_code == 400
 
-    def test_openai_api_error_401(self):
+    def test_openai_api_error_401(self) -> None:
         """Test mapping OpenAI AuthenticationError (401)."""
         exc = openai.AuthenticationError(
             message="Invalid API key",
@@ -145,7 +145,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.AUTHENTICATION
         assert status_code == 401
 
-    def test_openai_api_error_403(self):
+    def test_openai_api_error_403(self) -> None:
         """Test mapping OpenAI PermissionDeniedError (403)."""
         exc = openai.PermissionDeniedError(
             message="Access denied",
@@ -160,7 +160,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.PERMISSION
         assert status_code == 403
 
-    def test_openai_api_error_404(self):
+    def test_openai_api_error_404(self) -> None:
         """Test mapping OpenAI NotFoundError (404)."""
         exc = openai.NotFoundError(
             message="Resource not found",
@@ -175,7 +175,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.NOT_FOUND
         assert status_code == 404
 
-    def test_openai_api_error_429(self):
+    def test_openai_api_error_429(self) -> None:
         """Test mapping OpenAI RateLimitError (429)."""
         exc = openai.RateLimitError(
             message="Rate limit exceeded",
@@ -190,7 +190,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.RATE_LIMIT
         assert status_code == 429
 
-    def test_openai_api_error_500(self):
+    def test_openai_api_error_500(self) -> None:
         """Test mapping OpenAI InternalServerError (500)."""
         exc = openai.InternalServerError(
             message="Internal error",
@@ -205,7 +205,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.API_ERROR
         assert status_code == 500
 
-    def test_openai_api_error_with_body(self):
+    def test_openai_api_error_with_body(self) -> None:
         """Test OpenAI error with body containing metadata."""
         exc = openai.RateLimitError(
             message="Rate limit exceeded",
@@ -230,7 +230,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         if provider_details:
             assert provider_details.provider_name == "openrouter"
 
-    def test_openai_api_error_insufficient_quota(self):
+    def test_openai_api_error_insufficient_quota(self) -> None:
         """Test OpenAI error with insufficient_quota code."""
         exc = openai.RateLimitError(
             message="Quota exceeded",
@@ -246,7 +246,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
         assert error_type == AnthropicErrorType.RATE_LIMIT
         assert status_code == 429
 
-    def test_api_error_with_status_code(self):
+    def test_api_error_with_status_code(self) -> None:
         """Test generic APIError with specific status code."""
         exc = openai.InternalServerError(
             message="Server error",
@@ -265,7 +265,7 @@ class TestGetAnthropicErrorDetailsFromExecution:
 class TestFormatAnthropicErrorSSEEvent:
     """Test SSE error event formatting."""
 
-    def test_format_simple_error(self):
+    def test_format_simple_error(self) -> None:
         """Test formatting simple error as SSE event."""
         result = format_anthropic_error_sse_event(
             error_type=AnthropicErrorType.INVALID_REQUEST,
@@ -281,7 +281,7 @@ class TestFormatAnthropicErrorSSEEvent:
         assert parsed["error"]["type"] == "invalid_request_error"
         assert parsed["error"]["message"] == "Invalid request format"
 
-    def test_format_error_with_provider_details(self):
+    def test_format_error_with_provider_details(self) -> None:
         """Test formatting error with provider metadata."""
         provider_details = ProviderErrorMetadata(
             provider_name="openai",
@@ -312,7 +312,7 @@ class TestFormatAnthropicErrorSSEEvent:
 class TestStatusCodeErrorMap:
     """Test status code to error type mapping."""
 
-    def test_all_mapped_codes(self):
+    def test_all_mapped_codes(self) -> None:
         """Test that all standard HTTP error codes are mapped."""
         expected_mappings = {
             400: AnthropicErrorType.INVALID_REQUEST,
@@ -331,7 +331,7 @@ class TestStatusCodeErrorMap:
         for code, error_type in expected_mappings.items():
             assert STATUS_CODE_ERROR_MAP[code] == error_type
 
-    def test_unmapped_code_defaults(self):
+    def test_unmapped_code_defaults(self) -> None:
         """Test that unmapped codes default to API_ERROR."""
         # These codes are not in the map
         unmapped_codes = [418, 451, 507, 599]

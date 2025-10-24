@@ -12,6 +12,8 @@ from ccproxy.application.cache.stream_deduplication import StreamDeduplicator
 from ccproxy.application.cache.statistics import CacheStatistics
 from ccproxy.application.cache.models import CachedResponse
 
+from typing import Any
+
 from ccproxy.domain.models import (
     MessagesRequest,
     MessagesResponse,
@@ -22,7 +24,7 @@ from ccproxy.domain.models import (
 
 
 @pytest.fixture
-async def response_cache():
+async def response_cache() -> ResponseCache:
     """Create a response cache instance for testing."""
     cache = ResponseCache(
         max_size=10,
@@ -37,31 +39,31 @@ async def response_cache():
 
 
 @pytest.fixture
-def memory_manager():
+def memory_manager() -> CacheMemoryManager:
     """Create a memory manager instance for testing."""
     return CacheMemoryManager(max_memory_mb=1, max_size=10)
 
 
 @pytest.fixture
-def circuit_breaker():
+def circuit_breaker() -> CacheCircuitBreaker:
     """Create a circuit breaker instance for testing."""
     return CacheCircuitBreaker(failure_threshold=3, reset_time=1)
 
 
 @pytest.fixture
-def stream_deduplicator():
+def stream_deduplicator() -> StreamDeduplicator:
     """Create a stream deduplicator instance for testing."""
     return StreamDeduplicator()
 
 
 @pytest.fixture
-def cache_statistics():
+def cache_statistics() -> CacheStatistics:
     """Create a cache statistics instance for testing."""
     return CacheStatistics()
 
 
 @pytest.fixture
-def sample_request():
+def sample_request() -> MessagesRequest:
     """Create a sample MessagesRequest."""
     return MessagesRequest(
         model="claude-3-opus-20240229",
@@ -77,7 +79,7 @@ def sample_request():
 
 
 @pytest.fixture
-def sample_response():
+def sample_response() -> MessagesResponse:
     """Create a sample MessagesResponse."""
     return MessagesResponse(
         id="msg_123",
@@ -91,9 +93,9 @@ def sample_response():
 
 
 @pytest.fixture
-def cached_response(sample_response):
+def cached_response(sample_response: MessagesResponse) -> MessagesResponse:
     """Create a CachedResponse."""
-    return CachedResponse(
+    return CachedResponse(  # type: ignore[return-value]
         response=sample_response,
         request_hash="test_hash_12345",
         timestamp=time.time(),
@@ -105,7 +107,7 @@ class TestResponseCache:
     """Test cases for ResponseCache class."""
 
     @pytest.mark.anyio
-    async def test_cache_initialization(self, response_cache):
+    async def test_cache_initialization(self, response_cache: ResponseCache) -> None:
         """Test cache initialization."""
         assert response_cache._ttl_seconds == 60
         assert response_cache._cleanup_interval == 10
@@ -115,27 +117,34 @@ class TestResponseCache:
         assert response_cache._stream_deduplicator is not None
 
     @pytest.mark.anyio
-    async def test_get_set_cache(self, response_cache, sample_request, sample_response):
+    async def test_get_set_cache(
+        self,
+        response_cache: MessagesResponse,
+        sample_request: MessagesRequest,
+        sample_response: MessagesResponse,
+    ) -> None:
         """Test basic cache get and set operations."""
         # Initially cache should be empty
-        result = await response_cache.get_cached_response(sample_request)
+        result = await response_cache.get_cached_response(sample_request)  # type: ignore[attr-defined]
         assert result is None
 
         # Cache a response
-        success = await response_cache.cache_response(sample_request, sample_response)
+        success = await response_cache.cache_response(sample_request, sample_response)  # type: ignore[attr-defined]
         assert success is True
 
         # Get the cached value
-        result = await response_cache.get_cached_response(sample_request)
+        result = await response_cache.get_cached_response(sample_request)  # type: ignore[attr-defined]
         assert result is not None
         assert result.id == sample_response.id
         assert result.content[0].text == "I'm doing well, thank you!"
 
     @pytest.mark.anyio
-    async def test_cache_ttl_expiration(self, sample_request, sample_response):
+    async def test_cache_ttl_expiration(
+        self, sample_request: MessagesRequest, sample_response: MessagesResponse
+    ) -> None:
         """Test cache TTL expiration."""
         # Create cache with very short TTL
-        cache = ResponseCache(ttl_seconds=0.1)  # 100ms TTL
+        cache = ResponseCache(ttl_seconds=1)  # 100ms TTL  # type: ignore[arg-type]
         await cache.start_cleanup_task()
 
         # Cache a value
@@ -156,7 +165,7 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.anyio
-    async def test_cache_deduplication(
+    async def test_cache_deduplication(  # type: ignore[no-untyped-def]
         self, response_cache, sample_request, sample_response
     ):
         """Test request deduplication."""
@@ -164,7 +173,7 @@ class TestResponseCache:
         await response_cache.mark_request_pending(sample_request)
 
         # Start multiple concurrent requests for the same request
-        async def get_or_fetch():
+        async def get_or_fetch() -> Any:
             result = await response_cache.get_cached_response(
                 sample_request, wait_for_pending=True, timeout_seconds=2.0
             )
@@ -181,7 +190,7 @@ class TestResponseCache:
         async with anyio.create_task_group() as tg:
             results = []
 
-            async def fetch_and_append():
+            async def fetch_and_append() -> Any:
                 result = await get_or_fetch()
                 results.append(result)
 
@@ -192,7 +201,7 @@ class TestResponseCache:
         assert all(r.id == sample_response.id for r in results)
 
     @pytest.mark.anyio
-    async def test_cache_statistics(
+    async def test_cache_statistics(  # type: ignore[no-untyped-def]
         self, response_cache, sample_request, sample_response
     ):
         """Test cache statistics tracking."""
@@ -215,7 +224,12 @@ class TestResponseCache:
         assert stats["cache_hits"] == initial_hits + 1
 
     @pytest.mark.anyio
-    async def test_cache_clear(self, response_cache, sample_request, sample_response):
+    async def test_cache_clear(
+        self,
+        response_cache: MessagesResponse,
+        sample_request: MessagesRequest,
+        sample_response: MessagesResponse,
+    ) -> None:
         """Test cache clearing."""
         # Create different requests for testing
         requests = []
@@ -232,21 +246,23 @@ class TestResponseCache:
                 stream=False,
             )
             requests.append(req)
-            await response_cache.cache_response(req, sample_response)
+            await response_cache.cache_response(req, sample_response)  # type: ignore[attr-defined]
 
         # Clear cache
-        await response_cache.clear()
+        await response_cache.clear()  # type: ignore[attr-defined]
 
         # All items should be gone
         for req in requests:
-            result = await response_cache.get_cached_response(req)
+            result = await response_cache.get_cached_response(req)  # type: ignore[attr-defined]
             assert result is None
 
     @pytest.mark.anyio
-    async def test_streaming_response_handling(self, response_cache, sample_request):
+    async def test_streaming_response_handling(
+        self, response_cache: MessagesResponse, sample_request: MessagesRequest
+    ) -> None:
         """Test handling of streaming responses."""
         # Subscribe to stream (returns tuple: is_primary, iterator, key)
-        is_primary, stream_iterator, key = await response_cache.subscribe_stream(
+        is_primary, stream_iterator, key = await response_cache.subscribe_stream(  # type: ignore[attr-defined]
             sample_request
         )
 
@@ -254,27 +270,29 @@ class TestResponseCache:
         if is_primary:
             # Publish some data
             for i in range(3):
-                await response_cache.publish_stream_line(key, f"chunk_{i}")
-            await response_cache.finalize_stream(key)
+                await response_cache.publish_stream_line(key, f"chunk_{i}")  # type: ignore[attr-defined]
+            await response_cache.finalize_stream(key)  # type: ignore[attr-defined]
 
         # Whether primary or not, we should be able to iterate
         assert stream_iterator is not None
         assert key is not None
 
     @pytest.mark.anyio
-    async def test_stream_iterator_with_data(self, response_cache, sample_request):
+    async def test_stream_iterator_with_data(
+        self, response_cache: MessagesResponse, sample_request: MessagesRequest
+    ) -> None:
         """Test stream iterator consumes data correctly."""
         # Subscribe to stream
-        is_primary, stream_iterator, key = await response_cache.subscribe_stream(
+        is_primary, stream_iterator, key = await response_cache.subscribe_stream(  # type: ignore[attr-defined]
             sample_request
         )
 
         # Publish data in background task
-        async def publish_data():
+        async def publish_data() -> Any:
             await anyio.sleep(0.01)
-            await response_cache.publish_stream_line(key, "chunk_1")
-            await response_cache.publish_stream_line(key, "chunk_2")
-            await response_cache.finalize_stream(key)
+            await response_cache.publish_stream_line(key, "chunk_1")  # type: ignore[attr-defined]
+            await response_cache.publish_stream_line(key, "chunk_2")  # type: ignore[attr-defined]
+            await response_cache.finalize_stream(key)  # type: ignore[attr-defined]
 
         async with anyio.create_task_group() as tg:
             tg.start_soon(publish_data)
@@ -287,7 +305,7 @@ class TestResponseCache:
         assert chunks == ["chunk_1", "chunk_2"]
 
     @pytest.mark.anyio
-    async def test_cache_disabled_via_circuit_breaker(
+    async def test_cache_disabled_via_circuit_breaker(  # type: ignore[no-untyped-def]
         self, sample_request, sample_response
     ):
         """Test caching behavior when circuit breaker is open."""
@@ -324,7 +342,9 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.anyio
-    async def test_response_validation_failures(self, sample_request):
+    async def test_response_validation_failures(
+        self, sample_request: MessagesRequest
+    ) -> Any:
         """Test various response validation failure scenarios."""
         cache = ResponseCache()
         await cache.start_cleanup_task()
@@ -366,7 +386,7 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.anyio
-    async def test_redact_sensitive_data(self):
+    async def test_redact_sensitive_data(self) -> None:
         """Test sensitive data redaction."""
         cache = ResponseCache(redact_fields=["api_key", "password", "secret"])
 
@@ -400,12 +420,12 @@ class TestResponseCache:
         assert cache._redact_sensitive_data(None) is None
 
     @pytest.mark.anyio
-    async def test_cleanup_expired_with_evictions(
+    async def test_cleanup_expired_with_evictions(  # type: ignore[no-untyped-def]
         self, sample_request, sample_response
     ):
         """Test cleanup loop evicts expired entries."""
         # Create cache with very short TTL and cleanup interval
-        cache = ResponseCache(ttl_seconds=0.05, cleanup_interval_seconds=0.1)
+        cache = ResponseCache(ttl_seconds=0.05, cleanup_interval_seconds=0.1)  # type: ignore[arg-type]
         await cache.start_cleanup_task()
 
         # Cache multiple responses
@@ -436,9 +456,11 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.anyio
-    async def test_cleanup_task_exception_handling(self, sample_request):
+    async def test_cleanup_task_exception_handling(
+        self, sample_request: MessagesRequest
+    ) -> None:
         """Test that cleanup task handles exceptions gracefully."""
-        cache = ResponseCache(cleanup_interval_seconds=0.05)
+        cache = ResponseCache(cleanup_interval_seconds=0.05)  # type: ignore[arg-type]
         await cache.start_cleanup_task()
 
         # Let cleanup run for a bit to ensure it's working
@@ -451,36 +473,40 @@ class TestResponseCache:
         assert cache._cleanup_task_group is None
 
     @pytest.mark.anyio
-    async def test_stop_cleanup_with_exception(self, sample_request):
+    async def test_stop_cleanup_with_exception(
+        self, sample_request: MessagesRequest
+    ) -> None:
         """Test stop_cleanup_task handles exceptions."""
         cache = ResponseCache()
         await cache.start_cleanup_task()
 
         # Manually trigger exception path by canceling and stopping
         if cache._cleanup_task_group:
-            cache._cleanup_task_group.cancel_scope.cancel()
+            cache._cleanup_task_group.cancel_scope.cancel()  # type: ignore[unreachable]
 
         # This should handle exception in __aexit__
         await cache.stop_cleanup_task()
         assert cache._cleanup_task_group is None
 
     @pytest.mark.anyio
-    async def test_pending_request_timeout(self, response_cache, sample_request):
+    async def test_pending_request_timeout(
+        self, response_cache: MessagesResponse, sample_request: MessagesRequest
+    ) -> None:
         """Test timeout when waiting for pending request."""
         # Mark request as pending but never complete it
-        await response_cache.mark_request_pending(sample_request)
+        await response_cache.mark_request_pending(sample_request)  # type: ignore[attr-defined]
 
         # Try to get with timeout - should timeout and continue
-        result = await response_cache.get_cached_response(
+        result = await response_cache.get_cached_response(  # type: ignore[attr-defined]
             sample_request, wait_for_pending=True, timeout_seconds=0.1
         )
         assert result is None
 
         # Clean up pending request
-        await response_cache.clear_pending_request(sample_request)
+        await response_cache.clear_pending_request(sample_request)  # type: ignore[attr-defined]
 
     @pytest.mark.anyio
-    async def test_clear_with_pending_requests(
+    async def test_clear_with_pending_requests(  # type: ignore[no-untyped-def]
         self, response_cache, sample_request, sample_response
     ):
         """Test clearing cache with pending requests sets events."""
@@ -511,7 +537,9 @@ class TestResponseCache:
         assert len(response_cache._pending_requests) == 0
 
     @pytest.mark.anyio
-    async def test_validation_with_redacted_thinking_blocks(self, sample_request):
+    async def test_validation_with_redacted_thinking_blocks(
+        self, sample_request: MessagesRequest
+    ) -> None:
         """Test validation accepts ContentBlockRedactedThinking."""
         from ccproxy.domain.models import ContentBlockRedactedThinking
 
@@ -545,7 +573,9 @@ class TestResponseCache:
         await cache.stop_cleanup_task()
 
     @pytest.mark.anyio
-    async def test_validation_json_serialization_error(self, sample_request):
+    async def test_validation_json_serialization_error(
+        self, sample_request: MessagesRequest
+    ) -> None:
         """Test validation handles JSON serialization errors."""
         cache = ResponseCache()
 
@@ -566,7 +596,9 @@ class TestMemoryManager:
     """Test cases for CacheMemoryManager class."""
 
     @pytest.mark.anyio
-    async def test_memory_manager_initialization(self, memory_manager):
+    async def test_memory_manager_initialization(
+        self, memory_manager: CacheMemoryManager
+    ) -> None:
         """Test memory manager initialization."""
         assert memory_manager.max_memory_bytes == 1 * 1024 * 1024  # 1MB
         assert memory_manager.max_size == 10
@@ -574,19 +606,23 @@ class TestMemoryManager:
         assert len(memory_manager.cache) == 0
 
     @pytest.mark.anyio
-    async def test_add_entry(self, memory_manager, cached_response):
+    async def test_add_entry(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test adding entry to memory manager."""
-        success = await memory_manager.add("test_key", cached_response, "req_123")
+        success = await memory_manager.add("test_key", cached_response, "req_123")  # type: ignore[arg-type]
         assert success is True
         assert memory_manager.memory_usage_bytes == 1024
         assert "test_key" in memory_manager.cache
 
     @pytest.mark.anyio
-    async def test_memory_limit_enforcement(self, memory_manager, cached_response):
+    async def test_memory_limit_enforcement(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test memory limit enforcement."""
         # Create a large cached response
         large_response = CachedResponse(
-            response=cached_response.response,
+            response=cached_response.response,  # type: ignore[attr-defined]
             request_hash="large_hash",
             timestamp=time.time(),
             size_bytes=2 * 1024 * 1024,  # 2MB, exceeds limit
@@ -597,7 +633,7 @@ class TestMemoryManager:
         assert "large_key" not in memory_manager.cache
 
     @pytest.mark.anyio
-    async def test_lru_eviction(self, memory_manager):
+    async def test_lru_eviction(self, memory_manager: CacheMemoryManager) -> None:
         """Test LRU eviction when size limit is reached."""
         # Add entries up to the limit
         for i in range(10):
@@ -622,9 +658,11 @@ class TestMemoryManager:
         assert "key_0" not in memory_manager.cache  # First one should be evicted
 
     @pytest.mark.anyio
-    async def test_get_entry(self, memory_manager, cached_response):
+    async def test_get_entry(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test getting entry from memory manager."""
-        await memory_manager.add("test_key", cached_response, "req_789")
+        await memory_manager.add("test_key", cached_response, "req_789")  # type: ignore[arg-type]
 
         # Get existing entry
         entry = await memory_manager.get("test_key")
@@ -636,9 +674,11 @@ class TestMemoryManager:
         assert entry is None
 
     @pytest.mark.anyio
-    async def test_remove_entry(self, memory_manager, cached_response):
+    async def test_remove_entry(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test removing entry from memory manager."""
-        await memory_manager.add("test_key", cached_response, "req_abc")
+        await memory_manager.add("test_key", cached_response, "req_abc")  # type: ignore[arg-type]
         assert memory_manager.memory_usage_bytes == 1024
 
         # Remove entry
@@ -653,11 +693,13 @@ class TestMemoryManager:
         assert removed is None
 
     @pytest.mark.anyio
-    async def test_clear_all(self, memory_manager, cached_response):
+    async def test_clear_all(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test clearing all entries."""
         # Add multiple entries
         for i in range(5):
-            await memory_manager.add(f"key_{i}", cached_response, f"req_{i}")
+            await memory_manager.add(f"key_{i}", cached_response, f"req_{i}")  # type: ignore[arg-type]
 
         assert memory_manager.memory_usage_bytes == 5 * 1024
 
@@ -667,11 +709,13 @@ class TestMemoryManager:
         assert len(memory_manager.cache) == 0
 
     @pytest.mark.anyio
-    async def test_get_statistics(self, memory_manager, cached_response):
+    async def test_get_statistics(
+        self, memory_manager: CacheMemoryManager, cached_response: MessagesResponse
+    ) -> None:
         """Test getting memory statistics."""
         # Add some entries
         for i in range(3):
-            await memory_manager.add(f"key_{i}", cached_response, f"req_{i}")
+            await memory_manager.add(f"key_{i}", cached_response, f"req_{i}")  # type: ignore[arg-type]
 
         stats = memory_manager.get_stats()
         assert stats["cache_size"] == 3
@@ -683,20 +727,24 @@ class TestMemoryManager:
 class TestCircuitBreaker:
     """Test cases for CacheCircuitBreaker class."""
 
-    def test_circuit_breaker_initialization(self, circuit_breaker):
+    def test_circuit_breaker_initialization(
+        self, circuit_breaker: CacheCircuitBreaker
+    ) -> None:
         """Test circuit breaker initialization."""
         assert circuit_breaker.failure_threshold == 3
         assert circuit_breaker.reset_time == 1
         assert circuit_breaker.consecutive_failures == 0
         assert circuit_breaker.is_open() is False
 
-    def test_record_success(self, circuit_breaker):
+    def test_record_success(self, circuit_breaker: CacheCircuitBreaker) -> None:
         """Test recording successful operations."""
         circuit_breaker.record_success()
         assert circuit_breaker.consecutive_failures == 0
         assert circuit_breaker.is_open() is False
 
-    def test_record_failure_threshold(self, circuit_breaker):
+    def test_record_failure_threshold(
+        self, circuit_breaker: CacheCircuitBreaker
+    ) -> None:
         """Test circuit breaker opening on failure threshold."""
         # Record failures up to threshold
         for _ in range(2):
@@ -707,9 +755,9 @@ class TestCircuitBreaker:
         circuit_breaker.record_failure()
         assert circuit_breaker.is_open() is True
 
-    def test_circuit_reset_after_timeout(self):
+    def test_circuit_reset_after_timeout(self) -> None:
         """Test circuit breaker behavior after timeout."""
-        breaker = CacheCircuitBreaker(failure_threshold=1, reset_time=0.1)
+        breaker = CacheCircuitBreaker(failure_threshold=1, reset_time=0.1)  # type: ignore[arg-type]
 
         # Open the circuit
         breaker.record_failure()
@@ -728,7 +776,9 @@ class TestCircuitBreaker:
         assert breaker.consecutive_failures == 0
         assert breaker.is_open() is False  # Now it's closed
 
-    def test_success_resets_failure_count(self, circuit_breaker):
+    def test_success_resets_failure_count(
+        self, circuit_breaker: CacheCircuitBreaker
+    ) -> None:
         """Test that success resets failure count."""
         # Record some failures (but not enough to open)
         circuit_breaker.record_failure()
@@ -747,11 +797,13 @@ class TestStreamDeduplicator:
     """Test cases for StreamDeduplicator class."""
 
     @pytest.mark.anyio
-    async def test_register_stream(self, stream_deduplicator):
+    async def test_register_stream(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test registering a new stream."""
         stream_id = "stream_123"
 
-        async def sample_stream():
+        async def sample_stream() -> None:
             for i in range(3):
                 yield f"data_{i}"
 
@@ -766,11 +818,13 @@ class TestStreamDeduplicator:
         assert queue2 is not None
 
     @pytest.mark.anyio
-    async def test_subscribe_to_stream(self, stream_deduplicator):
+    async def test_subscribe_to_stream(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test subscribing to a stream."""
         stream_id = "stream_456"
 
-        async def sample_stream():
+        async def sample_stream() -> None:
             for i in range(3):
                 yield f"chunk_{i}"
                 await anyio.sleep(0.01)
@@ -814,11 +868,13 @@ class TestStreamDeduplicator:
         assert data2 == ["chunk_0", "chunk_1", "chunk_2"]
 
     @pytest.mark.anyio
-    async def test_stream_cleanup(self, stream_deduplicator):
+    async def test_stream_cleanup(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test stream cleanup after completion."""
         stream_id = "cleanup_test"
 
-        async def short_stream():
+        async def short_stream() -> None:
             yield "data"
 
         # Register and get queue
@@ -848,7 +904,9 @@ class TestStreamDeduplicator:
         assert is_primary_new is True
 
     @pytest.mark.anyio
-    async def test_publish_to_nonexistent_stream(self, stream_deduplicator):
+    async def test_publish_to_nonexistent_stream(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> Any:
         """Test publishing to a stream that doesn't exist."""
         # Publish to a key that was never registered
         # Should return early without error (line 93)
@@ -856,7 +914,9 @@ class TestStreamDeduplicator:
         # No assertion needed - just verifying it doesn't raise an error
 
     @pytest.mark.anyio
-    async def test_finalize_nonexistent_stream(self, stream_deduplicator):
+    async def test_finalize_nonexistent_stream(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> Any:
         """Test finalizing a stream that doesn't exist."""
         # Finalize a key that was never registered
         # Should return early without error (line 126)
@@ -864,7 +924,9 @@ class TestStreamDeduplicator:
         # No assertion needed - just verifying it doesn't raise an error
 
     @pytest.mark.anyio
-    async def test_publish_with_full_queue(self, stream_deduplicator):
+    async def test_publish_with_full_queue(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test publishing when subscriber queue is full (WouldBlock)."""
         # Create a stream with very small buffer to trigger WouldBlock
         small_buffer_deduplicator = StreamDeduplicator(max_queue_size=2)
@@ -886,7 +948,9 @@ class TestStreamDeduplicator:
         assert small_buffer_deduplicator.get_subscriber_count(stream_id) == 0
 
     @pytest.mark.anyio
-    async def test_publish_with_closed_stream(self, stream_deduplicator):
+    async def test_publish_with_closed_stream(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test publishing to a closed stream."""
         stream_id = "closed_stream_test"
 
@@ -907,7 +971,9 @@ class TestStreamDeduplicator:
         assert len(stream_deduplicator.subscribers.get(stream_id, [])) == 0
 
     @pytest.mark.anyio
-    async def test_finalize_with_exceptions(self, stream_deduplicator):
+    async def test_finalize_with_exceptions(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test finalize handles WouldBlock and ClosedResourceError."""
         # Create stream with small buffer
         small_deduplicator = StreamDeduplicator(max_queue_size=1)
@@ -927,7 +993,9 @@ class TestStreamDeduplicator:
         assert small_deduplicator.is_active(stream_id) is False
 
     @pytest.mark.anyio
-    async def test_is_active_method(self, stream_deduplicator):
+    async def test_is_active_method(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test is_active method."""
         stream_id = "active_test"
 
@@ -944,7 +1012,9 @@ class TestStreamDeduplicator:
         assert stream_deduplicator.is_active(stream_id) is False
 
     @pytest.mark.anyio
-    async def test_has_subscribers_method(self, stream_deduplicator):
+    async def test_has_subscribers_method(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test has_subscribers method."""
         stream_id = "subscribers_test"
 
@@ -961,7 +1031,9 @@ class TestStreamDeduplicator:
         assert stream_deduplicator.has_subscribers(stream_id) is False
 
     @pytest.mark.anyio
-    async def test_get_subscriber_count_method(self, stream_deduplicator):
+    async def test_get_subscriber_count_method(
+        self, stream_deduplicator: StreamDeduplicator
+    ) -> None:
         """Test get_subscriber_count method."""
         stream_id = "count_test"
 
@@ -983,7 +1055,7 @@ class TestStreamDeduplicator:
         assert stream_deduplicator.get_subscriber_count(stream_id) == 2
 
     @pytest.mark.anyio
-    async def test_clear_with_full_queues(self):
+    async def test_clear_with_full_queues(self) -> None:
         """Test clear handles WouldBlock when finalizing streams."""
         # Create deduplicator with small buffer
         small_deduplicator = StreamDeduplicator(max_queue_size=1)
@@ -1006,28 +1078,28 @@ class TestStreamDeduplicator:
 class TestCacheStatistics:
     """Test cases for CacheStatistics class."""
 
-    def test_statistics_initialization(self, cache_statistics):
+    def test_statistics_initialization(self, cache_statistics: CacheStatistics) -> None:
         """Test statistics initialization."""
         assert cache_statistics.cache_hits == 0
         assert cache_statistics.cache_misses == 0
         assert cache_statistics.total_cache_attempts == 0
         assert cache_statistics.evictions == 0
 
-    def test_record_hit(self, cache_statistics):
+    def test_record_hit(self, cache_statistics: CacheStatistics) -> None:
         """Test recording cache hits."""
         cache_statistics.record_hit()
         assert cache_statistics.cache_hits == 1
         stats = cache_statistics.get_stats()
         assert stats["hit_rate"] == 1.0
 
-    def test_record_miss(self, cache_statistics):
+    def test_record_miss(self, cache_statistics: CacheStatistics) -> None:
         """Test recording cache misses."""
         cache_statistics.record_miss()
         assert cache_statistics.cache_misses == 1
         stats = cache_statistics.get_stats()
         assert stats["hit_rate"] == 0.0
 
-    def test_hit_rate_calculation(self, cache_statistics):
+    def test_hit_rate_calculation(self, cache_statistics: CacheStatistics) -> None:
         """Test hit rate calculation."""
         # Record some hits and misses
         for _ in range(3):
@@ -1039,7 +1111,7 @@ class TestCacheStatistics:
         stats = cache_statistics.get_stats()
         assert stats["hit_rate"] == 0.6
 
-    def test_get_summary(self, cache_statistics):
+    def test_get_summary(self, cache_statistics: CacheStatistics) -> None:
         """Test getting statistics summary."""
         # Record various operations
         cache_statistics.record_hit()
@@ -1055,7 +1127,7 @@ class TestCacheStatistics:
         assert summary["evictions"] == 1
         assert abs(summary["hit_rate"] - (2 / 3)) < 0.01  # Use approx comparison
 
-    def test_reset_statistics(self, cache_statistics):
+    def test_reset_statistics(self, cache_statistics: CacheStatistics) -> None:
         """Test resetting statistics."""
         # Record some operations
         cache_statistics.record_hit()
@@ -1075,7 +1147,7 @@ class TestCacheStatistics:
 class TestCachedResponse:
     """Test cases for CachedResponse model."""
 
-    def test_cached_response_creation(self, sample_response):
+    def test_cached_response_creation(self, sample_response: MessagesResponse) -> None:
         """Test creating a cached response."""
         cached = CachedResponse(
             response=sample_response,
@@ -1089,7 +1161,9 @@ class TestCachedResponse:
         assert cached.size_bytes == 2048
         assert cached.timestamp > 0
 
-    def test_cached_response_expiration(self, sample_response):
+    def test_cached_response_expiration(
+        self, sample_response: MessagesResponse
+    ) -> None:
         """Test checking if cached response is expired."""
         # Create response with past timestamp
         past_time = time.time() - 100

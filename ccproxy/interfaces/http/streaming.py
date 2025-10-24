@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from typing import AsyncGenerator, Dict, Optional, Literal, Any
+from typing import AsyncGenerator, Dict, List, Optional, Literal, Any, Set
 
 import openai
 from openai.types.chat import ChatCompletionChunk
@@ -39,7 +39,7 @@ if not _USING_CYTHON:
         """Compact JSON serialization with minimal separators."""
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
-    def build_sse_event(event_type: str, data_dict: dict) -> str:
+    def build_sse_event(event_type: str, data_dict: Dict[str, Any]) -> str:
         """Pure Python fallback for SSE event formatting."""
         return f"event: {event_type}\ndata: {json_dumps_compact(data_dict)}\n\n"
 
@@ -61,27 +61,27 @@ EVENT_TYPE_PING = "ping"
 
 class StreamProcessor:
     class ThinkingState:
-        def __init__(self):
+        def __init__(self) -> None:
             self.idx: Optional[int] = None
-            self.buffer = ""
-            self.signature = ""
-            self.started = False
+            self.buffer: str = ""
+            self.signature: str = ""
+            self.started: bool = False
 
     class TextState:
-        def __init__(self):
+        def __init__(self) -> None:
             self.idx: Optional[int] = None
-            self.content = ""
+            self.content: str = ""
 
-    def __init__(self, enc, request_id, thinking_enabled):
+    def __init__(self, enc: Any, request_id: str, thinking_enabled: bool) -> None:
         self.enc = enc
         self.request_id = request_id
         self.thinking_enabled = thinking_enabled
         self.thinking = self.ThinkingState()
         self.text = self.TextState()
-        self.tools = {}
-        self.tool_starts = set()
-        self.output_token_count = 0
-        self.next_anthropic_block_idx = 0
+        self.tools: Dict[str, Dict[str, Any]] = {}
+        self.tool_starts: Set[str] = set()
+        self.output_token_count: int = 0
+        self.next_anthropic_block_idx: int = 0
 
     def snapshot_content(self) -> Dict[str, Optional[str]]:
         """Return a snapshot of accumulated content for diagnostics."""
@@ -90,7 +90,7 @@ class StreamProcessor:
             "text": self.text.content if self.text else None,
         }
 
-    def snapshot_tool_calls(self) -> list:
+    def snapshot_tool_calls(self) -> List[Dict[str, Any]]:
         """Return simplified view of tool calls for diagnostics."""
         return [
             {
@@ -101,9 +101,9 @@ class StreamProcessor:
             for tool_id, tool in self.tools.items()
         ]
 
-    async def process_thinking_content(self, content: str) -> list:
+    async def process_thinking_content(self, content: str) -> List[str]:
         # Process thinking content with state tracking (Cython-optimized SSE formatting)
-        events = []
+        events: List[str] = []
         if not self.thinking.started:
             self.thinking.idx = self.next_anthropic_block_idx
             self.next_anthropic_block_idx += 1
@@ -129,12 +129,12 @@ class StreamProcessor:
         self.output_token_count += len(tokens)
         return events
 
-    async def process_text_content(self, content: str):
+    async def process_text_content(self, content: str) -> List[str]:
         # Process text content (Cython-optimized SSE formatting)
         self.text.content += content
         tokens = self.enc.encode(content)
         self.output_token_count += len(tokens)
-        events = []
+        events: List[str] = []
 
         if not self.text.idx:
             self.text.idx = self.next_anthropic_block_idx
@@ -156,10 +156,10 @@ class StreamProcessor:
             events.append(build_sse_event(EVENT_TYPE_CONTENT_BLOCK_DELTA, event_data))
         return events
 
-    async def process_tool_call(self, tool_delta):
+    async def process_tool_call(self, tool_delta: Any) -> List[str]:
         # Process tool calls (Cython-optimized SSE formatting)
         tool_id = tool_delta.id
-        events = []
+        events: List[str] = []
 
         if tool_id not in self.tools:
             self.tools[tool_id] = {
@@ -179,7 +179,9 @@ class StreamProcessor:
                 },
             }
             # Use Cython-optimized SSE formatting for 20-30% improvement
-            events.append(build_sse_event(EVENT_TYPE_CONTENT_BLOCK_START, start_event_data))
+            events.append(
+                build_sse_event(EVENT_TYPE_CONTENT_BLOCK_START, start_event_data)
+            )
 
         if tool_delta.function.arguments:
             self.tools[tool_id]["arguments"] += tool_delta.function.arguments
@@ -195,9 +197,9 @@ class StreamProcessor:
 
         return events
 
-    async def finalize_blocks(self, thinking_enabled):
+    async def finalize_blocks(self, thinking_enabled: bool) -> List[str]:
         # Finalize all blocks (Cython-optimized SSE formatting)
-        events = []
+        events: List[str] = []
         # Finalize thinking block if exists
         if self.thinking.buffer and thinking_enabled:
             thinking_event_data = {
@@ -205,7 +207,9 @@ class StreamProcessor:
                 "index": self.thinking.idx or self.next_anthropic_block_idx - 1,
             }
             # Use Cython-optimized SSE formatting for 20-30% improvement
-            events.append(build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, thinking_event_data))
+            events.append(
+                build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, thinking_event_data)
+            )
             self.thinking.buffer = ""
 
         # Finalize text block if exists
@@ -215,7 +219,9 @@ class StreamProcessor:
                 "index": self.text.idx,
             }
             # Use Cython-optimized SSE formatting for 20-30% improvement
-            events.append(build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, text_event_data))
+            events.append(
+                build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, text_event_data)
+            )
             self.text.idx = None
 
         # Finalize tool blocks
@@ -226,7 +232,9 @@ class StreamProcessor:
                     "index": tool["index"],
                 }
                 # Use Cython-optimized SSE formatting for 20-30% improvement
-                events.append(build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, tool_event_data))
+                events.append(
+                    build_sse_event(EVENT_TYPE_CONTENT_BLOCK_STOP, tool_event_data)
+                )
         return events
 
 
@@ -338,7 +346,9 @@ async def handle_anthropic_streaming_response_from_openai_stream(
         }
         # Use Cython-optimized SSE formatting for 20-30% improvement
         yield build_sse_event(EVENT_TYPE_MESSAGE_DELTA, message_delta_event)
-        yield build_sse_event(EVENT_TYPE_MESSAGE_STOP, {"type": EVENT_TYPE_MESSAGE_STOP})
+        yield build_sse_event(
+            EVENT_TYPE_MESSAGE_STOP, {"type": EVENT_TYPE_MESSAGE_STOP}
+        )
 
     except Exception as e:
         stream_status_code = INTERNAL_SERVER_ERROR

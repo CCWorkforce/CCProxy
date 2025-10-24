@@ -208,7 +208,7 @@ async def log_and_return_error_response(
     }
     if provider_details:
         log_data["provider_name"] = provider_details.provider_name
-        log_data["provider_raw_error"] = provider_details.raw_error
+        log_data["provider_raw_error"] = provider_details.raw_error  # type: ignore[assignment]
 
     retry_after_val = None
     if caught_exception is not None and hasattr(caught_exception, "headers"):
@@ -274,7 +274,7 @@ async def log_and_return_error_response(
         }
         if provider_details:
             metadata["provider_name"] = provider_details.provider_name
-            metadata["provider_error"] = provider_details.raw_error
+            metadata["provider_error"] = provider_details.raw_error  # type: ignore[assignment]
 
         await error_tracker.track_error(
             error=caught_exception or Exception(error_message),

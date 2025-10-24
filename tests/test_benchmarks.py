@@ -8,13 +8,13 @@ from ccproxy.interfaces.http.streaming import StreamProcessor
 
 
 @pytest.mark.benchmark
-def test_stream_processor_memory():
+def test_stream_processor_memory() -> None:
     tracemalloc.start()
     gc.collect()
     snapshot1 = tracemalloc.take_snapshot()
 
     class MockEncoder:
-        def encode(self, text):
+        def encode(self, text: str) -> list[int]:
             return [1]
 
     enc_mock = MockEncoder()
@@ -29,7 +29,7 @@ def test_stream_processor_memory():
 
     processor = StreamProcessor(enc_mock, "bench", False)
 
-    async def process_all_chunks():
+    async def process_all_chunks() -> None:
         for i in range(1000):
             await processor.process_text_content(f"chunk_{i}")
 

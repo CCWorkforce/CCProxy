@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 
 from ccproxy.interfaces.http.app import create_app
 from ccproxy.config import Settings
+from typing import Any
+from fastapi import FastAPI
 from ccproxy.domain.models import (
+    MessagesRequest,
     ContentBlockText,
     MessagesResponse,
     Usage,
@@ -14,7 +17,7 @@ from ccproxy.domain.models import (
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> MagicMock:
     """Create mock settings for testing."""
     settings = MagicMock(spec=Settings)
     settings.openai_api_key = "test-api-key"
@@ -103,7 +106,7 @@ def mock_settings():
 
 
 @pytest.fixture
-def test_app(mock_settings):
+def test_app(mock_settings: MagicMock) -> Any:
     """Create test FastAPI app with mocked lifespan for testing."""
     # Disable async features that can cause hangs in sync TestClient
     mock_settings.cache_warmup_enabled = False
@@ -124,16 +127,16 @@ def test_app(mock_settings):
 
 
 @pytest.fixture
-def test_client(test_app):
+def test_client(test_app: FastAPI) -> None:
     """Yield a TestClient and ensure proper cleanup after each test."""
     with TestClient(test_app, raise_server_exceptions=False) as client:
         yield client
 
 
 @pytest.fixture
-def sample_anthropic_request():
+def sample_anthropic_request() -> MessagesRequest:
     """Create a sample Anthropic messages request."""
-    return {
+    return {  # type: ignore[return-value]
         "model": "claude-3-opus-20240229",
         "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "max_tokens": 100,
@@ -142,7 +145,7 @@ def sample_anthropic_request():
 
 
 @pytest.fixture
-def sample_anthropic_response():
+def sample_anthropic_response() -> MessagesResponse:
     """Create a sample Anthropic messages response."""
     return MessagesResponse(
         id="msg_test_123",
@@ -158,7 +161,7 @@ def sample_anthropic_response():
 class TestHealthRoutes:
     """Test health check routes."""
 
-    def test_health_check(self, test_client):
+    def test_health_check(self, test_client: Any) -> None:
         """Test basic health check endpoint."""
         response = test_client.get("/")
         assert response.status_code == 200
@@ -172,7 +175,7 @@ class TestHealthRoutes:
 class TestMonitoringRoutes:
     """Test monitoring and metrics routes."""
 
-    def test_metrics_endpoint(self, test_client):
+    def test_metrics_endpoint(self, test_client: Any) -> None:
         """Test metrics endpoint."""
         response = test_client.get("/v1/metrics")
         assert response.status_code == 200
@@ -183,7 +186,7 @@ class TestMonitoringRoutes:
         assert "cache" in data
         assert "memory" in data
 
-    def test_cache_stats_endpoint(self, test_client):
+    def test_cache_stats_endpoint(self, test_client: Any) -> None:
         """Test cache statistics endpoint."""
         response = test_client.get("/v1/cache/stats")
         assert response.status_code == 200
@@ -194,7 +197,7 @@ class TestMonitoringRoutes:
         assert "hit_rate" in data
         assert "total_entries" in data
 
-    def test_clear_cache_endpoint(self, test_client):
+    def test_clear_cache_endpoint(self, test_client: Any) -> None:
         """Test cache clearing endpoint."""
         response = test_client.post("/v1/cache/clear")
         assert response.status_code == 200
@@ -210,7 +213,7 @@ class TestMessagesRoute:
     @pytest.mark.anyio
     async def test_messages_endpoint_success(
         self, test_client, sample_anthropic_request
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test successful message proxying."""
         with patch(
             "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
@@ -245,7 +248,7 @@ class TestMessagesRoute:
             assert data["role"] == "assistant"
 
     @pytest.mark.anyio
-    async def test_messages_endpoint_invalid_json(self, test_client):
+    async def test_messages_endpoint_invalid_json(self, test_client: Any) -> None:
         """Test messages endpoint with invalid JSON."""
         response = test_client.post(
             "/v1/messages",
@@ -259,7 +262,7 @@ class TestMessagesRoute:
         assert "error" in data
 
     @pytest.mark.anyio
-    async def test_messages_endpoint_validation_error(self, test_client):
+    async def test_messages_endpoint_validation_error(self, test_client: Any) -> None:
         """Test messages endpoint with validation error."""
         invalid_request = {
             "model": "invalid-model",
@@ -276,15 +279,17 @@ class TestMessagesRoute:
         data = response.json()
         assert data["type"] == "error"
 
-    def test_messages_endpoint_streaming(self, test_app, sample_anthropic_request):
+    def test_messages_endpoint_streaming(
+        self, test_app: FastAPI, sample_anthropic_request: MessagesRequest
+    ) -> None:
         """Test streaming response."""
-        sample_anthropic_request["stream"] = True
+        sample_anthropic_request["stream"] = True  # type: ignore[index]
 
         with patch(
             "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
         ) as mock_provider:
             # Mock streaming response
-            async def mock_stream():
+            async def mock_stream() -> Any:
                 yield MagicMock()  # Mock chunk
 
             mock_provider.return_value.create_chat_completion = AsyncMock(
@@ -306,7 +311,7 @@ class TestMessagesRoute:
 class TestMiddleware:
     """Test middleware functionality."""
 
-    def test_request_id_middleware(self, test_client):
+    def test_request_id_middleware(self, test_client: Any) -> None:
         """Test request ID middleware."""
         response = test_client.get("/")
 
@@ -317,7 +322,7 @@ class TestMiddleware:
         # Request ID should be a valid UUID format
         assert len(request_id) > 0
 
-    def test_security_headers_middleware(self, test_client):
+    def test_security_headers_middleware(self, test_client: Any) -> None:
         """Test security headers middleware."""
         response = test_client.get("/")
 
@@ -326,7 +331,7 @@ class TestMiddleware:
         assert response.headers.get("x-frame-options") == "DENY"
         assert "content-security-policy" in response.headers
 
-    def test_cors_disabled_by_default(self, test_client):
+    def test_cors_disabled_by_default(self, test_client: Any) -> None:
         """Test that CORS is disabled by default."""
         response = test_client.options("/")
 
@@ -334,7 +339,7 @@ class TestMiddleware:
         assert "access-control-allow-origin" not in response.headers
 
     @pytest.mark.anyio
-    async def test_cors_enabled(self, mock_settings):
+    async def test_cors_enabled(self, mock_settings: MagicMock) -> None:
         """Test CORS when enabled."""
         mock_settings.enable_cors = True
         mock_settings.cors_allow_origins = ["http://localhost:3000"]
@@ -358,7 +363,7 @@ class TestMiddleware:
             == "http://localhost:3000"
         )
 
-    def test_rate_limiting(self, test_client, mock_settings):
+    def test_rate_limiting(self, test_client: Any, mock_settings: MagicMock) -> None:
         """Test rate limiting middleware."""
         # Make many requests quickly
         responses = []
@@ -374,18 +379,18 @@ class TestMiddleware:
 class TestErrorHandling:
     """Test error handling in routes."""
 
-    def test_404_not_found(self, test_client):
+    def test_404_not_found(self, test_client: Any) -> None:
         """Test 404 error for unknown route."""
         response = test_client.get("/unknown/path")
         assert response.status_code == 404
 
-    def test_method_not_allowed(self, test_client):
+    def test_method_not_allowed(self, test_client: Any) -> None:
         """Test 405 error for wrong method."""
         response = test_client.delete("/v1/messages")
         assert response.status_code == 405
 
     @pytest.mark.anyio
-    async def test_internal_server_error_handling(self, test_client):
+    async def test_internal_server_error_handling(self, test_client: Any) -> None:
         """Test handling of internal server errors."""
         with patch(
             "ccproxy.interfaces.http.routes.messages.OpenAIProvider"
@@ -412,7 +417,7 @@ class TestErrorHandling:
 class TestTokenCountEndpoint:
     """Test token counting endpoint."""
 
-    def test_token_count_endpoint(self, test_client):
+    def test_token_count_endpoint(self, test_client: Any) -> None:
         """Test token counting endpoint."""
         request_data = {
             "model": "claude-3-opus-20240229",
@@ -432,7 +437,7 @@ class TestTokenCountEndpoint:
 class TestRequestValidation:
     """Test request validation."""
 
-    def test_max_tokens_validation(self, test_client):
+    def test_max_tokens_validation(self, test_client: Any) -> Any:
         """Test max_tokens validation."""
         request_data = {
             "model": "claude-3-opus-20240229",
@@ -444,7 +449,7 @@ class TestRequestValidation:
 
         assert response.status_code == 422
 
-    def test_temperature_validation(self, test_client):
+    def test_temperature_validation(self, test_client: Any) -> Any:
         """Test temperature validation."""
         request_data = {
             "model": "claude-3-opus-20240229",
@@ -457,7 +462,7 @@ class TestRequestValidation:
         # Should either be accepted or return 422 depending on validation
         assert response.status_code in [200, 422]
 
-    def test_empty_messages_validation(self, test_client):
+    def test_empty_messages_validation(self, test_client: Any) -> None:
         """Test empty messages validation."""
         request_data = {
             "model": "claude-3-opus-20240229",
@@ -474,7 +479,7 @@ class TestRequestValidation:
 class TestAPIVersioning:
     """Test API versioning."""
 
-    def test_v1_prefix(self, test_client):
+    def test_v1_prefix(self, test_client: Any) -> Any:
         """Test that v1 endpoints are accessible."""
         # Test various v1 endpoints
         endpoints = [
@@ -491,12 +496,12 @@ class TestAPIVersioning:
 class TestContentTypes:
     """Test content type handling."""
 
-    def test_json_content_type(self, test_client):
+    def test_json_content_type(self, test_client: Any) -> None:
         """Test JSON content type."""
         response = test_client.get("/")
         assert "application/json" in response.headers.get("content-type", "")
 
-    def test_unsupported_content_type(self, test_client):
+    def test_unsupported_content_type(self, test_client: Any) -> None:
         """Test unsupported content type."""
         response = test_client.post(
             "/v1/messages",

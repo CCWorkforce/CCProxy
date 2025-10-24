@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch, mock_open
 import pytest
 
+from ccproxy.domain.models import MessagesRequest, MessagesResponse
 from ccproxy.application.error_tracker import (
     ErrorTracker,
     ErrorType,
@@ -13,10 +14,11 @@ from ccproxy.application.error_tracker import (
     ResponseSnapshot,
 )
 from ccproxy.config import Settings
+from typing import Any
 
 
 @pytest.fixture
-async def error_tracker_instance():
+async def error_tracker_instance() -> Any:
     """Create a fresh error tracker instance for testing."""
     tracker = ErrorTracker()
     # Reset singleton state
@@ -28,7 +30,7 @@ async def error_tracker_instance():
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> MagicMock:
     """Create mock settings for testing."""
     settings = MagicMock(spec=Settings)
     settings.error_tracking_enabled = True
@@ -42,9 +44,9 @@ def mock_settings():
 
 
 @pytest.fixture
-def sample_request_snapshot():
+def sample_request_snapshot() -> MessagesRequest:
     """Create a sample request snapshot."""
-    return RequestSnapshot(
+    return RequestSnapshot(  # type: ignore[return-value]
         method="POST",
         path="/v1/messages",
         headers={
@@ -59,9 +61,9 @@ def sample_request_snapshot():
 
 
 @pytest.fixture
-def sample_response_snapshot():
+def sample_response_snapshot() -> MessagesResponse:
     """Create a sample response snapshot."""
-    return ResponseSnapshot(
+    return ResponseSnapshot(  # type: ignore[return-value]
         status_code=200,
         headers={"Content-Type": "application/json"},
         body={"id": "msg_123", "content": "response"},
@@ -70,7 +72,9 @@ def sample_response_snapshot():
 
 
 @pytest.fixture
-def sample_error_context(sample_request_snapshot, sample_response_snapshot):
+def sample_error_context(
+    sample_request_snapshot: MessagesRequest, sample_response_snapshot: MessagesResponse
+) -> Any:
     """Create a sample error context."""
     return ErrorContext(
         error_id="test-error-123",
@@ -79,8 +83,8 @@ def sample_error_context(sample_request_snapshot, sample_response_snapshot):
         error_type=ErrorType.API_ERROR,
         error_message="Test API error",
         stack_trace="Traceback: test stack trace",
-        request_snapshot=sample_request_snapshot,
-        response_snapshot=sample_response_snapshot,
+        request_snapshot=sample_request_snapshot,  # type: ignore[arg-type]
+        response_snapshot=sample_response_snapshot,  # type: ignore[arg-type]
         metadata={"test_key": "test_value"},
         redacted_fields=["authorization"],
     )
@@ -90,14 +94,16 @@ class TestErrorTracker:
     """Test cases for ErrorTracker class."""
 
     @pytest.mark.anyio
-    async def test_singleton_pattern(self):
+    async def test_singleton_pattern(self) -> None:
         """Test that ErrorTracker follows singleton pattern."""
         tracker1 = ErrorTracker()
         tracker2 = ErrorTracker()
         assert tracker1 is tracker2
 
     @pytest.mark.anyio
-    async def test_initialization(self, error_tracker_instance, mock_settings):
+    async def test_initialization(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test error tracker initialization."""
         with patch("pathlib.Path.mkdir") as mock_mkdir:
             await error_tracker_instance.initialize(mock_settings)
@@ -107,7 +113,9 @@ class TestErrorTracker:
             assert error_tracker_instance._writer_task is not None
 
     @pytest.mark.anyio
-    async def test_initialization_disabled(self, error_tracker_instance, mock_settings):
+    async def test_initialization_disabled(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test initialization when error tracking is disabled."""
         mock_settings.error_tracking_enabled = False
 
@@ -117,7 +125,9 @@ class TestErrorTracker:
         assert error_tracker_instance._writer_task is None
 
     @pytest.mark.anyio
-    async def test_track_error(self, error_tracker_instance, mock_settings):
+    async def test_track_error(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test tracking an error."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -138,13 +148,13 @@ class TestErrorTracker:
         assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
     @pytest.mark.anyio
-    async def test_track_error_with_request_response(
+    async def test_track_error_with_request_response(  # type: ignore[no-untyped-def]
         self,
         error_tracker_instance,
         mock_settings,
         sample_request_snapshot,
         sample_response_snapshot,
-    ):
+    ) -> None:
         """Test tracking error with request and response snapshots."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -177,7 +187,7 @@ class TestErrorTracker:
         assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
     @pytest.mark.anyio
-    async def test_redaction_patterns(self, error_tracker_instance):
+    async def test_redaction_patterns(self, error_tracker_instance: Any) -> None:
         """Test sensitive data redaction patterns."""
         # Test API key redaction
         text = 'api_key="sk-proj-abcdef123456" and token="secret123"'
@@ -193,7 +203,9 @@ class TestErrorTracker:
         assert "[REDACTED]" in redacted
 
     @pytest.mark.anyio
-    async def test_context_manager(self, error_tracker_instance, mock_settings):
+    async def test_context_manager(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test error tracking context manager."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -218,7 +230,7 @@ class TestErrorTracker:
         assert error_tracker_instance._write_send.statistics().current_buffer_used > 0
 
     @pytest.mark.anyio
-    async def test_error_context_to_dict(self, sample_error_context):
+    async def test_error_context_to_dict(self, sample_error_context: Any) -> None:
         """Test ErrorContext to_dict conversion."""
         error_dict = sample_error_context.to_dict()
 
@@ -229,7 +241,9 @@ class TestErrorTracker:
         assert error_dict["metadata"]["test_key"] == "test_value"
 
     @pytest.mark.anyio
-    async def test_writer_loop(self, error_tracker_instance, mock_settings):
+    async def test_writer_loop(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test the background writer loop."""
         mock_file = mock_open()
 
@@ -249,7 +263,9 @@ class TestErrorTracker:
             mock_file().write.assert_called()
 
     @pytest.mark.anyio
-    async def test_log_rotation(self, error_tracker_instance, mock_settings):
+    async def test_log_rotation(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test log file rotation when size limit is exceeded."""
         mock_settings.error_tracking_max_size_mb = 0.001  # Very small limit
 
@@ -266,7 +282,9 @@ class TestErrorTracker:
                         mock_rename.assert_called()
 
     @pytest.mark.anyio
-    async def test_cleanup_old_logs(self, error_tracker_instance, mock_settings):
+    async def test_cleanup_old_logs(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test cleanup of old error logs."""
         mock_settings.error_tracking_retention_days = 7
 
@@ -291,7 +309,9 @@ class TestErrorTracker:
                 recent_log.unlink.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_shutdown(self, error_tracker_instance, mock_settings):
+    async def test_shutdown(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test graceful shutdown of error tracker."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -312,12 +332,14 @@ class TestErrorTracker:
         )
 
     @pytest.mark.anyio
-    async def test_decorator_sync_function(self, error_tracker_instance, mock_settings):
+    async def test_decorator_sync_function(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test error tracking decorator on synchronous function."""
         await error_tracker_instance.initialize(mock_settings)
 
         @error_tracker_instance.track_errors_decorator(ErrorType.INTERNAL_ERROR)
-        def failing_function():
+        def failing_function() -> Any:
             raise ValueError("Test error in sync function")
 
         with pytest.raises(ValueError):
@@ -329,12 +351,12 @@ class TestErrorTracker:
     @pytest.mark.anyio
     async def test_decorator_async_function(
         self, error_tracker_instance, mock_settings
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test error tracking decorator on async function."""
         await error_tracker_instance.initialize(mock_settings)
 
         @error_tracker_instance.track_errors_decorator(ErrorType.INTERNAL_ERROR)
-        async def async_failing_function():
+        async def async_failing_function() -> Any:
             raise RuntimeError("Test error in async function")
 
         with pytest.raises(RuntimeError):
@@ -347,7 +369,9 @@ class TestErrorTracker:
         assert error_tracker_instance._settings is not None
 
     @pytest.mark.anyio
-    async def test_error_types(self, error_tracker_instance, mock_settings):
+    async def test_error_types(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test all error type classifications."""
         await error_tracker_instance.initialize(mock_settings)
 
@@ -366,7 +390,9 @@ class TestErrorTracker:
         assert error_tracker_instance._settings is not None
 
     @pytest.mark.anyio
-    async def test_metadata_truncation(self, error_tracker_instance, mock_settings):
+    async def test_metadata_truncation(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test that large metadata is truncated properly."""
         await error_tracker_instance.initialize(mock_settings)
         mock_settings.error_tracking_max_body_size = 100
@@ -388,11 +414,13 @@ class TestErrorTracker:
         assert error_tracker_instance._settings is not None
 
     @pytest.mark.anyio
-    async def test_concurrent_writes(self, error_tracker_instance, mock_settings):
+    async def test_concurrent_writes(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test concurrent error tracking from multiple tasks."""
         await error_tracker_instance.initialize(mock_settings)
 
-        async def track_errors(task_id: int):
+        async def track_errors(task_id: int) -> Any:
             for i in range(5):
                 await error_tracker_instance.track_error(
                     error=Exception(f"Task {task_id} error {i}"),
@@ -414,7 +442,9 @@ class TestErrorTracker:
         assert error_tracker_instance._write_send is not None
 
     @pytest.mark.anyio
-    async def test_queue_full_handling(self, error_tracker_instance, mock_settings):
+    async def test_queue_full_handling(
+        self, error_tracker_instance: Any, mock_settings: MagicMock
+    ) -> None:
         """Test handling when the write queue is full."""
         from anyio import create_memory_object_stream
         from anyio import WouldBlock
@@ -450,7 +480,7 @@ class TestRequestResponseCapture:
     """Tests for request and response snapshot capture."""
 
     @pytest.mark.anyio
-    async def test_capture_request_snapshot_full(self):
+    async def test_capture_request_snapshot_full(self) -> None:
         """Test capturing full request snapshot."""
         from fastapi import Request
         from ccproxy.application.error_tracker import error_tracker
@@ -472,7 +502,7 @@ class TestRequestResponseCapture:
         request = Request(scope)
         request._body = b'{"messages": [{"role": "user", "content": "test"}]}'
 
-        # Set settings for capture
+        # Set[Any] settings for capture
         error_tracker._settings = MagicMock()
         error_tracker._settings.error_tracking_capture_request = True
         error_tracker._settings.error_tracking_max_body_size = 10000
@@ -487,7 +517,7 @@ class TestRequestResponseCapture:
         assert snapshot.body is not None
 
     @pytest.mark.anyio
-    async def test_capture_request_snapshot_no_body(self):
+    async def test_capture_request_snapshot_no_body(self) -> None:
         """Test capturing request without body."""
         from fastapi import Request
         from ccproxy.application.error_tracker import error_tracker
@@ -512,7 +542,7 @@ class TestRequestResponseCapture:
         assert snapshot.body is None
 
     @pytest.mark.anyio
-    async def test_capture_response_snapshot_full(self):
+    async def test_capture_response_snapshot_full(self) -> None:
         """Test capturing full response snapshot."""
         from fastapi import Response
         from ccproxy.application.error_tracker import error_tracker
@@ -537,14 +567,14 @@ class TestRequestResponseCapture:
         assert snapshot.status_code == 200
         assert snapshot.elapsed_ms == 123.45
         assert snapshot.body == {"result": "success"}
-        assert "content-type" in snapshot.headers
+        assert "content-type" in snapshot.headers  # type: ignore[operator]
 
 
 class TestDataRedaction:
     """Tests for sensitive data redaction."""
 
     @pytest.mark.anyio
-    async def test_redact_dict_with_sensitive_keys(self):
+    async def test_redact_dict_with_sensitive_keys(self) -> None:
         """Test redacting dictionary with sensitive keys."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -565,7 +595,7 @@ class TestDataRedaction:
         assert redacted["normal_field"] == "visible"
 
     @pytest.mark.anyio
-    async def test_redact_nested_dict(self):
+    async def test_redact_nested_dict(self) -> None:
         """Test redacting nested dictionaries."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -588,7 +618,7 @@ class TestDataRedaction:
         assert redacted["settings"]["theme"] == "dark"
 
     @pytest.mark.anyio
-    async def test_redact_list(self):
+    async def test_redact_list(self) -> None:
         """Test redacting lists."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -606,7 +636,7 @@ class TestDataRedaction:
         assert redacted[2] == "plain string"
 
     @pytest.mark.anyio
-    async def test_redact_string_patterns(self):
+    async def test_redact_string_patterns(self) -> None:
         """Test pattern-based string redaction."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -623,7 +653,7 @@ class TestDataRedaction:
         assert "[REDACTED]" in redacted
 
     @pytest.mark.anyio
-    async def test_redact_async(self):
+    async def test_redact_async(self) -> None:
         """Test async redaction for parallel processing."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -641,7 +671,7 @@ class TestDataRedaction:
         assert redacted["field1"]["data"] == "visible1"
 
     @pytest.mark.anyio
-    async def test_redact_async_list(self):
+    async def test_redact_async_list(self) -> None:
         """Test async list redaction."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -662,7 +692,7 @@ class TestDataTruncation:
     """Tests for data truncation."""
 
     @pytest.mark.anyio
-    async def test_truncate_large_string(self):
+    async def test_truncate_large_string(self) -> None:
         """Test truncating large strings."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -677,7 +707,7 @@ class TestDataTruncation:
         assert "400 chars" in truncated
 
     @pytest.mark.anyio
-    async def test_truncate_large_list(self):
+    async def test_truncate_large_list(self) -> None:
         """Test truncating large lists."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -688,7 +718,7 @@ class TestDataTruncation:
         assert "truncated 100 items" in str(truncated[-1])
 
     @pytest.mark.anyio
-    async def test_truncate_nested_data(self):
+    async def test_truncate_nested_data(self) -> None:
         """Test truncating nested data structures."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -709,7 +739,7 @@ class TestErrorTypeDetection:
     """Tests for error type detection."""
 
     @pytest.mark.anyio
-    async def test_get_error_type_timeout(self):
+    async def test_get_error_type_timeout(self) -> None:
         """Test detecting timeout errors."""
         from ccproxy.application.error_tracker import get_error_type_from_exception
 
@@ -721,7 +751,7 @@ class TestErrorTypeDetection:
         assert error_type == ErrorType.TIMEOUT_ERROR
 
     @pytest.mark.anyio
-    async def test_get_error_type_validation(self):
+    async def test_get_error_type_validation(self) -> None:
         """Test detecting validation errors."""
         from ccproxy.application.error_tracker import get_error_type_from_exception
 
@@ -733,7 +763,7 @@ class TestErrorTypeDetection:
         assert error_type == ErrorType.VALIDATION_ERROR
 
     @pytest.mark.anyio
-    async def test_get_error_type_auth(self):
+    async def test_get_error_type_auth(self) -> None:
         """Test detecting authentication errors."""
         from ccproxy.application.error_tracker import get_error_type_from_exception
 
@@ -745,7 +775,7 @@ class TestErrorTypeDetection:
         assert error_type == ErrorType.AUTH_ERROR
 
     @pytest.mark.anyio
-    async def test_get_error_type_rate_limit(self):
+    async def test_get_error_type_rate_limit(self) -> None:
         """Test detecting rate limit errors."""
         from ccproxy.application.error_tracker import get_error_type_from_exception
 
@@ -757,7 +787,7 @@ class TestErrorTypeDetection:
         assert error_type == ErrorType.RATE_LIMIT_ERROR
 
     @pytest.mark.anyio
-    async def test_get_error_type_default(self):
+    async def test_get_error_type_default(self) -> None:
         """Test default error type for unknown errors."""
         from ccproxy.application.error_tracker import get_error_type_from_exception
 
@@ -773,7 +803,7 @@ class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
     @pytest.mark.anyio
-    async def test_track_error_function(self):
+    async def test_track_error_function(self) -> None:
         """Test global track_error convenience function."""
         from ccproxy.application.error_tracker import track_error, error_tracker
         from fastapi import Request, Response
@@ -822,7 +852,7 @@ class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
     @pytest.mark.anyio
-    async def test_track_error_disabled(self):
+    async def test_track_error_disabled(self) -> None:
         """Test tracking error when tracking is disabled."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -836,7 +866,7 @@ class TestEdgeCases:
         )
 
     @pytest.mark.anyio
-    async def test_capture_request_failure(self):
+    async def test_capture_request_failure(self) -> Any:
         """Test handling failure in request capture."""
         from ccproxy.application.error_tracker import error_tracker
         from unittest.mock import PropertyMock
@@ -857,7 +887,7 @@ class TestEdgeCases:
         assert "Failed to capture" in str(snapshot.body)
 
     @pytest.mark.anyio
-    async def test_capture_response_failure(self):
+    async def test_capture_response_failure(self) -> None:
         """Test handling failure in response capture."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -874,7 +904,7 @@ class TestEdgeCases:
         assert snapshot.status_code == 500
 
     @pytest.mark.anyio
-    async def test_writer_loop_error_handling(self, mock_settings):
+    async def test_writer_loop_error_handling(self, mock_settings: MagicMock) -> None:
         """Test writer loop handles errors gracefully."""
         from ccproxy.application.error_tracker import error_tracker
 
@@ -890,7 +920,7 @@ class TestEdgeCases:
                 error_type=ErrorType.INTERNAL_ERROR,
                 error_message="Test error",
             )
-            await error_tracker._write_send.send(context)
+            await error_tracker._write_send.send(context)  # type: ignore[union-attr]
 
             # Writer should handle the error without crashing
             await anyio.sleep(0.1)
@@ -899,7 +929,7 @@ class TestEdgeCases:
             assert error_tracker._settings is not None
 
     @pytest.mark.anyio
-    async def test_decorator_with_request_extraction(self):
+    async def test_decorator_with_request_extraction(self) -> None:
         """Test decorator extracts request from function args."""
         from ccproxy.application.error_tracker import error_tracker
         from fastapi import Request
@@ -914,7 +944,7 @@ class TestEdgeCases:
             await error_tracker.initialize(settings)
 
         @error_tracker.track_errors_decorator(ErrorType.API_ERROR, include_request=True)
-        async def handler_with_request(request: Request, data: str):
+        async def handler_with_request(request: Request, data: str) -> Any:
             raise ValueError("Handler error")
 
         scope = {

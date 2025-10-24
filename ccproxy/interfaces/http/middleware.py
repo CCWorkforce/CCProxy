@@ -12,11 +12,14 @@ from fastapi.responses import Response
 # Import tracing if available
 try:
     from ...tracing import get_tracing_manager, TracingManager
+    from opentelemetry import trace
 
     tracing_available = True
+    SpanKind = trace.SpanKind
 except ImportError:
     tracing_available = False
-    get_tracing_manager: Any = None
+    get_tracing_manager: Any = None  # type: ignore[no-redef]
+    SpanKind: Any = None  # type: ignore[no-redef]
 
 
 async def logging_middleware(
@@ -91,7 +94,7 @@ async def logging_middleware(
         with tracing_manager.start_span(
             f"{request.method} {request.url.path}",
             attributes=span_attributes,
-            kind=1,  # SERVER span
+            kind=SpanKind.SERVER if SpanKind is not None else 1,  # SERVER span
             context=span_context,
         ) as span:
             response = await call_next(request)

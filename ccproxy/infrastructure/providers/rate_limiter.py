@@ -71,7 +71,7 @@ class RateLimitConfig:
     backoff_multiplier: float = 0.8  # Reduce limits to 80% after 429
     recovery_multiplier: float = 1.1
 
-    def __post_init__(self):
+    def __post_init__(self) -> Any:
         if self.requests_per_minute < 1:
             raise ValueError(
                 f"requests_per_minute must be positive, got {self.requests_per_minute}"
@@ -479,7 +479,8 @@ class ClientRateLimiter:
                 "size": len(self._token_estimate_cache),
                 "max_size": self._token_estimate_cache_max_size,
                 "hit_rate": (
-                    len(self._token_estimate_cache) / max(1, self.metrics.total_requests)
+                    len(self._token_estimate_cache)
+                    / max(1, self.metrics.total_requests)
                     if self.metrics.total_requests > 0
                     else 0.0
                 ),

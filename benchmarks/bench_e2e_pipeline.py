@@ -5,6 +5,7 @@ across the full request/response processing pipeline, simulating real-world usag
 """
 
 import pytest
+from typing import Any, Dict
 
 from ccproxy.domain.models import (
     MessagesRequest,
@@ -22,7 +23,7 @@ from ccproxy.application.cache.response_cache import ResponseCache
 
 # Test fixtures for realistic request data
 @pytest.fixture
-def simple_text_request():
+def simple_text_request() -> Any:
     """Simple text-only request."""
     return MessagesRequest(
         model="claude-3-5-sonnet-20241022",
@@ -42,7 +43,7 @@ def simple_text_request():
 
 
 @pytest.fixture
-def complex_tool_request():
+def complex_tool_request() -> Any:
     """Complex request with tool use and multiple content blocks."""
     return MessagesRequest(
         model="claude-3-5-sonnet-20241022",
@@ -93,7 +94,7 @@ def complex_tool_request():
 
 
 @pytest.fixture
-def simple_response():
+def simple_response() -> Any:
     """Simple text-only response."""
     return MessagesResponse(
         id="msg_01ABC123",
@@ -120,7 +121,7 @@ def simple_response():
 
 
 @pytest.fixture
-def complex_response():
+def complex_response() -> Any:
     """Complex response with tool use."""
     return MessagesResponse(
         id="msg_02DEF456",
@@ -153,24 +154,24 @@ def complex_response():
 # ============================================================================
 
 
-def test_e2e_simple_request_validation(benchmark, simple_text_request):
+def test_e2e_simple_request_validation(benchmark, simple_text_request) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Simple request validation (hash generation + LRU cache)."""
     validator = RequestValidator(cache_size=1000)
     request_dict = simple_text_request.model_dump()
 
-    def validate():
+    def validate() -> Any:
         return validator.validate_request(request_dict, request_id="bench_001")
 
     result = benchmark(validate)
     assert result is not None
 
 
-def test_e2e_complex_request_validation(benchmark, complex_tool_request):
+def test_e2e_complex_request_validation(benchmark, complex_tool_request) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Complex request with tools validation."""
     validator = RequestValidator(cache_size=1000)
     request_dict = complex_tool_request.model_dump()
 
-    def validate():
+    def validate() -> Any:
         return validator.validate_request(request_dict, request_id="bench_002")
 
     result = benchmark(validate)
@@ -182,22 +183,22 @@ def test_e2e_complex_request_validation(benchmark, complex_tool_request):
 # ============================================================================
 
 
-def test_e2e_response_cache_validation_simple(benchmark, simple_response):
+def test_e2e_response_cache_validation_simple(benchmark, simple_response) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Response validation for caching (simple response)."""
     cache = ResponseCache(max_size=100, max_memory_mb=50)
 
-    def validate():
+    def validate() -> Any:
         return cache._validate_response_for_caching(simple_response)
 
     result = benchmark(validate)
     assert result is True
 
 
-def test_e2e_response_cache_validation_complex(benchmark, complex_response):
+def test_e2e_response_cache_validation_complex(benchmark, complex_response) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Response validation for caching (complex response with tools)."""
     cache = ResponseCache(max_size=100, max_memory_mb=50)
 
-    def validate():
+    def validate() -> Any:
         return cache._validate_response_for_caching(complex_response)
 
     result = benchmark(validate)
@@ -209,18 +210,18 @@ def test_e2e_response_cache_validation_complex(benchmark, complex_response):
 # ============================================================================
 
 
-def test_e2e_system_text_extraction_simple(benchmark):
+def test_e2e_system_text_extraction_simple(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: System text extraction (string)."""
     system = "You are a helpful assistant."
 
-    def extract():
+    def extract() -> Any:
         return ContentConverter.extract_system_text(system, request_id="bench_003")
 
     result = benchmark(extract)
     assert result == system
 
 
-def test_e2e_system_text_extraction_complex(benchmark):
+def test_e2e_system_text_extraction_complex(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: System text extraction (list of SystemContent)."""
     from ccproxy.domain.models import SystemContent
 
@@ -235,7 +236,7 @@ def test_e2e_system_text_extraction_complex(benchmark):
         SystemContent(type="text", text="Prioritize safety and data integrity."),
     ]
 
-    def extract():
+    def extract() -> Any:
         return ContentConverter.extract_system_text(system, request_id="bench_004")
 
     result = benchmark(extract)
@@ -243,11 +244,11 @@ def test_e2e_system_text_extraction_complex(benchmark):
     assert "tools" in result
 
 
-def test_e2e_tool_result_serialization_simple(benchmark):
+def test_e2e_tool_result_serialization_simple(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Tool result content serialization (simple string)."""
     content = "File contents: Hello, world!"
 
-    def serialize():
+    def serialize() -> Any:
         return ContentConverter.serialize_tool_result_content(
             content, request_id="bench_005"
         )
@@ -256,7 +257,7 @@ def test_e2e_tool_result_serialization_simple(benchmark):
     assert result == content
 
 
-def test_e2e_tool_result_serialization_complex(benchmark):
+def test_e2e_tool_result_serialization_complex(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Tool result content serialization (list of content blocks)."""
     content = [
         {"type": "text", "text": "File read successfully."},
@@ -264,7 +265,7 @@ def test_e2e_tool_result_serialization_complex(benchmark):
         {"type": "text", "text": "Operation completed."},
     ]
 
-    def serialize():
+    def serialize() -> Any:
         return ContentConverter.serialize_tool_result_content(
             content, request_id="bench_006"
         )
@@ -279,16 +280,16 @@ def test_e2e_tool_result_serialization_complex(benchmark):
 # ============================================================================
 
 
-def test_e2e_full_request_pipeline_simple(benchmark, simple_text_request):
+def test_e2e_full_request_pipeline_simple(benchmark, simple_text_request) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Full request processing pipeline (validation + conversion)."""
     validator = RequestValidator(cache_size=1000)
 
-    def process_request():
+    def process_request() -> Any:
         # 1. Validate request
         request_dict = simple_text_request.model_dump()
         validated = validator.validate_request(request_dict, request_id="bench_007")
         if validated is None:
-            return None
+            return None  # type: ignore[unreachable]
 
         # 2. Extract system prompt if present
         system_text = ContentConverter.extract_system_text(
@@ -301,16 +302,16 @@ def test_e2e_full_request_pipeline_simple(benchmark, simple_text_request):
     assert result is not None
 
 
-def test_e2e_full_request_pipeline_complex(benchmark, complex_tool_request):
+def test_e2e_full_request_pipeline_complex(benchmark, complex_tool_request) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Full request processing pipeline with tools."""
     validator = RequestValidator(cache_size=1000)
 
-    def process_request():
+    def process_request() -> Any:
         # 1. Validate request
         request_dict = complex_tool_request.model_dump()
         validated = validator.validate_request(request_dict, request_id="bench_008")
         if validated is None:
-            return None
+            return None  # type: ignore[unreachable]
 
         # 2. Extract system prompt if present
         system_text = ContentConverter.extract_system_text(
@@ -330,13 +331,13 @@ def test_e2e_full_request_pipeline_complex(benchmark, complex_tool_request):
     assert "coding assistant" in result[1]
 
 
-def test_e2e_full_response_pipeline_simple(
+def test_e2e_full_response_pipeline_simple(  # type: ignore[no-untyped-def]
     benchmark, simple_text_request, simple_response
 ):
     """Benchmark: Full response processing pipeline (validation + caching)."""
     cache = ResponseCache(max_size=100, max_memory_mb=50)
 
-    def process_response():
+    def process_response() -> Any:
         # 1. Validate response
         is_valid = cache._validate_response_for_caching(simple_response)
         if not is_valid:
@@ -358,7 +359,7 @@ def test_e2e_full_response_pipeline_simple(
 # ============================================================================
 
 
-def test_e2e_sse_event_generation_simple(benchmark):
+def test_e2e_sse_event_generation_simple(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: SSE event generation for simple content block."""
     from ccproxy._cython import CYTHON_ENABLED
 
@@ -375,7 +376,7 @@ def test_e2e_sse_event_generation_simple(benchmark):
     if not _USING_CYTHON:
         import json
 
-        def build_sse_event(event_type: str, data_dict: dict) -> str:
+        def build_sse_event(event_type: str, data_dict: Dict[str, Any]) -> str:
             return f"event: {event_type}\ndata: {json.dumps(data_dict, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
     event_data = {
@@ -384,7 +385,7 @@ def test_e2e_sse_event_generation_simple(benchmark):
         "content": {"type": "text", "text": "Hello"},
     }
 
-    def generate_event():
+    def generate_event() -> Any:
         return build_sse_event("content_block_start", event_data)
 
     result = benchmark(generate_event)
@@ -392,7 +393,7 @@ def test_e2e_sse_event_generation_simple(benchmark):
     assert "Hello" in result
 
 
-def test_e2e_sse_event_generation_batch(benchmark):
+def test_e2e_sse_event_generation_batch(benchmark) -> Any:  # type: ignore[no-untyped-def]
     """Benchmark: Batch SSE event generation (simulating streaming response)."""
     from ccproxy._cython import CYTHON_ENABLED
 
@@ -409,24 +410,34 @@ def test_e2e_sse_event_generation_batch(benchmark):
     if not _USING_CYTHON:
         import json
 
-        def build_sse_event(event_type: str, data_dict: dict) -> str:
+        def build_sse_event(event_type: str, data_dict: Dict[str, Any]) -> str:
             return f"event: {event_type}\ndata: {json.dumps(data_dict, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
-    def generate_events():
+    def generate_events() -> Any:
         events = []
         # Start event
         events.append(
             build_sse_event(
                 "content_block_start",
-                {"type": "content_block_start", "index": 0, "content": {"type": "text", "text": ""}},
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content": {"type": "text", "text": ""},
+                },
             )
         )
         # Delta events (simulating token-by-token streaming)
-        for i, word in enumerate(["Here's", "a", "Python", "function", "to", "calculate"]):
+        for i, word in enumerate(
+            ["Here's", "a", "Python", "function", "to", "calculate"]
+        ):
             events.append(
                 build_sse_event(
                     "content_block_delta",
-                    {"type": "content_block_delta", "index": 0, "delta": {"text": word + " "}},
+                    {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"text": word + " "},
+                    },
                 )
             )
         # Stop event
@@ -447,7 +458,7 @@ def test_e2e_sse_event_generation_batch(benchmark):
 # ============================================================================
 
 
-def test_e2e_performance_summary():
+def test_e2e_performance_summary() -> None:
     """Print performance expectations for end-to-end benchmarks.
 
     This test doesn't benchmark anything, but prints expected improvements.

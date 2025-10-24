@@ -2,11 +2,11 @@ import pytest
 
 from ccproxy.application.tokenizer import truncate_request
 from ccproxy.domain.models import Message, ContentBlockText
-from ccproxy.config import TruncationConfig
+from ccproxy.config import TruncationConfig  # type: ignore[attr-defined]
 
 
 @pytest.mark.anyio
-async def test_utf8_preservation():
+async def test_utf8_preservation() -> None:
     # Create message with multi-byte UTF-8 characters
     messages = [
         Message(
@@ -34,7 +34,12 @@ async def test_utf8_preservation():
 
     # Test truncation doesn't corrupt UTF-8
     truncated_msgs, truncated_system = await truncate_request(
-        messages, system, "gpt-5", 10000, config, request_id="utf8_test"
+        messages,
+        system,
+        "gpt-5",
+        10000,
+        config,
+        request_id="utf8_test",  # type: ignore[arg-type]
     )
 
     # Verify all text remains valid UTF-8
@@ -42,8 +47,8 @@ async def test_utf8_preservation():
     if truncated_system:
         all_text.append(truncated_system)
     for msg in truncated_msgs:
-        if isinstance(msg.content, ContentBlockText):
-            all_text.append(msg.content.text)
+        if isinstance(msg.content, ContentBlockText):  # type: ignore[unreachable]
+            all_text.append(msg.content.text)  # type: ignore[unreachable]
 
     for text in all_text:
         assert isinstance(text, str)

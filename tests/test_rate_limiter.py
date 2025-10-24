@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from typing import Any
 from ccproxy.infrastructure.providers.rate_limiter import (
     ClientRateLimiter,
     RateLimitConfig,
@@ -11,7 +12,7 @@ class TestClientRateLimiter:
     """Tests for ClientRateLimiter token estimation integration."""
 
     @pytest.fixture
-    def rate_limiter(self):
+    def rate_limiter(self: Any) -> ClientRateLimiter:
         config = RateLimitConfig(
             requests_per_minute=1500,
             tokens_per_minute=270000,
@@ -21,7 +22,9 @@ class TestClientRateLimiter:
         return ClientRateLimiter(config)
 
     @pytest.mark.anyio
-    async def test_acquire_with_precise_token_estimation(self, rate_limiter):
+    async def test_acquire_with_precise_token_estimation(
+        self, rate_limiter: ClientRateLimiter
+    ) -> Any:
         """Test acquire with request payload uses precise token estimation."""
         sample_payload = {
             "model": "gpt-4o",
@@ -56,7 +59,9 @@ class TestClientRateLimiter:
         )
 
     @pytest.mark.anyio
-    async def test_acquire_token_estimation_accuracy(self, rate_limiter):
+    async def test_acquire_token_estimation_accuracy(
+        self, rate_limiter: ClientRateLimiter
+    ) -> None:
         """Test that estimated tokens are accurate within 5% for tool/image payloads."""
         # Tool payload
         tool_payload = {
@@ -113,7 +118,9 @@ class TestClientRateLimiter:
             # For image, should use fixed 85 + any text, but mock ensures accuracy
 
     @pytest.mark.anyio
-    async def test_acquire_fallback_on_token_error(self, rate_limiter):
+    async def test_acquire_fallback_on_token_error(
+        self, rate_limiter: ClientRateLimiter
+    ) -> None:
         """Test fallback to rough estimate on tokenizer failure."""
         payload = {"messages": [{"role": "user", "content": "Very long text" * 100}]}
 
@@ -131,7 +138,9 @@ class TestClientRateLimiter:
         # Rough estimate used: len(str(payload)) // 4 should allow acquire
 
     @pytest.mark.anyio
-    async def test_acquire_without_payload(self, rate_limiter):
+    async def test_acquire_without_payload(
+        self, rate_limiter: ClientRateLimiter
+    ) -> None:
         """Test acquire without payload uses zero tokens."""
         result = await rate_limiter.acquire(request_payload=None)
         assert result is True  # RPM check only
@@ -143,7 +152,7 @@ class TestClientRateLimiter:
 class TestRateLimitConfig:
     """Test RateLimitConfig validation."""
 
-    def test_valid_config(self):
+    def test_valid_config(self) -> None:
         """Test creating valid config."""
         config = RateLimitConfig(
             requests_per_minute=1000,
@@ -154,17 +163,17 @@ class TestRateLimitConfig:
         assert config.tokens_per_minute == 100000
         assert config.burst_size == 50
 
-    def test_invalid_rpm(self):
+    def test_invalid_rpm(self) -> None:
         """Test that invalid RPM raises error."""
         with pytest.raises(ValueError, match="requests_per_minute must be positive"):
             RateLimitConfig(requests_per_minute=0)
 
-    def test_invalid_tpm(self):
+    def test_invalid_tpm(self) -> None:
         """Test that invalid TPM raises error."""
         with pytest.raises(ValueError, match="tokens_per_minute must be positive"):
             RateLimitConfig(tokens_per_minute=-1)
 
-    def test_invalid_burst_size(self):
+    def test_invalid_burst_size(self) -> None:
         """Test that invalid burst size raises error."""
         with pytest.raises(ValueError, match="burst_size must be positive"):
             RateLimitConfig(burst_size=0)
@@ -174,7 +183,7 @@ class TestRateLimiterLifecycle:
     """Test rate limiter start/stop lifecycle."""
 
     @pytest.mark.anyio
-    async def test_explicit_start_stop(self):
+    async def test_explicit_start_stop(self) -> None:
         """Test explicit start and stop."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -184,11 +193,11 @@ class TestRateLimiterLifecycle:
         await limiter.start()
         assert limiter._running is True
 
-        await limiter.stop()
+        await limiter.stop()  # type: ignore[unreachable]
         assert limiter._running is False
 
     @pytest.mark.anyio
-    async def test_auto_start_on_acquire(self):
+    async def test_auto_start_on_acquire(self) -> None:
         """Test that acquire auto-starts the limiter."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -200,7 +209,7 @@ class TestRateLimiterLifecycle:
         assert limiter._running is True
 
     @pytest.mark.anyio
-    async def test_multiple_starts_idempotent(self):
+    async def test_multiple_starts_idempotent(self) -> None:
         """Test that multiple starts don't cause issues."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -215,7 +224,7 @@ class TestRateLimiterMetrics:
     """Test rate limiter metrics tracking."""
 
     @pytest.mark.anyio
-    async def test_metrics_initialization(self):
+    async def test_metrics_initialization(self) -> None:
         """Test metrics are initialized correctly."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -226,7 +235,7 @@ class TestRateLimiterMetrics:
         assert limiter.metrics.rate_limit_hits == 0
 
     @pytest.mark.anyio
-    async def test_metrics_updated_on_acquire(self):
+    async def test_metrics_updated_on_acquire(self) -> None:
         """Test that metrics are updated after acquire."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -244,7 +253,7 @@ class TestRateLimiterMetrics:
         assert limiter.metrics.total_tokens == 100
 
     @pytest.mark.anyio
-    async def test_get_metrics(self):
+    async def test_get_metrics(self) -> None:
         """Test getting metrics from limiter."""
         config = RateLimitConfig(requests_per_minute=100, tokens_per_minute=10000)
         limiter = ClientRateLimiter(config)
@@ -264,7 +273,7 @@ class TestAdaptiveRateLimiting:
     """Test adaptive rate limiting features."""
 
     @pytest.mark.anyio
-    async def test_handle_429_reduces_limits(self):
+    async def test_handle_429_reduces_limits(self) -> None:
         """Test that handling 429 reduces rate limits."""
         config = RateLimitConfig(
             requests_per_minute=1000,
@@ -285,7 +294,7 @@ class TestAdaptiveRateLimiting:
         assert limiter.metrics.rate_limit_hits == 1
 
     @pytest.mark.anyio
-    async def test_handle_429_disabled_when_not_adaptive(self):
+    async def test_handle_429_disabled_when_not_adaptive(self) -> None:
         """Test that 429 handling doesn't reduce limits when adaptive is disabled."""
         config = RateLimitConfig(
             requests_per_minute=1000,
@@ -301,7 +310,7 @@ class TestAdaptiveRateLimiting:
         assert limiter._current_rpm_limit == original_rpm
 
     @pytest.mark.anyio
-    async def test_handle_success_recovers_limits(self):
+    async def test_handle_success_recovers_limits(self) -> None:
         """Test that successful requests gradually recover limits."""
         config = RateLimitConfig(
             requests_per_minute=1000,
@@ -323,7 +332,7 @@ class TestAdaptiveRateLimiting:
         assert limiter._current_rpm_limit >= reduced_rpm
 
     @pytest.mark.anyio
-    async def test_limits_dont_exceed_original(self):
+    async def test_limits_dont_exceed_original(self) -> None:
         """Test that recovered limits don't exceed original configuration."""
         config = RateLimitConfig(requests_per_minute=1000, adaptive_enabled=True)
         limiter = ClientRateLimiter(config)
@@ -342,7 +351,7 @@ class TestRateLimiterWindowTracking:
     """Test sliding window tracking."""
 
     @pytest.mark.anyio
-    async def test_old_requests_expired(self):
+    async def test_old_requests_expired(self) -> None:
         """Test that old requests are removed from tracking window."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -364,7 +373,7 @@ class TestRateLimiterWindowTracking:
         assert len(remaining_times) <= len(limiter._request_times)
 
     @pytest.mark.anyio
-    async def test_token_tracking_window(self):
+    async def test_token_tracking_window(self) -> None:
         """Test token count tracking in sliding window."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -389,7 +398,7 @@ class TestRateLimiterRejection:
     """Test rate limit rejection scenarios."""
 
     @pytest.mark.anyio
-    async def test_reject_when_rpm_exceeded(self):
+    async def test_reject_when_rpm_exceeded(self) -> None:
         """Test that requests are rejected when RPM limit is exceeded."""
         config = RateLimitConfig(
             requests_per_minute=2,  # Very low limit
@@ -411,7 +420,7 @@ class TestRateLimiterRejection:
             assert limiter.metrics.rejected_requests > 0
 
     @pytest.mark.anyio
-    async def test_reject_when_tpm_exceeded(self):
+    async def test_reject_when_tpm_exceeded(self) -> None:
         """Test that requests are rejected when TPM limit is exceeded."""
         config = RateLimitConfig(
             requests_per_minute=1000,  # High RPM to isolate TPM
@@ -443,7 +452,7 @@ class TestRateLimiterRelease:
     """Test token release functionality."""
 
     @pytest.mark.anyio
-    async def test_release_tokens(self):
+    async def test_release_tokens(self) -> None:
         """Test releasing tokens after request completes."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)
@@ -467,7 +476,7 @@ class TestRateLimiterRelease:
             assert last_count == 120
 
     @pytest.mark.anyio
-    async def test_release_without_token_count(self):
+    async def test_release_without_token_count(self) -> None:
         """Test release without specifying token count."""
         config = RateLimitConfig()
         limiter = ClientRateLimiter(config)

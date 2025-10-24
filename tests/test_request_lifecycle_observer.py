@@ -3,6 +3,8 @@ import pytest
 import time
 from unittest.mock import Mock, AsyncMock, patch
 
+from typing import Any
+from unittest.mock import MagicMock
 from ccproxy.infrastructure.providers.request_lifecycle_observer import (
     RequestLifecycleObserver,
 )
@@ -18,8 +20,8 @@ from ccproxy.infrastructure.providers.request_logger import (
 
 
 @pytest.fixture
-def mock_components():
-    return {
+def mock_components() -> MagicMock:
+    return {  # type: ignore[return-value]
         "performance_monitor": Mock(spec=PerformanceMonitor),
         "performance_tracker": Mock(spec=PerformanceTracker),
         "metrics_collector": AsyncMock(spec=MetricsCollector),
@@ -30,7 +32,7 @@ def mock_components():
     }
 
 
-def test_init(mock_components):
+def test_init(mock_components: MagicMock) -> None:
     observer = RequestLifecycleObserver(**mock_components)
 
     assert observer._performance_monitor == mock_components["performance_monitor"]
@@ -43,7 +45,7 @@ def test_init(mock_components):
 
 
 @pytest.mark.anyio
-async def test_on_success(mock_components, mocker):
+async def test_on_success(mock_components: MagicMock, mocker: MagicMock) -> None:
     mocker.patch("time.monotonic", return_value=1.0)
     correlation_id = "test-id"
     request_start = time.monotonic()
@@ -88,7 +90,7 @@ async def test_on_success(mock_components, mocker):
 
 
 @pytest.mark.anyio
-async def test_on_failure(mock_components, mocker):
+async def test_on_failure(mock_components: MagicMock, mocker: MagicMock) -> None:
     mocker.patch("time.monotonic", return_value=1.0)
     correlation_id = "test-id"
     request_start = time.monotonic()
@@ -134,7 +136,7 @@ async def test_on_failure(mock_components, mocker):
 
 
 @pytest.mark.anyio
-async def test_on_request_start(mock_components):
+async def test_on_request_start(mock_components: MagicMock) -> None:
     correlation_id = "test-id"
     params = {"model": "gpt-4"}
     trace_id = "trace-123"
@@ -159,7 +161,9 @@ async def test_on_request_start(mock_components):
 @patch(
     "ccproxy.infrastructure.providers.request_lifecycle_observer.ErrorResponseHandler"
 )
-def test_classify_error(mock_error_handler_class, mock_components):
+def test_classify_error(
+    mock_error_handler_class: MagicMock, mock_components: MagicMock
+) -> None:
     mock_handler = Mock()
     mock_error_handler_class.return_value = mock_handler
     mock_handler.classify_error.return_value = "timeout_error"
@@ -184,14 +188,14 @@ def test_classify_error(mock_error_handler_class, mock_components):
 
 
 @pytest.mark.anyio
-async def test_concurrent_on_success_calls(mock_components):
+async def test_concurrent_on_success_calls(mock_components: MagicMock) -> None:
     """Test concurrent on_success calls with unique correlation IDs."""
     observer = RequestLifecycleObserver(**mock_components)
 
     # Setup unique latency tracking
     latencies = []
 
-    async def track_latency(*args, **kwargs):
+    async def track_latency(*args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
         # Extract latency from the call
         if args:
             latencies.append(args[0])
@@ -232,14 +236,14 @@ async def test_concurrent_on_success_calls(mock_components):
 
 
 @pytest.mark.anyio
-async def test_concurrent_mixed_success_failure(mock_components):
+async def test_concurrent_mixed_success_failure(mock_components: MagicMock) -> None:
     """Test concurrent mix of success and failure calls."""
     observer = RequestLifecycleObserver(**mock_components)
 
     # Track error types
     tracked_errors = []
 
-    async def track_error(*args, **kwargs):
+    async def track_error(*args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
         if "error_type" in kwargs:
             tracked_errors.append(kwargs["error_type"])
 
@@ -281,7 +285,7 @@ async def test_concurrent_mixed_success_failure(mock_components):
 
 
 @pytest.mark.anyio
-async def test_concurrent_request_starts(mock_components):
+async def test_concurrent_request_starts(mock_components: MagicMock) -> None:
     """Test concurrent on_request_start calls with unique trace IDs."""
     observer = RequestLifecycleObserver(**mock_components)
 
@@ -297,7 +301,7 @@ async def test_concurrent_request_starts(mock_components):
 
     # Run concurrent request starts
     tasks = [
-        observer.on_request_start(req["correlation_id"], req["params"], req["trace_id"])
+        observer.on_request_start(req["correlation_id"], req["params"], req["trace_id"])  # type: ignore[arg-type]
         for req in requests
     ]
 
@@ -318,7 +322,7 @@ async def test_concurrent_request_starts(mock_components):
 
 
 @pytest.mark.anyio
-async def test_concurrent_with_varying_error_types(mock_components):
+async def test_concurrent_with_varying_error_types(mock_components: MagicMock) -> None:
     """Test concurrent failures with different error types via classify_error."""
     observer = RequestLifecycleObserver(**mock_components)
 
@@ -328,14 +332,13 @@ async def test_concurrent_with_varying_error_types(mock_components):
             ErrorType.API_ERROR,
             ErrorType.TIMEOUT_ERROR,
             ErrorType.CONVERSION_ERROR,
-            ErrorType.RATE_LIMIT,
-            ErrorType.NETWORK_ERROR,
+            ErrorType.RATE_LIMIT,  # type: ignore[attr-defined]
+            ErrorType.NETWORK_ERROR,  # type: ignore[attr-defined]
         ]
 
         # Return different error types for different calls
         mock_classify.side_effect = error_types
-
-        # Create failure tasks with different errors
+        #         # Create failure tasks with different errors
         tasks = [
             observer.on_failure(
                 f"fail-{i}", time.monotonic(), Exception(f"Error {i}"), error_type

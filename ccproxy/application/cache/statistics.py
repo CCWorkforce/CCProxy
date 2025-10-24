@@ -7,7 +7,7 @@ import time
 class CacheStatistics:
     """Tracks and manages cache performance statistics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache statistics."""
         self.cache_hits = 0
         self.cache_misses = 0

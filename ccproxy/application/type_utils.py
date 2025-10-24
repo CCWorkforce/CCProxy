@@ -195,20 +195,20 @@ def is_nested_dict_field(obj: Any, *path: str) -> bool:
     for key in path:
         if not isinstance(current, dict) or key not in current:
             return False
-        current = current[key]  # type: ignore
+        current = current[key]
     return True
 
 
 def safe_get_nested(obj: dict[str, Any], *path: str, default: Any = None) -> Any:
     """Safely get nested dictionary value with default."""
     if not isinstance(obj, dict):
-        return default
+        return default  # type: ignore[unreachable]
 
     current: dict[str, Any] = obj
     for key in path:
         if not isinstance(current, dict):
-            return default
-        current = current.get(key, default)  # type: ignore
+            return default  # type: ignore[unreachable]
+        current = current.get(key, default)
         if current is default:
             return default
     return current

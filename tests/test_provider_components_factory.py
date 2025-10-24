@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock
 
+from unittest.mock import MagicMock
 from ccproxy.infrastructure.providers.provider_components_factory import (
     ProviderComponentsFactory,
     ResilienceComponents,
@@ -33,7 +34,7 @@ from ccproxy.infrastructure.providers.request_logger import (
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> MagicMock:
     settings = Mock(spec=Settings)
     settings.circuit_breaker_failure_threshold = 5
     settings.circuit_breaker_recovery_timeout = 60
@@ -50,7 +51,7 @@ def mock_settings():
     return settings
 
 
-def test_create_resilience_components(mock_settings):
+def test_create_resilience_components(mock_settings: MagicMock) -> None:
     components = ProviderComponentsFactory.create_resilience_components(mock_settings)
 
     assert isinstance(components, ResilienceComponents)
@@ -80,7 +81,7 @@ def test_create_resilience_components(mock_settings):
     assert components.resilient_executor.retry_handler == components.retry_handler
 
 
-def test_create_monitoring_components(mock_settings):
+def test_create_monitoring_components(mock_settings: MagicMock) -> None:
     components = ProviderComponentsFactory.create_monitoring_components(mock_settings)
 
     assert isinstance(components, MonitoringComponents)
@@ -98,7 +99,7 @@ def test_create_monitoring_components(mock_settings):
     assert isinstance(components.error_tracker, ErrorTracker)
 
 
-def test_create_logging_components():
+def test_create_logging_components() -> None:
     components = ProviderComponentsFactory.create_logging_components()
 
     assert isinstance(components, LoggingComponents)
@@ -106,7 +107,7 @@ def test_create_logging_components():
     assert isinstance(components.performance_tracker, PerformanceTracker)
 
 
-def test_create_processing_components():
+def test_create_processing_components() -> None:
     components = ProviderComponentsFactory.create_processing_components()
 
     assert isinstance(components, ProcessingComponents)
@@ -114,7 +115,7 @@ def test_create_processing_components():
     assert isinstance(components.error_handler, ErrorResponseHandler)
 
 
-def test_create_rate_limiter_enabled(mock_settings):
+def test_create_rate_limiter_enabled(mock_settings: MagicMock) -> None:
     mock_settings.client_rate_limit_enabled = True
     rate_limiter = ProviderComponentsFactory.create_rate_limiter(mock_settings)
 
@@ -129,7 +130,7 @@ def test_create_rate_limiter_enabled(mock_settings):
     )
 
 
-def test_create_rate_limiter_disabled(mock_settings):
+def test_create_rate_limiter_disabled(mock_settings: MagicMock) -> None:
     mock_settings.client_rate_limit_enabled = False
     rate_limiter = ProviderComponentsFactory.create_rate_limiter(mock_settings)
 
@@ -205,14 +206,14 @@ def test_create_rate_limiter_disabled(mock_settings):
         ("create_monitoring_components", "max_stream_seconds", 0, ValueError),
     ],
 )
-def test_invalid_settings_raise_value_error(
+def test_invalid_settings_raise_value_error(  # type: ignore[no-untyped-def]
     create_method, invalid_attr, invalid_value, expected_error
-):
+) -> None:
     """Test that invalid settings raise appropriate errors in component creation."""
 
     settings = Mock()
 
-    # Set default valid values
+    # Set[Any] default valid values
     settings.circuit_breaker_failure_threshold = 5
     settings.circuit_breaker_recovery_timeout = 60
     settings.circuit_breaker_half_open_requests = 3
@@ -226,7 +227,7 @@ def test_invalid_settings_raise_value_error(
     settings.client_rate_limit_adaptive = True
     settings.max_stream_seconds = 300.0
 
-    # Set the invalid value
+    # Set[Any] the invalid value
     setattr(settings, invalid_attr, invalid_value)
 
     method = getattr(ProviderComponentsFactory, create_method)

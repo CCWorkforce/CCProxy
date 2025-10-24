@@ -191,10 +191,10 @@ class ErrorTracker:
     - Performance metrics tracking
     """
 
-    _instance: Optional['ErrorTracker'] = None
+    _instance: Optional["ErrorTracker"] = None
     _lock = anyio.Lock()
 
-    def __new__(cls) -> 'ErrorTracker':
+    def __new__(cls) -> "ErrorTracker":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -267,7 +267,7 @@ class ErrorTracker:
         try:
             if self._writer_task:
                 # Signal shutdown by sending None through channel
-                try:
+                try:  # type: ignore[unreachable]
                     if self._write_send is not None:
                         await self._write_send.send(None)
                 except (
@@ -336,7 +336,7 @@ class ErrorTracker:
 
                 # Check for shutdown signal
                 if error_context is None:
-                    break
+                    break  # type: ignore[unreachable]
 
                 # Write to file
                 await self._write_error(error_context)
@@ -452,7 +452,9 @@ class ErrorTracker:
             if _USING_CYTHON:
                 # Use Cython-optimized recursive_redact in thread pool for 21.2% performance improvement
                 # Offload to thread pool since it's CPU-bound
-                redact_func = asyncify(lambda: recursive_redact(data, sensitive_keywords))
+                redact_func = asyncify(
+                    lambda: recursive_redact(data, sensitive_keywords)
+                )
                 redacted = await redact_func()
             else:
                 # Fallback: Process dictionary values in parallel for better performance
@@ -472,7 +474,12 @@ class ErrorTracker:
                         soon_values = []
                         for key, value in items_to_process:
                             soon_values.append(
-                                (key, tg.soonify(self._redact_sensitive_data_async)(value))
+                                (
+                                    key,
+                                    tg.soonify(self._redact_sensitive_data_async)(
+                                        value
+                                    ),
+                                )
                             )
 
                     for key, sv in soon_values:

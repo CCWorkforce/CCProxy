@@ -1,16 +1,19 @@
 """Comprehensive tests for health and monitoring routes."""
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from datetime import datetime
 
 from ccproxy.interfaces.http.app import create_app
+from typing import Any
+from unittest.mock import MagicMock
 
 
 @pytest.fixture
-def mock_settings(tmp_path, monkeypatch):
+def mock_settings(tmp_path: Any, monkeypatch: Any) -> MagicMock:
     """Create settings using actual Settings class with test environment."""
-    # Set required environment variables
+    # Set[Any] required environment variables
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-123")
     monkeypatch.setenv("BIG_MODEL_NAME", "gpt-4")
     monkeypatch.setenv("SMALL_MODEL_NAME", "gpt-3.5-turbo")
@@ -26,18 +29,18 @@ def mock_settings(tmp_path, monkeypatch):
     from ccproxy.config import Settings
 
     settings = Settings()
-    return settings
+    return settings  # type: ignore[return-value]
 
 
 @pytest.fixture
-def test_app(mock_settings):
+def test_app(mock_settings: MagicMock) -> Any:
     """Create test FastAPI app."""
     app = create_app(mock_settings)
     return app
 
 
 @pytest.fixture
-def test_client(test_app):
+def test_client(test_app: FastAPI) -> None:
     """Create test client."""
     with TestClient(test_app) as client:
         yield client
@@ -46,7 +49,7 @@ def test_client(test_app):
 class TestHealthRoutes:
     """Test health check endpoints."""
 
-    def test_root_health_check(self, test_client):
+    def test_root_health_check(self, test_client: Any) -> None:
         """Test root health check endpoint returns status and timestamp."""
         response = test_client.get("/")
 
@@ -63,7 +66,7 @@ class TestHealthRoutes:
         except ValueError:
             pytest.fail("Invalid timestamp format")
 
-    def test_preflight_check(self, test_client):
+    def test_preflight_check(self, test_client: Any) -> None:
         """Test preflight health check endpoint."""
         response = test_client.get("/v1/preflight")
 
@@ -71,7 +74,7 @@ class TestHealthRoutes:
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
         assert response.text == "[BashTool] Pre-flight check passed."
 
-    def test_health_check_response_format(self, test_client):
+    def test_health_check_response_format(self, test_client: Any) -> None:
         """Test that health check returns proper JSON format."""
         response = test_client.get("/")
 
@@ -84,7 +87,7 @@ class TestHealthRoutes:
 class TestMonitoringRoutes:
     """Test monitoring and metrics endpoints."""
 
-    def test_metrics_endpoint_structure(self, test_client):
+    def test_metrics_endpoint_structure(self, test_client: Any) -> None:
         """Test metrics endpoint returns complete structure."""
         response = test_client.get("/v1/metrics")
 
@@ -98,7 +101,7 @@ class TestMonitoringRoutes:
         assert "token_count_cache" in data
         assert "converter_caches" in data
 
-    def test_metrics_token_count_cache(self, test_client):
+    def test_metrics_token_count_cache(self, test_client: Any) -> None:
         """Test metrics include token count cache stats."""
         response = test_client.get("/v1/metrics")
 
@@ -113,7 +116,7 @@ class TestMonitoringRoutes:
         assert isinstance(token_cache["misses"], int)
         assert isinstance(token_cache["hit_rate"], (int, float))
 
-    def test_metrics_converter_caches(self, test_client):
+    def test_metrics_converter_caches(self, test_client: Any) -> None:
         """Test metrics include converter cache statistics."""
         response = test_client.get("/v1/metrics")
 
@@ -131,7 +134,7 @@ class TestMonitoringRoutes:
             assert "currsize" in cache
             assert "maxsize" in cache
 
-    def test_cache_stats_endpoint(self, test_client):
+    def test_cache_stats_endpoint(self, test_client: Any) -> None:
         """Test cache statistics endpoint."""
         response = test_client.get("/v1/cache/stats")
 
@@ -141,7 +144,7 @@ class TestMonitoringRoutes:
         assert "response_cache" in data
         assert "request_validator" in data
 
-    def test_cache_stats_response_cache(self, test_client):
+    def test_cache_stats_response_cache(self, test_client: Any) -> None:
         """Test response cache stats structure."""
         response = test_client.get("/v1/cache/stats")
 
@@ -152,7 +155,7 @@ class TestMonitoringRoutes:
         # Response cache should have stats (exact structure depends on implementation)
         assert isinstance(response_cache, dict)
 
-    def test_cache_stats_request_validator(self, test_client):
+    def test_cache_stats_request_validator(self, test_client: Any) -> None:
         """Test request validator cache stats."""
         response = test_client.get("/v1/cache/stats")
 
@@ -167,7 +170,7 @@ class TestMonitoringRoutes:
         assert "hit_rate" in validator_cache
         assert "total_requests" in validator_cache
 
-    def test_clear_cache_endpoint(self, test_client):
+    def test_clear_cache_endpoint(self, test_client: Any) -> Any:
         """Test cache clearing endpoint."""
         response = test_client.post("/v1/cache/clear")
 
@@ -176,7 +179,7 @@ class TestMonitoringRoutes:
 
         assert data == {"status": "caches_cleared"}
 
-    def test_reset_metrics_endpoint(self, test_client):
+    def test_reset_metrics_endpoint(self, test_client: Any) -> Any:
         """Test metrics reset endpoint."""
         response = test_client.post("/v1/metrics/reset")
 
@@ -185,7 +188,7 @@ class TestMonitoringRoutes:
 
         assert data == {"status": "metrics_reset"}
 
-    def test_metrics_endpoint_json_format(self, test_client):
+    def test_metrics_endpoint_json_format(self, test_client: Any) -> Any:
         """Test that metrics return proper JSON format."""
         response = test_client.get("/v1/metrics")
 
@@ -193,7 +196,7 @@ class TestMonitoringRoutes:
         data = response.json()
         assert isinstance(data, dict)
 
-    def test_cache_stats_json_format(self, test_client):
+    def test_cache_stats_json_format(self, test_client: Any) -> Any:
         """Test that cache stats return proper JSON format."""
         response = test_client.get("/v1/cache/stats")
 
@@ -201,7 +204,7 @@ class TestMonitoringRoutes:
         data = response.json()
         assert isinstance(data, dict)
 
-    def test_multiple_metrics_calls(self, test_client):
+    def test_multiple_metrics_calls(self, test_client: Any) -> None:
         """Test that metrics endpoint can be called multiple times."""
         # Call metrics multiple times
         responses = [test_client.get("/v1/metrics") for _ in range(3)]
@@ -211,7 +214,7 @@ class TestMonitoringRoutes:
             data = response.json()
             assert "performance" in data
 
-    def test_cache_operations_sequence(self, test_client):
+    def test_cache_operations_sequence(self, test_client: Any) -> None:
         """Test sequence of cache operations."""
         # Get initial stats
         stats_response = test_client.get("/v1/cache/stats")
@@ -225,7 +228,7 @@ class TestMonitoringRoutes:
         stats_after = test_client.get("/v1/cache/stats")
         assert stats_after.status_code == 200
 
-    def test_metrics_reset_operation(self, test_client):
+    def test_metrics_reset_operation(self, test_client: Any) -> None:
         """Test metrics reset operation."""
         # Get initial metrics
         metrics_before = test_client.get("/v1/metrics")
@@ -243,7 +246,7 @@ class TestMonitoringRoutes:
 class TestRouteAvailability:
     """Test that all monitoring routes are properly available."""
 
-    def test_all_get_routes_available(self, test_client):
+    def test_all_get_routes_available(self, test_client: Any) -> None:
         """Test that all GET monitoring routes are available."""
         routes = [
             "/",
@@ -258,7 +261,7 @@ class TestRouteAvailability:
                 f"Route {route} returned {response.status_code}"
             )
 
-    def test_all_post_routes_available(self, test_client):
+    def test_all_post_routes_available(self, test_client: Any) -> None:
         """Test that all POST monitoring routes are available."""
         routes = [
             "/v1/cache/clear",
@@ -271,7 +274,7 @@ class TestRouteAvailability:
                 f"Route {route} returned {response.status_code}"
             )
 
-    def test_health_routes_no_authentication(self, test_client):
+    def test_health_routes_no_authentication(self, test_client: Any) -> Any:
         """Test that health routes don't require authentication."""
         response = test_client.get("/")
         assert response.status_code == 200
@@ -279,7 +282,7 @@ class TestRouteAvailability:
         response = test_client.get("/v1/preflight")
         assert response.status_code == 200
 
-    def test_monitoring_routes_http_methods(self, test_client):
+    def test_monitoring_routes_http_methods(self, test_client: Any) -> Any:
         """Test correct HTTP methods for monitoring routes."""
         # GET routes should not accept POST
         get_routes = ["/v1/metrics", "/v1/cache/stats"]

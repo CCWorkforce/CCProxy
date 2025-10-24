@@ -26,7 +26,7 @@ from ccproxy.domain.exceptions import (
 class TestCCProxyException:
     """Test base CCProxyException."""
 
-    def test_basic_exception(self):
+    def test_basic_exception(self) -> None:
         """Test basic exception with message only."""
         exc = CCProxyException("Test error")
         assert str(exc) == "Test error"
@@ -34,19 +34,19 @@ class TestCCProxyException:
         assert exc.request_id is None
         assert exc.details == {}
 
-    def test_exception_with_request_id(self):
+    def test_exception_with_request_id(self) -> None:
         """Test exception with request ID."""
         exc = CCProxyException("Test error", request_id="req-123")
         assert exc.message == "Test error"
         assert exc.request_id == "req-123"
 
-    def test_exception_with_details(self):
+    def test_exception_with_details(self) -> None:
         """Test exception with details dict."""
         details = {"key": "value", "count": 42}
         exc = CCProxyException("Test error", details=details)
         assert exc.details == details
 
-    def test_exception_with_all_params(self):
+    def test_exception_with_all_params(self) -> None:
         """Test exception with all parameters."""
         exc = CCProxyException(
             "Test error", request_id="req-456", details={"error_code": "TEST_001"}
@@ -59,7 +59,7 @@ class TestCCProxyException:
 class TestConversionError:
     """Test ConversionError."""
 
-    def test_conversion_error(self):
+    def test_conversion_error(self) -> None:
         """Test conversion error inherits from CCProxyException."""
         exc = ConversionError("Conversion failed")
         assert isinstance(exc, CCProxyException)
@@ -69,19 +69,19 @@ class TestConversionError:
 class TestSerializationError:
     """Test SerializationError."""
 
-    def test_serialization_error_basic(self):
+    def test_serialization_error_basic(self) -> None:
         """Test basic serialization error."""
         exc = SerializationError("JSON serialization failed")
         assert isinstance(exc, ConversionError)
         assert exc.message == "JSON serialization failed"
         assert exc.content_type is None
 
-    def test_serialization_error_with_content_type(self):
+    def test_serialization_error_with_content_type(self) -> None:
         """Test serialization error with content type."""
         exc = SerializationError("Failed to serialize", content_type="application/json")
         assert exc.content_type == "application/json"
 
-    def test_serialization_error_full_params(self):
+    def test_serialization_error_full_params(self) -> None:
         """Test serialization error with all parameters."""
         exc = SerializationError(
             "Serialization error",
@@ -97,13 +97,13 @@ class TestSerializationError:
 class TestCacheErrors:
     """Test cache-related exceptions."""
 
-    def test_cache_error(self):
+    def test_cache_error(self) -> None:
         """Test base cache error."""
         exc = CacheError("Cache operation failed")
         assert isinstance(exc, CCProxyException)
         assert exc.message == "Cache operation failed"
 
-    def test_cache_validation_error(self):
+    def test_cache_validation_error(self) -> None:
         """Test cache validation error."""
         exc = CacheValidationError(
             "Validation failed", validation_failures=5, request_id="req-cache"
@@ -112,7 +112,7 @@ class TestCacheErrors:
         assert exc.validation_failures == 5
         assert exc.request_id == "req-cache"
 
-    def test_cache_memory_error(self):
+    def test_cache_memory_error(self) -> None:
         """Test cache memory error."""
         exc = CacheMemoryError(
             "Memory limit exceeded",
@@ -127,13 +127,13 @@ class TestCacheErrors:
 class TestTokenizationErrors:
     """Test tokenization-related exceptions."""
 
-    def test_tokenization_error(self):
+    def test_tokenization_error(self) -> None:
         """Test basic tokenization error."""
         exc = TokenizationError("Tokenization failed", model="gpt-4")
         assert isinstance(exc, CCProxyException)
         assert exc.model == "gpt-4"
 
-    def test_truncation_error(self):
+    def test_truncation_error(self) -> None:
         """Test truncation error."""
         exc = TruncationError(
             "Truncation failed",
@@ -150,13 +150,13 @@ class TestTokenizationErrors:
 class TestProviderErrors:
     """Test provider-related exceptions."""
 
-    def test_provider_error(self):
+    def test_provider_error(self) -> None:
         """Test base provider error."""
         exc = ProviderError("Provider failed", provider_name="openai")
         assert isinstance(exc, CCProxyException)
         assert exc.provider_name == "openai"
 
-    def test_upstream_error(self):
+    def test_upstream_error(self) -> None:
         """Test upstream error."""
         exc = UpstreamError(
             "Upstream API failed", status_code=500, provider_name="openai"
@@ -165,7 +165,7 @@ class TestProviderErrors:
         assert exc.status_code == 500
         assert exc.provider_name == "openai"
 
-    def test_upstream_timeout_error(self):
+    def test_upstream_timeout_error(self) -> None:
         """Test upstream timeout error."""
         exc = UpstreamTimeoutError(
             "Request timed out",
@@ -178,7 +178,7 @@ class TestProviderErrors:
         assert exc.provider_name == "openai"
         assert exc.status_code is None  # Timeout doesn't have status code
 
-    def test_rate_limit_error(self):
+    def test_rate_limit_error(self) -> None:
         """Test rate limit error."""
         exc = RateLimitError(
             "Rate limit exceeded", retry_after=60.0, provider_name="openai"
@@ -187,7 +187,7 @@ class TestProviderErrors:
         assert exc.status_code == 429
         assert exc.retry_after == 60.0
 
-    def test_authentication_error(self):
+    def test_authentication_error(self) -> None:
         """Test authentication error."""
         exc = AuthenticationError(
             "Invalid API key", provider_name="openai", request_id="req-auth"
@@ -200,13 +200,13 @@ class TestProviderErrors:
 class TestStreamingError:
     """Test streaming error."""
 
-    def test_streaming_error_basic(self):
+    def test_streaming_error_basic(self) -> None:
         """Test basic streaming error."""
         exc = StreamingError("Stream interrupted")
         assert isinstance(exc, CCProxyException)
         assert exc.chunk_index is None
 
-    def test_streaming_error_with_chunk_index(self):
+    def test_streaming_error_with_chunk_index(self) -> None:
         """Test streaming error with chunk index."""
         exc = StreamingError("Invalid chunk", chunk_index=42, request_id="req-stream")
         assert exc.chunk_index == 42
@@ -216,13 +216,13 @@ class TestStreamingError:
 class TestUTF8Error:
     """Test UTF-8 error."""
 
-    def test_utf8_error_basic(self):
+    def test_utf8_error_basic(self) -> None:
         """Test basic UTF-8 error."""
         exc = UTF8Error("Encoding failed")
         assert isinstance(exc, CCProxyException)
         assert exc.raw_bytes is None
 
-    def test_utf8_error_with_bytes(self):
+    def test_utf8_error_with_bytes(self) -> None:
         """Test UTF-8 error with raw bytes."""
         raw = b"\xff\xfe"
         exc = UTF8Error("Invalid UTF-8", raw_bytes=raw, request_id="req-utf8")
@@ -233,13 +233,13 @@ class TestUTF8Error:
 class TestConfigurationError:
     """Test configuration error."""
 
-    def test_configuration_error_basic(self):
+    def test_configuration_error_basic(self) -> None:
         """Test basic configuration error."""
         exc = ConfigurationError("Missing config")
         assert isinstance(exc, CCProxyException)
         assert exc.config_key is None
 
-    def test_configuration_error_with_key(self):
+    def test_configuration_error_with_key(self) -> None:
         """Test configuration error with config key."""
         exc = ConfigurationError("Invalid value", config_key="OPENAI_API_KEY")
         assert exc.config_key == "OPENAI_API_KEY"
@@ -248,13 +248,13 @@ class TestConfigurationError:
 class TestModelSelectionError:
     """Test model selection error."""
 
-    def test_model_selection_error_basic(self):
+    def test_model_selection_error_basic(self) -> None:
         """Test basic model selection error."""
         exc = ModelSelectionError("Model not found")
         assert isinstance(exc, CCProxyException)
         assert exc.requested_model is None
 
-    def test_model_selection_error_with_model(self):
+    def test_model_selection_error_with_model(self) -> None:
         """Test model selection error with requested model."""
         exc = ModelSelectionError(
             "Model unavailable", requested_model="gpt-5", request_id="req-model"
@@ -266,13 +266,13 @@ class TestModelSelectionError:
 class TestResourceExhaustedError:
     """Test resource exhausted error."""
 
-    def test_resource_exhausted_error_basic(self):
+    def test_resource_exhausted_error_basic(self) -> None:
         """Test basic resource exhausted error."""
         exc = ResourceExhaustedError("Resources exhausted")
         assert isinstance(exc, CCProxyException)
         assert exc.resource_type is None
 
-    def test_resource_exhausted_error_with_type(self):
+    def test_resource_exhausted_error_with_type(self) -> None:
         """Test resource exhausted error with resource type."""
         exc = ResourceExhaustedError(
             "Out of memory", resource_type="memory", request_id="req-resource"
@@ -284,7 +284,7 @@ class TestResourceExhaustedError:
 class TestExceptionHierarchy:
     """Test exception hierarchy relationships."""
 
-    def test_conversion_hierarchy(self):
+    def test_conversion_hierarchy(self) -> None:
         """Test conversion exception hierarchy."""
         exc = SerializationError("Test")
         assert isinstance(exc, SerializationError)
@@ -292,21 +292,21 @@ class TestExceptionHierarchy:
         assert isinstance(exc, CCProxyException)
         assert isinstance(exc, Exception)
 
-    def test_cache_hierarchy(self):
+    def test_cache_hierarchy(self) -> None:
         """Test cache exception hierarchy."""
         exc = CacheValidationError("Test")
         assert isinstance(exc, CacheValidationError)
         assert isinstance(exc, CacheError)
         assert isinstance(exc, CCProxyException)
 
-    def test_tokenization_hierarchy(self):
+    def test_tokenization_hierarchy(self) -> None:
         """Test tokenization exception hierarchy."""
         exc = TruncationError("Test")
         assert isinstance(exc, TruncationError)
         assert isinstance(exc, TokenizationError)
         assert isinstance(exc, CCProxyException)
 
-    def test_provider_hierarchy(self):
+    def test_provider_hierarchy(self) -> None:
         """Test provider exception hierarchy."""
         exc = RateLimitError("Test")
         assert isinstance(exc, RateLimitError)
@@ -314,7 +314,7 @@ class TestExceptionHierarchy:
         assert isinstance(exc, ProviderError)
         assert isinstance(exc, CCProxyException)
 
-    def test_all_inherit_from_base(self):
+    def test_all_inherit_from_base(self) -> None:
         """Test that all exceptions inherit from CCProxyException."""
         exceptions = [
             ConversionError("test"),

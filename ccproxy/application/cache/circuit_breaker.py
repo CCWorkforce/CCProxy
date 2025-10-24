@@ -7,6 +7,7 @@ from ...constants import (
     DEFAULT_CACHE_VALIDATION_FAILURE_RESET_TIME,
 )
 from ...logging import warning, LogRecord, LogEvent
+from typing import Any
 
 
 class CacheCircuitBreaker:
@@ -48,7 +49,7 @@ class CacheCircuitBreaker:
                 self.consecutive_failures / self.failure_threshold, 10
             )
             disabled_duration = self.reset_time * backoff_multiplier
-            self.disabled_until = current_time + disabled_duration
+            self.disabled_until = current_time + disabled_duration  # type: ignore[assignment]
 
             warning(
                 LogRecord(
@@ -66,14 +67,14 @@ class CacheCircuitBreaker:
 
         return False
 
-    def record_success(self):
+    def record_success(self) -> Any:
         """Record a successful validation."""
         if self.consecutive_failures > 0:
             self.consecutive_failures = max(0, self.consecutive_failures - 1)
             if self.consecutive_failures == 0:
                 self.disabled_until = 0
 
-    def record_failure(self):
+    def record_failure(self) -> Any:
         """Record a validation failure."""
         self.consecutive_failures += 1
 
@@ -81,12 +82,12 @@ class CacheCircuitBreaker:
         if self.consecutive_failures > self.max_consecutive_failures:
             self.consecutive_failures = self.max_consecutive_failures
 
-    def reset(self):
+    def reset(self) -> Any:
         """Reset the circuit breaker."""
         self.consecutive_failures = 0
         self.disabled_until = 0
 
-    def get_status(self) -> dict:
+    def get_status(self) -> dict[str, Any]:
         """Get circuit breaker status."""
         current_time = time.time()
         is_open = self.is_open()

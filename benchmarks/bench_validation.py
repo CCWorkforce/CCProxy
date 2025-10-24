@@ -1,6 +1,7 @@
 """Benchmark for Cython-optimized validation operations."""
 
 import json
+from typing import Any
 import time
 
 CYTHON_AVAILABLE = False
@@ -10,7 +11,7 @@ try:
     from ccproxy._cython import validation as cython_validation
 
     if cython_validation is not None:
-        CYTHON_AVAILABLE = True
+        CYTHON_AVAILABLE = True  # type: ignore[unreachable]
         if not hasattr(cython_validation, "validate_content_blocks"):
             print(
                 f"DEBUG: validation imported but missing functions: {dir(cython_validation)}"
@@ -70,7 +71,7 @@ COMPLEX_DATA = {
 }
 
 
-def validate_content_blocks_python(blocks):
+def validate_content_blocks_python(blocks: Any) -> Any:
     """Pure Python baseline for content block validation."""
     if not blocks or not isinstance(blocks, list):
         return (False, "Content blocks must be a non-empty list")
@@ -100,7 +101,7 @@ def validate_content_blocks_python(blocks):
     return (True, "")
 
 
-def check_json_serializable_python(obj):
+def check_json_serializable_python(obj) -> Any:
     """Pure Python baseline for JSON serializability check."""
     if obj is None or isinstance(obj, (bool, int, float, str)):
         return True
@@ -121,7 +122,7 @@ def check_json_serializable_python(obj):
         return False
 
 
-def benchmark_validate_content_blocks(iterations=25000):
+def benchmark_validate_content_blocks(iterations=25000) -> None:
     """Benchmark content block validation."""
     print("\n=== Validate Content Blocks ===")
 
@@ -135,7 +136,8 @@ def benchmark_validate_content_blocks(iterations=25000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.validate_content_blocks(VALID_MIXED_BLOCKS)
+            if cython_validation is not None:
+                cython_validation.validate_content_blocks(VALID_MIXED_BLOCKS)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -153,7 +155,7 @@ def benchmark_validate_content_blocks(iterations=25000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_check_json_serializable(iterations=50000):
+def benchmark_check_json_serializable(iterations=50000) -> None:
     """Benchmark JSON serializability check."""
     print("\n=== Check JSON Serializable ===")
 
@@ -167,7 +169,8 @@ def benchmark_check_json_serializable(iterations=50000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.check_json_serializable(COMPLEX_DATA)
+            if cython_validation is not None:
+                cython_validation.check_json_serializable(COMPLEX_DATA)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -185,12 +188,12 @@ def benchmark_check_json_serializable(iterations=50000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_validate_message_structure(iterations=30000):
+def benchmark_validate_message_structure(iterations=30000) -> Any:
     """Benchmark message structure validation."""
     print("\n=== Validate Message Structure ===")
 
     # Baseline: Pure Python
-    def validate_message_python(message):
+    def validate_message_python(message) -> Any:
         if not message or not isinstance(message, dict):
             return (False, "Message must be a non-empty dictionary")
 
@@ -225,7 +228,10 @@ def benchmark_validate_message_structure(iterations=30000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.validate_message_structure(VALID_MESSAGE_WITH_BLOCKS)
+            if cython_validation is not None:
+                cython_validation.validate_message_structure(
+                        VALID_MESSAGE_WITH_BLOCKS
+                    )  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -243,12 +249,12 @@ def benchmark_validate_message_structure(iterations=30000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_validate_tool_structure(iterations=40000):
+def benchmark_validate_tool_structure(iterations=40000) -> Any:
     """Benchmark tool structure validation."""
     print("\n=== Validate Tool Structure ===")
 
     # Baseline: Pure Python
-    def validate_tool_python(tool):
+    def validate_tool_python(tool) -> Any:
         if not tool or not isinstance(tool, dict):
             return (False, "Tool must be a non-empty dictionary")
 
@@ -279,7 +285,8 @@ def benchmark_validate_tool_structure(iterations=40000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.validate_tool_structure(VALID_TOOL)
+            if cython_validation is not None:
+                cython_validation.validate_tool_structure(VALID_TOOL)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -297,12 +304,12 @@ def benchmark_validate_tool_structure(iterations=40000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_estimate_object_complexity(iterations=20000):
+def benchmark_estimate_object_complexity(iterations=20000) -> Any:
     """Benchmark object complexity estimation."""
     print("\n=== Estimate Object Complexity ===")
 
     # Baseline: Pure Python
-    def estimate_complexity_python(obj):
+    def estimate_complexity_python(obj) -> Any:
         complexity = 1
 
         if obj is None or isinstance(obj, (bool, int, float, str)):
@@ -329,7 +336,8 @@ def benchmark_estimate_object_complexity(iterations=20000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.estimate_object_complexity(COMPLEX_DATA)
+            if cython_validation is not None:
+                cython_validation.estimate_object_complexity(COMPLEX_DATA)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -347,12 +355,12 @@ def benchmark_estimate_object_complexity(iterations=20000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_is_safe_for_cache(iterations=15000):
+def benchmark_is_safe_for_cache(iterations=15000) -> Any:
     """Benchmark comprehensive cache safety check."""
     print("\n=== Is Safe For Cache (Combined Check) ===")
 
     # Baseline: Pure Python (combining checks)
-    def is_safe_for_cache_python(data, max_complexity=10000):
+    def is_safe_for_cache_python(data, max_complexity=10000) -> Any:
         if not data:
             return False
 
@@ -361,7 +369,7 @@ def benchmark_is_safe_for_cache(iterations=15000):
             return False
 
         # Check complexity
-        complexity = estimate_complexity_python(data)
+        complexity = estimate_complexity_python(data)  # type: ignore[unused-ignore]
         if complexity > max_complexity:
             return False
 
@@ -375,7 +383,7 @@ def benchmark_is_safe_for_cache(iterations=15000):
 
         return True
 
-    def estimate_complexity_python(obj):
+    def estimate_complexity_python(obj) -> Any:
         complexity = 1
         if obj is None or isinstance(obj, (bool, int, float, str)):
             return 1
@@ -398,7 +406,8 @@ def benchmark_is_safe_for_cache(iterations=15000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_validation.is_safe_for_cache(COMPLEX_DATA)
+            if cython_validation is not None:
+                cython_validation.is_safe_for_cache(COMPLEX_DATA)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100

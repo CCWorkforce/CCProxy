@@ -7,15 +7,7 @@ from anyio.abc import Lock as AnyioLock
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Union, Tuple, Protocol, Any, Literal
 
-@dataclass
-class TruncationConfig:
-    """Configuration for message truncation."""
-    strategy: Literal["oldest_first", "newest_first", "system_priority"] = "oldest_first"
-    min_tokens: int = 100
-    preserve_system: bool = True
-
 from .thread_pool import asyncify
-
 from ..domain.models import (
     Message,
     SystemContent,
@@ -30,6 +22,17 @@ from ..domain.models import (
 from ..logging import warning, debug, LogRecord, LogEvent, info
 from ccproxy.config import Settings
 from .._cython import CYTHON_ENABLED
+
+
+@dataclass
+class TruncationConfig:
+    """Configuration for message truncation."""
+
+    strategy: Literal["oldest_first", "newest_first", "system_priority"] = (
+        "oldest_first"
+    )
+    min_tokens: int = 100
+    preserve_system: bool = True
 
 # Try to import Cython-optimized functions
 if CYTHON_ENABLED:
@@ -494,11 +497,11 @@ async def count_tokens_for_anthropic_request(
         if isinstance(msg.content, str):
             encoding_tasks.append(("content", encode_text(msg.content)))
         elif isinstance(msg.content, list):
-            for block in msg.content:
+            for block in msg.content:  # type: ignore[assignment]
                 # Skip SystemContent blocks as they shouldn't be in regular messages
                 if isinstance(block, SystemContent):
                     continue
-                elif isinstance(block, ContentBlockText):
+                elif isinstance(block, ContentBlockText):  # type: ignore[unreachable]
                     encoding_tasks.append(("text_block", encode_text(block.text)))
                 elif isinstance(block, ContentBlockImage):
                     fixed_tokens += 768  # Fixed token count for images
@@ -643,7 +646,9 @@ async def count_tokens_for_anthropic_request(
             # This reduces cleanup frequency and improves performance
             max_per_shard = calculate_max_per_shard(max_entries, _num_shards)
 
-            if _should_trigger_cleanup(shard, max_per_shard, cleanup_threshold_multiplier=1.5):
+            if _should_trigger_cleanup(
+                shard, max_per_shard, cleanup_threshold_multiplier=1.5
+            ):
                 # First, try to clean up expired entries
                 removed_count = _batch_cleanup_expired_entries(shard, now, ttl_s)
 
@@ -733,9 +738,7 @@ async def count_tokens_for_openai_request(
                         if isinstance(func, dict):
                             name = func.get("name", "")
                             if isinstance(name, str):
-                                encoding_tasks.append(
-                                    ("func_name", encode_text(name))
-                                )
+                                encoding_tasks.append(("func_name", encode_text(name)))
                             if "arguments" in func:
                                 args = func.get("arguments", "")
                                 if isinstance(args, str):
@@ -746,12 +749,10 @@ async def count_tokens_for_openai_request(
             # Legacy function_call support
             if "function_call" in message:
                 func = message["function_call"]
-                if isinstance(func, dict):
-                    name = func.get("name", "")
+                if isinstance(func, dict):  # type: ignore[unreachable]
+                    name = func.get("name", "")  # type: ignore[unreachable]
                     if isinstance(name, str):
-                        encoding_tasks.append(
-                            ("legacy_func_name", encode_text(name))
-                        )
+                        encoding_tasks.append(("legacy_func_name", encode_text(name)))
                     if "arguments" in func:
                         args = func.get("arguments", "")
                         if isinstance(args, str):
@@ -789,7 +790,7 @@ async def count_tokens_for_openai_request(
             task_results = []
             async with anyio.create_task_group() as tg:
 
-                async def run_encode_task(coro: Any, idx: int) -> None:
+                async def run_encode_task(coro: Any, idx: int) -> Any:
                     result = await coro
                     task_results.append((idx, result))
 
@@ -920,7 +921,9 @@ async def periodic_cache_cleanup(
             # Clean up each shard
             for i, shard in enumerate(_token_cache_shards):
                 async with shard.lock:
-                    removed_count = _batch_cleanup_expired_entries(shard, now, ttl_seconds)
+                    removed_count = _batch_cleanup_expired_entries(
+                        shard, now, ttl_seconds
+                    )
                     total_removed += removed_count
 
             if total_removed > 0:
@@ -931,7 +934,9 @@ async def periodic_cache_cleanup(
                         data={
                             "removed_count": total_removed,
                             "num_shards": _num_shards,
-                            "avg_per_shard": total_removed / _num_shards if _num_shards > 0 else 0,
+                            "avg_per_shard": total_removed / _num_shards
+                            if _num_shards > 0
+                            else 0,
                         },
                     )
                 )

@@ -35,6 +35,7 @@ if CYTHON_ENABLED:
             validate_content_blocks,
             check_json_serializable,
         )
+
         _USING_CYTHON = True
     except ImportError:
         _USING_CYTHON = False
@@ -44,7 +45,7 @@ else:
 # Fallback to pure Python implementations if Cython not available
 if not _USING_CYTHON:
 
-    def validate_content_blocks(blocks: list) -> tuple:
+    def validate_content_blocks(blocks: List[Any]) -> Tuple[bool, str]:
         """Pure Python fallback for content block validation."""
         if not blocks or not isinstance(blocks, list):
             return (False, "Content blocks must be a non-empty list")
@@ -114,24 +115,24 @@ class ResponseCache:
         self._cleanup_task = None
         self._cleanup_task_group = None
 
-    async def start_cleanup_task(self):
+    async def start_cleanup_task(self) -> None:
         """Start the background cleanup task."""
         if self._cleanup_task_group is None:
-            self._cleanup_task_group = create_task_group()
-            await self._cleanup_task_group.__aenter__()
-            self._cleanup_task_group.start_soon(self._cleanup_loop)
+            async with create_task_group() as tg:
+                self._cleanup_task_group = tg  # type: ignore[assignment]
+                tg.start_soon(self._cleanup_loop)
 
-    async def stop_cleanup_task(self):
+    async def stop_cleanup_task(self) -> None:
         """Stop the background cleanup task."""
         if self._cleanup_task_group:
-            self._cleanup_task_group.cancel_scope.cancel()
+            self._cleanup_task_group.cancel_scope.cancel()  # type: ignore[unreachable]
             try:
                 await self._cleanup_task_group.__aexit__(None, None, None)
             except Exception:
                 pass
             self._cleanup_task_group = None
 
-    async def _cleanup_loop(self):
+    async def _cleanup_loop(self) -> Any:
         """Background task to clean up expired entries."""
         while True:
             try:
@@ -149,7 +150,7 @@ class ResponseCache:
                     )
                 )
 
-    async def _cleanup_expired(self):
+    async def _cleanup_expired(self) -> Any:
         """Remove expired entries from cache."""
         expired_keys = await self._memory_manager.evict_expired(self._ttl_seconds)
         if expired_keys:
@@ -182,7 +183,7 @@ class ResponseCache:
             # Validate content structure
             content_items = response.content
             if not isinstance(content_items, list):
-                return False
+                return False  # type: ignore[unreachable]
 
             # Use Cython-optimized content block validation for 30-40% improvement
             if _USING_CYTHON:
@@ -412,7 +413,7 @@ class ResponseCache:
 
         return success
 
-    async def clear_pending_request(self, request: MessagesRequest):
+    async def clear_pending_request(self, request: MessagesRequest) -> Any:
         """Clear pending status for a request."""
         cache_key = self._generate_cache_key(request)
 
@@ -430,7 +431,7 @@ class ResponseCache:
             cache_key, request_id
         )
 
-        async def iterator():
+        async def iterator() -> AsyncIterator[str]:
             try:
                 while True:
                     item = await queue.receive()
@@ -442,11 +443,11 @@ class ResponseCache:
 
         return is_primary, iterator(), cache_key
 
-    async def publish_stream_line(self, key: str, line: str) -> None:
+    async def publish_stream_line(self, key: str, line: str) -> Any:
         """Publish a line to stream subscribers."""
         await self._stream_deduplicator.publish(key, line)
 
-    async def finalize_stream(self, key: str) -> None:
+    async def finalize_stream(self, key: str) -> Any:
         """Finalize a stream."""
         await self._stream_deduplicator.finalize(key)
 
@@ -457,7 +458,7 @@ class ResponseCache:
         stats["circuit_breaker"] = self._circuit_breaker.get_status()
         return stats
 
-    async def clear(self):
+    async def clear(self) -> None:
         """Clear all cache entries and reset statistics."""
         await self._memory_manager.clear()
         await self._stream_deduplicator.clear()

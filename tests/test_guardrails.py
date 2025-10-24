@@ -6,6 +6,8 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from starlette.responses import Response
 
+from typing import Any
+from ccproxy.domain.models import MessagesRequest
 from ccproxy.interfaces.http.guardrails import (
     BodySizeLimitMiddleware,
     InjectionGuardMiddleware,
@@ -16,7 +18,7 @@ from ccproxy.interfaces.http.guardrails import (
 
 
 @pytest.fixture
-def mock_request():
+def mock_request() -> MessagesRequest:
     """Create a mock FastAPI request."""
     request = MagicMock()
     request.headers = {}
@@ -29,10 +31,10 @@ def mock_request():
 
 
 @pytest.fixture
-def mock_call_next():
+def mock_call_next() -> MagicMock:
     """Create a mock call_next function."""
 
-    async def _call_next(request):
+    async def _call_next(request) -> Any:  # type: ignore[no-untyped-def]
         response = Response(content="OK", status_code=200)
         return response
 
@@ -40,7 +42,7 @@ def mock_call_next():
 
 
 @pytest.fixture
-def mock_log_event():
+def mock_log_event() -> MagicMock:
     """Mock LogEvent to avoid AttributeError on REQUEST_VALIDATION_ERROR."""
     with patch("ccproxy.interfaces.http.guardrails.LogEvent") as mock_event:
         mock_event.REQUEST_VALIDATION_ERROR = PropertyMock(
@@ -55,7 +57,7 @@ class TestBodySizeLimitMiddleware:
     @pytest.mark.anyio
     async def test_request_exceeds_limit_via_content_length(
         self, mock_request, mock_call_next
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test request blocked when content-length exceeds limit."""
         mock_request.headers = {"content-length": "11000"}
 
@@ -72,12 +74,14 @@ class TestBodySizeLimitMiddleware:
             mock_call_next.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_request_within_limit(self, mock_request, mock_call_next):
+    async def test_request_within_limit(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test request allowed when within size limit."""
-        mock_request.headers = {"content-length": "5000"}
+        mock_request.headers = {"content-length": "5000"}  # type: ignore[attr-defined]
 
         middleware = BodySizeLimitMiddleware(app=MagicMock(), max_bytes=10000)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
         mock_call_next.assert_called_once()
@@ -85,7 +89,7 @@ class TestBodySizeLimitMiddleware:
     @pytest.mark.anyio
     async def test_request_exceeds_limit_no_content_length(
         self, mock_request, mock_call_next
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test request blocked when actual body exceeds limit (no content-length header)."""
         large_body = b"x" * 11000
         mock_request.headers = {}
@@ -105,7 +109,7 @@ class TestBodySizeLimitMiddleware:
     @pytest.mark.anyio
     async def test_request_within_limit_no_content_length(
         self, mock_request, mock_call_next
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test request allowed when body within limit (no content-length header)."""
         small_body = b"x" * 5000
         mock_request.headers = {}
@@ -118,12 +122,14 @@ class TestBodySizeLimitMiddleware:
         mock_call_next.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_request_exactly_at_limit(self, mock_request, mock_call_next):
+    async def test_request_exactly_at_limit(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test request at exactly the limit is allowed."""
-        mock_request.headers = {"content-length": "10000"}
+        mock_request.headers = {"content-length": "10000"}  # type: ignore[attr-defined]
 
         middleware = BodySizeLimitMiddleware(app=MagicMock(), max_bytes=10000)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
 
@@ -134,7 +140,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_sql_injection_in_body(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test SQL injection detected in request body."""
         malicious_json = {"query": "SELECT * FROM users WHERE id=1"}
         mock_request.headers = {
@@ -158,7 +164,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_xss_injection_in_body(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test XSS detected in request body."""
         malicious_json = {"content": "<script>alert('XSS')</script>"}
         mock_request.headers = {
@@ -181,7 +187,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_command_injection_in_body(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test command injection detected in request body."""
         malicious_json = {"cmd": "$(rm -rf /)"}
         mock_request.headers = {
@@ -204,7 +210,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_path_traversal_in_body(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test path traversal detected in request body."""
         malicious_json = {"file": "../../etc/passwd"}
         mock_request.headers = {
@@ -227,7 +233,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_injection_in_header(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test injection detected in request header."""
         mock_request.headers = {
             "User-Agent": "<script>alert('XSS')</script>",
@@ -247,17 +253,19 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_clean_request_allowed(self, mock_request, mock_call_next):
+    async def test_clean_request_allowed(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test clean request is allowed through."""
         clean_json = {"message": "Hello, world!"}
-        mock_request.headers = {
+        mock_request.headers = {  # type: ignore[attr-defined]
             "content-type": "application/json",
             "X-Request-Id": "test-123",
         }
-        mock_request.body = AsyncMock(return_value=json.dumps(clean_json).encode())
+        mock_request.body = AsyncMock(return_value=json.dumps(clean_json).encode())  # type: ignore[attr-defined]
 
         middleware = InjectionGuardMiddleware(app=MagicMock())
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
         mock_call_next.assert_called_once()
@@ -265,7 +273,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_nested_json_injection(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test injection detected in nested JSON structures."""
         malicious_json = {"data": {"nested": {"deep": "SELECT * FROM users"}}}
         mock_request.headers = {
@@ -288,7 +296,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_injection_in_array(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test injection detected in array elements."""
         malicious_json = {"items": ["safe", "javascript:alert('XSS')"]}
         mock_request.headers = {
@@ -311,7 +319,7 @@ class TestInjectionGuardMiddleware:
     @pytest.mark.anyio
     async def test_malformed_json_fallback(
         self, mock_request, mock_call_next, mock_log_event
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test malformed JSON is checked as plain text."""
         malicious_text = "SELECT * FROM users"
         mock_request.headers = {
@@ -332,28 +340,32 @@ class TestInjectionGuardMiddleware:
                 assert response.status_code == 400
 
     @pytest.mark.anyio
-    async def test_check_headers_disabled(self, mock_request, mock_call_next):
+    async def test_check_headers_disabled(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test header checking can be disabled."""
-        mock_request.headers = {
+        mock_request.headers = {  # type: ignore[attr-defined]
             "User-Agent": "<script>alert('XSS')</script>",
             "X-Request-Id": "test-123",
         }
-        mock_request.method = "GET"
+        mock_request.method = "GET"  # type: ignore[attr-defined]
 
         middleware = InjectionGuardMiddleware(app=MagicMock(), check_headers=False)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         # Should pass through since header checking is disabled
         assert response.status_code == 200
 
     @pytest.mark.anyio
-    async def test_get_request_no_body_check(self, mock_request, mock_call_next):
+    async def test_get_request_no_body_check(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test GET requests skip body checking."""
-        mock_request.method = "GET"
-        mock_request.headers = {"X-Request-Id": "test-123"}
+        mock_request.method = "GET"  # type: ignore[attr-defined]
+        mock_request.headers = {"X-Request-Id": "test-123"}  # type: ignore[attr-defined]
 
         middleware = InjectionGuardMiddleware(app=MagicMock(), check_headers=False)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
 
@@ -362,14 +374,14 @@ class TestMemoryRateLimiter:
     """Test _MemoryRateLimiter."""
 
     @pytest.mark.anyio
-    async def test_allow_new_key(self):
+    async def test_allow_new_key(self) -> None:
         """Test new key is allowed."""
         limiter = _MemoryRateLimiter(per_minute=10, burst=0)
         allowed = await limiter.allow("key1")
         assert allowed is True
 
     @pytest.mark.anyio
-    async def test_rate_limit_exceeded(self):
+    async def test_rate_limit_exceeded(self) -> None:
         """Test rate limit exceeded scenario."""
         limiter = _MemoryRateLimiter(per_minute=2, burst=0)
 
@@ -381,7 +393,7 @@ class TestMemoryRateLimiter:
         assert await limiter.allow("key1") is False
 
     @pytest.mark.anyio
-    async def test_burst_capacity(self):
+    async def test_burst_capacity(self) -> None:
         """Test burst capacity allows extra requests."""
         limiter = _MemoryRateLimiter(per_minute=2, burst=3)
 
@@ -393,7 +405,7 @@ class TestMemoryRateLimiter:
         assert await limiter.allow("key1") is False
 
     @pytest.mark.anyio
-    async def test_sliding_window_pruning(self):
+    async def test_sliding_window_pruning(self) -> None:
         """Test old timestamps are pruned from sliding window."""
         limiter = _MemoryRateLimiter(per_minute=2, burst=0)
 
@@ -411,7 +423,7 @@ class TestMemoryRateLimiter:
             assert await limiter.allow("key1") is True
 
     @pytest.mark.anyio
-    async def test_multiple_keys_independent(self):
+    async def test_multiple_keys_independent(self) -> None:
         """Test different keys have independent rate limits."""
         limiter = _MemoryRateLimiter(per_minute=1, burst=0)
 
@@ -427,25 +439,29 @@ class TestRateLimitMiddleware:
     """Test RateLimitMiddleware."""
 
     @pytest.mark.anyio
-    async def test_request_allowed_within_limit(self, mock_request, mock_call_next):
+    async def test_request_allowed_within_limit(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test request allowed when within rate limit."""
-        mock_request.headers = {"Authorization": "Bearer token123"}
+        mock_request.headers = {"Authorization": "Bearer token123"}  # type: ignore[attr-defined]
 
         middleware = RateLimitMiddleware(app=MagicMock(), per_minute=10, burst=0)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
         mock_call_next.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_request_blocked_over_limit(self, mock_request, mock_call_next):
+    async def test_request_blocked_over_limit(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test request blocked when rate limit exceeded."""
-        mock_request.headers = {"Authorization": "Bearer token123"}
+        mock_request.headers = {"Authorization": "Bearer token123"}  # type: ignore[attr-defined]
 
         middleware = RateLimitMiddleware(app=MagicMock(), per_minute=1, burst=0)
 
         # First request should pass
-        response1 = await middleware.dispatch(mock_request, mock_call_next)
+        response1 = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
         assert response1.status_code == 200
 
         # Second request should be rate limited
@@ -453,13 +469,13 @@ class TestRateLimitMiddleware:
             "ccproxy.interfaces.http.guardrails.log_and_return_error_response"
         ) as mock_error:
             mock_error.return_value = Response(status_code=429)
-            response2 = await middleware.dispatch(mock_request, mock_call_next)
+            response2 = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
             assert response2.status_code == 429
 
     @pytest.mark.anyio
     async def test_uses_client_ip_when_no_auth_header(
         self, mock_request, mock_call_next
-    ):
+    ) -> None:  # type: ignore[no-untyped-def]
         """Test uses client IP when Authorization header is missing."""
         mock_request.headers = {}
         mock_request.client.host = "192.168.1.100"
@@ -470,13 +486,15 @@ class TestRateLimitMiddleware:
         assert response.status_code == 200
 
     @pytest.mark.anyio
-    async def test_anonymous_when_no_client(self, mock_request, mock_call_next):
+    async def test_anonymous_when_no_client(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test uses 'anonymous' key when no client info."""
-        mock_request.headers = {}
-        mock_request.client = None
+        mock_request.headers = {}  # type: ignore[attr-defined]
+        mock_request.client = None  # type: ignore[attr-defined]
 
         middleware = RateLimitMiddleware(app=MagicMock(), per_minute=10, burst=0)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.status_code == 200
 
@@ -485,10 +503,12 @@ class TestSecurityHeadersMiddleware:
     """Test SecurityHeadersMiddleware."""
 
     @pytest.mark.anyio
-    async def test_security_headers_added(self, mock_request, mock_call_next):
+    async def test_security_headers_added(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test all security headers are added to response."""
         middleware = SecurityHeadersMiddleware(app=MagicMock(), enable_hsts=False)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert response.headers.get("X-Content-Type-Options") == "nosniff"
         assert response.headers.get("X-Frame-Options") == "DENY"
@@ -496,52 +516,60 @@ class TestSecurityHeadersMiddleware:
         assert "Content-Security-Policy" in response.headers
 
     @pytest.mark.anyio
-    async def test_hsts_added_on_https_when_enabled(self, mock_request, mock_call_next):
+    async def test_hsts_added_on_https_when_enabled(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test HSTS header added on HTTPS when enabled."""
-        mock_request.url.scheme = "https"
+        mock_request.url.scheme = "https"  # type: ignore[attr-defined]
 
         middleware = SecurityHeadersMiddleware(app=MagicMock(), enable_hsts=True)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert "Strict-Transport-Security" in response.headers
         assert "max-age=63072000" in response.headers["Strict-Transport-Security"]
 
     @pytest.mark.anyio
-    async def test_hsts_not_added_on_http(self, mock_request, mock_call_next):
+    async def test_hsts_not_added_on_http(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test HSTS header not added on HTTP."""
-        mock_request.url.scheme = "http"
+        mock_request.url.scheme = "http"  # type: ignore[attr-defined]
 
         middleware = SecurityHeadersMiddleware(app=MagicMock(), enable_hsts=True)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert "Strict-Transport-Security" not in response.headers
 
     @pytest.mark.anyio
-    async def test_hsts_not_added_when_disabled(self, mock_request, mock_call_next):
+    async def test_hsts_not_added_when_disabled(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test HSTS header not added when disabled."""
-        mock_request.url.scheme = "https"
+        mock_request.url.scheme = "https"  # type: ignore[attr-defined]
 
         middleware = SecurityHeadersMiddleware(app=MagicMock(), enable_hsts=False)
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         assert "Strict-Transport-Security" not in response.headers
 
     @pytest.mark.anyio
-    async def test_csp_header_strict(self, mock_request, mock_call_next):
+    async def test_csp_header_strict(
+        self, mock_request: MessagesRequest, mock_call_next: MagicMock
+    ) -> None:
         """Test Content-Security-Policy is strict."""
         middleware = SecurityHeadersMiddleware(app=MagicMock())
-        response = await middleware.dispatch(mock_request, mock_call_next)
+        response = await middleware.dispatch(mock_request, mock_call_next)  # type: ignore[arg-type]
 
         csp = response.headers.get("Content-Security-Policy")
-        assert "default-src 'none'" in csp
-        assert "frame-ancestors 'none'" in csp
-        assert "sandbox" in csp
+        assert "default-src 'none'" in csp  # type: ignore[operator]
+        assert "frame-ancestors 'none'" in csp  # type: ignore[operator]
+        assert "sandbox" in csp  # type: ignore[operator]
 
 
 class TestInjectionPatterns:
     """Test specific injection pattern detection."""
 
-    def test_sql_union_select(self):
+    def test_sql_union_select(self) -> None:
         """Test UNION SELECT pattern detection."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection(
@@ -550,13 +578,13 @@ class TestInjectionPatterns:
         assert is_malicious is True
         assert "SQL" in attack_type
 
-    def test_sql_or_equals(self):
+    def test_sql_or_equals(self) -> None:
         """Test OR 1=1 pattern detection."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection("admin' OR 1=1--")
         assert is_malicious is True
 
-    def test_xss_iframe(self):
+    def test_xss_iframe(self) -> None:
         """Test iframe injection pattern."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection(
@@ -565,7 +593,7 @@ class TestInjectionPatterns:
         assert is_malicious is True
         assert "XSS" in attack_type
 
-    def test_xss_event_handler(self):
+    def test_xss_event_handler(self) -> None:
         """Test event handler injection."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection(
@@ -573,20 +601,20 @@ class TestInjectionPatterns:
         )
         assert is_malicious is True
 
-    def test_cmd_backtick(self):
+    def test_cmd_backtick(self) -> None:
         """Test backtick command substitution."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection("`whoami`")
         assert is_malicious is True
         assert "Command" in attack_type
 
-    def test_cmd_pipe(self):
+    def test_cmd_pipe(self) -> None:
         """Test pipe to command."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection("| cat /etc/passwd")
         assert is_malicious is True
 
-    def test_path_windows(self):
+    def test_path_windows(self) -> None:
         """Test Windows path traversal."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection(
@@ -595,7 +623,7 @@ class TestInjectionPatterns:
         assert is_malicious is True
         assert "Path" in attack_type
 
-    def test_clean_text(self):
+    def test_clean_text(self) -> None:
         """Test clean text is not flagged."""
         middleware = InjectionGuardMiddleware(app=MagicMock())
         is_malicious, attack_type = middleware._check_for_injection(

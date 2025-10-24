@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from pathlib import Path
 from ccproxy.application.cache.warmup import CacheWarmupManager, CacheWarmupConfig
 from ccproxy.application.cache.response_cache import ResponseCache
+from typing import Any
+
 from ccproxy.domain.models import (
     MessagesRequest,
     MessagesResponse,
@@ -19,7 +21,7 @@ class TestCacheWarmupManager:
     """Test cache warmup manager functionality."""
 
     @pytest.fixture
-    def mock_cache(self):
+    def mock_cache(self: Any) -> MagicMock:
         """Create a mock response cache."""
         cache = MagicMock(spec=ResponseCache)
         cache.get_cached_response = AsyncMock(return_value=None)
@@ -36,7 +38,7 @@ class TestCacheWarmupManager:
         return cache
 
     @pytest.fixture
-    def warmup_config(self, tmp_path):
+    def warmup_config(self: Any, tmp_path: Any) -> Any:
         """Create a test warmup config."""
         warmup_file = tmp_path / "warmup.json"
         return CacheWarmupConfig(
@@ -51,7 +53,9 @@ class TestCacheWarmupManager:
         )
 
     @pytest.mark.anyio
-    async def test_init_and_start(self, mock_cache, warmup_config):
+    async def test_init_and_start(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> Any:
         """Test initialization and startup."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -69,7 +73,9 @@ class TestCacheWarmupManager:
         assert manager._task_group is None
 
     @pytest.mark.anyio
-    async def test_preload_common_prompts(self, mock_cache, warmup_config):
+    async def test_preload_common_prompts(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> Any:
         """Test preloading of common prompts."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -81,7 +87,9 @@ class TestCacheWarmupManager:
             assert mock_load.call_count > 0
 
     @pytest.mark.anyio
-    async def test_save_and_load_warmup_file(self, mock_cache, warmup_config):
+    async def test_save_and_load_warmup_file(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test saving and loading warmup items to/from file."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -103,7 +111,9 @@ class TestCacheWarmupManager:
             assert Path(warmup_config.warmup_file_path).exists()
 
     @pytest.mark.anyio
-    async def test_track_cache_hit(self, mock_cache, warmup_config):
+    async def test_track_cache_hit(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test tracking cache hits for popularity."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -119,7 +129,9 @@ class TestCacheWarmupManager:
         assert manager._popular_items[cache_key] == 3
 
     @pytest.mark.anyio
-    async def test_load_warmup_item(self, mock_cache, warmup_config):
+    async def test_load_warmup_item(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test loading a single warmup item into cache."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -156,9 +168,11 @@ class TestCacheWarmupManager:
         assert call_args[0][2].model == "claude-3-opus-20240229"  # request
 
     @pytest.mark.anyio
-    async def test_periodic_save(self, mock_cache, warmup_config):
+    async def test_periodic_save(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test periodic saving of popular requests."""
-        # Set a very short save interval
+        # Set[Any] a very short save interval
         warmup_config.save_interval_seconds = 0.1
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -183,7 +197,9 @@ class TestCacheWarmupManager:
         # This is more about testing the save loop runs
 
     @pytest.mark.anyio
-    async def test_max_warmup_items_limit(self, mock_cache, warmup_config):
+    async def test_max_warmup_items_limit(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test that max_warmup_items limit is respected."""
         warmup_config.max_warmup_items = 2
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
@@ -206,7 +222,7 @@ class TestCacheWarmupManager:
                 assert len(data) <= warmup_config.max_warmup_items
 
     @pytest.mark.anyio
-    async def test_disabled_warmup(self, mock_cache):
+    async def test_disabled_warmup(self, mock_cache: MagicMock) -> None:
         """Test that warmup doesn't run when disabled."""
         config = CacheWarmupConfig(
             enabled=False,
@@ -231,7 +247,9 @@ class TestCacheWarmupManager:
         assert manager._task_group is None
 
     @pytest.mark.anyio
-    async def test_preload_responses(self, mock_cache, warmup_config):
+    async def test_preload_responses(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test preloading specific responses."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -272,7 +290,9 @@ class TestCacheWarmupManager:
         assert mock_cache.set.call_count == 3
 
     @pytest.mark.anyio
-    async def test_warmup_from_log(self, mock_cache, warmup_config, tmp_path):
+    async def test_warmup_from_log(
+        self, mock_cache: MagicMock, warmup_config: Any, tmp_path: Any
+    ) -> None:
         """Test warming up cache from a log file."""
         # Create a mock log file with correct structure
         log_file = tmp_path / "test_log.jsonl"
@@ -318,7 +338,9 @@ class TestCacheWarmupManager:
         # The actual caching depends on implementation details
 
     @pytest.mark.anyio
-    async def test_stop_with_exception(self, mock_cache, warmup_config):
+    async def test_stop_with_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test stop() handles exceptions from task group cleanup."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -328,7 +350,7 @@ class TestCacheWarmupManager:
         # Mock __aexit__ to raise an exception
         if manager._task_group:
 
-            async def failing_aexit(*args):
+            async def failing_aexit(*args) -> Any:  # type: ignore[unreachable]
                 raise RuntimeError("Task group cleanup failed")
 
             manager._task_group.__aexit__ = failing_aexit
@@ -338,7 +360,9 @@ class TestCacheWarmupManager:
         assert manager._task_group is None
 
     @pytest.mark.anyio
-    async def test_load_from_warmup_file(self, mock_cache, warmup_config, tmp_path):
+    async def test_load_from_warmup_file(
+        self, mock_cache: MagicMock, warmup_config: Any, tmp_path: Any
+    ) -> None:
         """Test loading warmup items from file."""
         # Create warmup file
         warmup_file = tmp_path / "warmup.json"
@@ -371,7 +395,7 @@ class TestCacheWarmupManager:
         assert mock_cache.set.call_count >= len(warmup_data)
 
     @pytest.mark.anyio
-    async def test_load_from_invalid_warmup_file(
+    async def test_load_from_invalid_warmup_file(  # type: ignore[no-untyped-def]
         self, mock_cache, warmup_config, tmp_path
     ):
         """Test handling of invalid warmup file."""
@@ -387,7 +411,9 @@ class TestCacheWarmupManager:
         await manager._warmup_cache()
 
     @pytest.mark.anyio
-    async def test_warmup_cache_exception(self, mock_cache, warmup_config):
+    async def test_warmup_cache_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test _warmup_cache handles exceptions."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -399,7 +425,9 @@ class TestCacheWarmupManager:
             await manager._warmup_cache()
 
     @pytest.mark.anyio
-    async def test_load_warmup_item_exception(self, mock_cache, warmup_config):
+    async def test_load_warmup_item_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test _load_warmup_item handles exceptions."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -413,7 +441,9 @@ class TestCacheWarmupManager:
         await manager._load_warmup_item(invalid_item)
 
     @pytest.mark.anyio
-    async def test_auto_save_loop_exception(self, mock_cache, warmup_config):
+    async def test_auto_save_loop_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test _auto_save_loop handles non-cancellation exceptions."""
         import anyio
 
@@ -424,7 +454,7 @@ class TestCacheWarmupManager:
         call_count = 0
         original_save = manager._save_popular_items
 
-        async def failing_save():
+        async def failing_save() -> Any:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -444,7 +474,9 @@ class TestCacheWarmupManager:
             assert call_count >= 1
 
     @pytest.mark.anyio
-    async def test_save_popular_items_creates_directory(self, mock_cache, tmp_path):
+    async def test_save_popular_items_creates_directory(
+        self, mock_cache: MagicMock, tmp_path: Any
+    ) -> None:
         """Test _save_popular_items creates parent directory if needed."""
         # Use a nested path that doesn't exist
         warmup_file = tmp_path / "nested" / "dir" / "warmup.json"
@@ -467,7 +499,9 @@ class TestCacheWarmupManager:
         assert warmup_file.parent.exists()
 
     @pytest.mark.anyio
-    async def test_save_popular_items_exception(self, mock_cache, warmup_config):
+    async def test_save_popular_items_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> None:
         """Test _save_popular_items handles exceptions."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -483,7 +517,7 @@ class TestCacheWarmupManager:
             await manager._save_popular_items()
 
     @pytest.mark.anyio
-    async def test_track_cache_hit_disabled(self, mock_cache):
+    async def test_track_cache_hit_disabled(self, mock_cache: MagicMock) -> None:
         """Test track_cache_hit when auto_save_popular is disabled."""
         config = CacheWarmupConfig(
             enabled=True,
@@ -499,7 +533,7 @@ class TestCacheWarmupManager:
         assert "test_key" not in manager._popular_items
 
     @pytest.mark.anyio
-    async def test_preload_responses_mismatched_lengths(
+    async def test_preload_responses_mismatched_lengths(  # type: ignore[no-untyped-def]
         self, mock_cache, warmup_config
     ):
         """Test preload_responses with mismatched request/response lengths."""
@@ -545,7 +579,9 @@ class TestCacheWarmupManager:
             await manager.preload_responses(requests, responses)
 
     @pytest.mark.anyio
-    async def test_preload_responses_with_exception(self, mock_cache, warmup_config):
+    async def test_preload_responses_with_exception(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> Any:
         """Test preload_responses handles exceptions during cache set."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -583,7 +619,9 @@ class TestCacheWarmupManager:
         assert count == 0
 
     @pytest.mark.anyio
-    async def test_warmup_from_nonexistent_log(self, mock_cache, warmup_config):
+    async def test_warmup_from_nonexistent_log(
+        self, mock_cache: MagicMock, warmup_config: Any
+    ) -> Any:
         """Test warmup_from_log with non-existent file."""
         manager = CacheWarmupManager(cache=mock_cache, config=warmup_config)
 
@@ -596,7 +634,9 @@ class TestCacheWarmupManager:
         assert count == 0
 
     @pytest.mark.anyio
-    async def test_warmup_from_log_max_items(self, mock_cache, warmup_config, tmp_path):
+    async def test_warmup_from_log_max_items(
+        self, mock_cache: MagicMock, warmup_config: Any, tmp_path: Any
+    ) -> None:
         """Test warmup_from_log respects max_items limit."""
         log_file = tmp_path / "test_log.jsonl"
 
@@ -634,7 +674,7 @@ class TestCacheWarmupManager:
         assert count <= 3
 
     @pytest.mark.anyio
-    async def test_warmup_from_log_with_exception(
+    async def test_warmup_from_log_with_exception(  # type: ignore[no-untyped-def]
         self, mock_cache, warmup_config, tmp_path
     ):
         """Test warmup_from_log handles exceptions during file processing."""
@@ -655,7 +695,7 @@ class TestCacheWarmupManager:
             assert count == 0
 
     @pytest.mark.anyio
-    async def test_warmup_from_log_invalid_json_entries(
+    async def test_warmup_from_log_invalid_json_entries(  # type: ignore[no-untyped-def]
         self, mock_cache, warmup_config, tmp_path
     ):
         """Test warmup_from_log skips invalid JSON entries."""

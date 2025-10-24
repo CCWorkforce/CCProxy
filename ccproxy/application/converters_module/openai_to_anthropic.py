@@ -19,7 +19,7 @@ from ...logging import debug, warning, LogRecord, LogEvent
 class OpenAIToAnthropicConverter(ResponseConverter):
     """Converts OpenAI responses to Anthropic format."""
 
-    def __init__(self, context: Optional[ConversionContext] = None):
+    def __init__(self, context: Optional[ConversionContext] = None) -> None:
         super().__init__(context)
         self.tool_converter = ToolConverter()
 
@@ -61,7 +61,7 @@ class OpenAIToAnthropicConverter(ResponseConverter):
                 for call in message.tool_calls:
                     tool_block = self._convert_tool_call(call)
                     if tool_block:
-                        anthropic_content.append(tool_block)
+                        anthropic_content.append(tool_block)  # type: ignore[arg-type]
 
         # Convert usage statistics
         if response.usage:

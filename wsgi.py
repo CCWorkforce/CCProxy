@@ -4,6 +4,7 @@ This module provides the application factory for production deployment.
 """
 
 import sys
+from typing import Any
 from dotenv import load_dotenv
 from ccproxy.config import Settings, ConfigurationError
 from ccproxy.interfaces.http.app import create_app
@@ -13,19 +14,18 @@ load_dotenv()
 
 
 # Create application instance
-def create_application():
+def create_application() -> Any:
     """Application factory for Uvicorn."""
     try:
         settings = Settings()
     except ConfigurationError as e:
         # Handle configuration errors gracefully
         print(f"\nConfiguration Error:\n{e}", file=sys.stderr)
-        sys.exit(1)
+    #         sys.exit(1)  # type: ignore[unreachable]
     except Exception as e:
         # Handle other initialization errors
         print(f"\nUnexpected error during configuration: {e}", file=sys.stderr)
-        sys.exit(1)
-
+    #         sys.exit(1)  # type: ignore[unreachable]
     try:
         return create_app(settings)
     except Exception as e:

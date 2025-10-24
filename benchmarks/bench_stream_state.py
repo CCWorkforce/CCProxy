@@ -2,6 +2,7 @@
 
 import json
 import time
+from typing import Any, Dict
 
 CYTHON_AVAILABLE = False
 cython_stream_state = None
@@ -10,7 +11,7 @@ try:
     from ccproxy._cython import stream_state as cython_stream_state
 
     if cython_stream_state is not None:
-        CYTHON_AVAILABLE = True
+        CYTHON_AVAILABLE = True  # type: ignore[unreachable]
         if not hasattr(cython_stream_state, "build_sse_event"):
             print(
                 f"DEBUG: stream_state imported but missing functions: {dir(cython_stream_state)}"
@@ -43,7 +44,7 @@ MESSAGE_START_DATA = {
 }
 
 
-def build_sse_event_python(event_type: str, data_dict: dict) -> str:
+def build_sse_event_python(event_type: str, data_dict: Dict[str, Any]) -> str:
     """Pure Python baseline for SSE event formatting."""
     if not event_type:
         event_type = "message"
@@ -56,7 +57,7 @@ def build_sse_event_python(event_type: str, data_dict: dict) -> str:
     return f"event: {event_type}\ndata: {data_json}\n\n"
 
 
-def benchmark_build_sse_event(iterations=50000):
+def benchmark_build_sse_event(iterations=50000) -> None:  # type: ignore[no-untyped-def]
     """Benchmark SSE event building."""
     print("\n=== Build SSE Event ===")
 
@@ -70,9 +71,10 @@ def benchmark_build_sse_event(iterations=50000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_stream_state.build_sse_event(
-                "content_block_delta", CONTENT_BLOCK_DELTA_DATA
-            )
+            if cython_stream_state is not None:
+                cython_stream_state.build_sse_event(  # type: ignore[attr-defined]
+                        "content_block_delta", CONTENT_BLOCK_DELTA_DATA
+                    )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -90,7 +92,7 @@ def benchmark_build_sse_event(iterations=50000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_format_content_block_start(iterations=25000):
+def benchmark_format_content_block_start(iterations=25000) -> None:  # type: ignore[no-untyped-def]
     """Benchmark content_block_start formatting."""
     print("\n=== Format Content Block Start ===")
 
@@ -109,9 +111,10 @@ def benchmark_format_content_block_start(iterations=25000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_stream_state.format_content_block_start(
-                0, "text", {"type": "text", "text": "Hello"}
-            )
+            if cython_stream_state is not None:
+                cython_stream_state.format_content_block_start(  # type: ignore[attr-defined]
+                        0, "text", {"type": "text", "text": "Hello"}
+                    )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -129,7 +132,7 @@ def benchmark_format_content_block_start(iterations=25000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_format_content_block_delta(iterations=100000):
+def benchmark_format_content_block_delta(iterations=100000) -> None:  # type: ignore[no-untyped-def]
     """Benchmark content_block_delta formatting (hot path)."""
     print("\n=== Format Content Block Delta (Hot Path) ===")
 
@@ -148,9 +151,10 @@ def benchmark_format_content_block_delta(iterations=100000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_stream_state.format_content_block_delta(
-                0, {"type": "text_delta", "text": "word"}
-            )
+            if cython_stream_state is not None:
+                cython_stream_state.format_content_block_delta(  # type: ignore[attr-defined]
+                        0, {"type": "text_delta", "text": "word"}
+                    )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -168,7 +172,7 @@ def benchmark_format_content_block_delta(iterations=100000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_format_message_start(iterations=10000):
+def benchmark_format_message_start(iterations=10000) -> None:  # type: ignore[no-untyped-def]
     """Benchmark message_start formatting."""
     print("\n=== Format Message Start ===")
 
@@ -194,9 +198,10 @@ def benchmark_format_message_start(iterations=10000):
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_stream_state.format_message_start(
-                "msg_123", "claude-3-5-sonnet-20241022", 100
-            )
+            if cython_stream_state is not None:
+                cython_stream_state.format_message_start(  # type: ignore[attr-defined]
+                        "msg_123", "claude-3-5-sonnet-20241022", 100
+                    )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -214,7 +219,7 @@ def benchmark_format_message_start(iterations=10000):
         print("  Cython:    NOT AVAILABLE")
 
 
-def benchmark_batch_format_events(iterations=5000):
+def benchmark_batch_format_events(iterations=5000) -> None:  # type: ignore[no-untyped-def]
     """Benchmark batch event formatting."""
     print("\n=== Batch Format Events ===")
 
@@ -232,14 +237,15 @@ def benchmark_batch_format_events(iterations=5000):
     for _ in range(iterations):
         results = []
         for event_type, data in event_specs:
-            results.append(build_sse_event_python(event_type, data))
+            results.append(build_sse_event_python(event_type, data))  # type: ignore[arg-type]
     baseline_time = time.time() - start
 
     if CYTHON_AVAILABLE:
         # Cython optimized
         start = time.time()
         for _ in range(iterations):
-            cython_stream_state.batch_format_events(event_specs)
+            if cython_stream_state is not None:
+                cython_stream_state.batch_format_events(event_specs)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
