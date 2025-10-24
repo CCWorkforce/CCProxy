@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=80.9.0", "wheel", "cython>=3.1.5"]
+requires = ["setuptools>=80.9.0", "wheel", "cython>=3.1.6"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "CCProxy"
-version = "1.4.3"
+version = "1.4.4"
 description = "Proxy server enabling Claude Code to work with OpenAI and its compatible API providers"
 readme = "README.md"
 requires-python = ">=3.14.0"
@@ -12,7 +12,7 @@ authors = [
     {name = "CCWorkforce Engineers"}
 ]
 dependencies = [
-    "fastapi[standard]>=0.119.1",
+    "fastapi[standard]>=0.120.0",
     "uvicorn>=0.38.0",
     "httpx[http2]>=0.28.1",
     "pydantic>=2.12.3",
@@ -59,9 +59,9 @@ dev = [
     "pytest-benchmark>=5.1.0",
     "aiofiles>=25.1.0",
     "respx>=0.22.0",
-    "ruff>=0.14.1",
+    "ruff>=0.14.2",
     "mypy>=1.18.2",
-    "cython>=3.1.5",
+    "cython>=3.1.6",
     "line-profiler>=5.0.0",
     "setuptools>=80.9.0",
 ]
