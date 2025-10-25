@@ -225,9 +225,27 @@ def get_token_encoder(
 
     Falls back to the ``cl100k_base`` encoder when the requested model is
     unknown. Encoders are cached per model to avoid repeated construction cost.
+
+    Claude models are explicitly mapped to cl100k_base as tiktoken doesn't
+    natively support Anthropic models but uses compatible tokenization.
     """
     if model_name in _token_encoder_cache:
         return _token_encoder_cache[model_name]
+
+    # Claude models use cl100k_base-compatible tokenization
+    # Map them explicitly to avoid warnings from tiktoken
+    if model_name.startswith("claude-"):
+        encoder = tiktoken.get_encoding("cl100k_base")
+        debug(
+            LogRecord(
+                event=LogEvent.TOKEN_COUNT.value,
+                message=f"Mapped Claude model {model_name} to cl100k_base encoder",
+                request_id=request_id,
+                data={"model": model_name, "encoder": "cl100k_base"},
+            )
+        )
+        _token_encoder_cache[model_name] = encoder
+        return encoder
 
     try:
         encoder = tiktoken.encoding_for_model(model_name)
