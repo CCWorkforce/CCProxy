@@ -26,5 +26,5 @@
 - **Performance**: Optimize streaming and response handling for high throughput
 - **Type safety**: Strict type checking enabled; use proper type annotations
 - **Cython optimizations**:
-  - streaming.py can leverage `ccproxy._cython.stream_state` for SSE event formatting (20-30% improvement) - integrated
-  - guardrails.py can leverage `ccproxy._cython.string_ops` for regex pattern matching (40-50% improvement) - integrated
+  - streaming.py integrates `ccproxy._cython.stream_state` for SSE event formatting (20-30% improvement) with batched event generation
+  - guardrails.py integrates `ccproxy._cython.string_ops` for multi-pattern regex matching with early termination (40-50% improvement)

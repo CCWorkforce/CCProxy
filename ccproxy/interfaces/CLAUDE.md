@@ -16,7 +16,7 @@
 ## Guidelines:
 - **App construction**: Always build app via create_app(Settings) for proper dependency injection
 - **Structured logging**: Use LogEvent and request_id from middleware for traceability
-- **SSE streaming**: Use interfaces/http/streaming.py for Server-Sent Events
+- **SSE streaming**: Use interfaces/http/streaming.py for Server-Sent Events with Cython stream_state integration for optimized SSE event formatting (20-30% improvement)
 - **Error handling**: All exception paths must go through errors.log_and_return_error_response
 - **Anthropic compatibility**: Keep endpoints Anthropic-compatible; map OpenAI finish reasons correctly
 - **Stream safety**: Use StreamProcessor for SSE with race condition protection in subscriber management

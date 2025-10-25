@@ -153,9 +153,9 @@ Development notes for Claude Code
 
 Testing
 - Pytest is configured via pyproject.toml (pythonpath and testpaths); tests live in tests/ (test_*.py)
-- For async tests, use pytest-asyncio; respx is available for httpx mocking
+- For async tests, use pytest-anyio (migrated from pytest-asyncio); respx is available for httpx mocking
 - Test runner script: ./run-tests.sh (supports parallel execution, coverage, watch mode)
-- Comprehensive test coverage for error_tracker, converters, cache, routes, async components, and rate_limiter
+- Comprehensive test coverage: 120+ test cases across 27 test files covering error_tracker, converters, cache, routes, async components, rate_limiter, thread_pool, cache_warmup, guardrails, streaming, and more
 
 CI/CD and tooling
 - GitHub Actions workflows in .github/workflows/
@@ -167,6 +167,7 @@ CI/CD and tooling
 - Dockerfile includes production (Debian) and Alpine targets; docker-compose.yml wires healthcheck and volumes
 - start-lint.sh provides lint workflow; docker-compose-run.sh wraps common compose actions
 - scripts/test-cython-build.sh: Local verification of Cython build and fallback behavior
+- scripts/verify-cython-status.sh: Check Cython module availability and integration status
 
 ## Important Instruction Reminders
 - Do what has been asked; nothing more, nothing less.

@@ -11,7 +11,7 @@ The provider infrastructure has been refactored into specialized modules for bet
 - `rate_limiter.py`: Implements ClientRateLimiter with RateLimitStrategy (adaptive default); sliding window for rates, metrics for hits/rejections, handles 429 with backoff/recovery multipliers; uses `asyncify()` for non-blocking list cleanup of request history
 
 ## Supporting Modules:
-- `resilience.py`: Circuit breaker pattern (CircuitBreaker), retry logic (RetryHandler), and unified resilient execution (ResilientExecutor) with exponential backoff and jitter
+- `resilience.py`: Circuit breaker pattern (CircuitBreaker), retry logic (RetryHandler), and unified resilient execution (ResilientExecutor) with exponential backoff and jitter; adaptive backoff reduces limits by 80% on 429 errors, recovers by 10% after 10 consecutive successes
 - `metrics.py`: Provider metrics collection (MetricsCollector), health monitoring (HealthMonitor), adaptive timeout calculation, and comprehensive performance tracking with percentiles
 - `http_client_factory.py`: HTTP client factory for dynamic selection (aiohttp for production, httpx for local), HTTP/2 optimization, connection pooling configuration (100-300 connections)
 - `response_handlers.py`: Response processing (ResponseProcessor), UTF-8 safe decoding, error classification (ErrorResponseHandler), and streaming response handling
@@ -30,4 +30,4 @@ The provider infrastructure has been refactored into specialized modules for bet
 - **Modularity**: Use specialized modules for specific concerns (resilience, metrics, logging, etc.)
 - **Monitoring**: Leverage metrics.py for comprehensive health checks and performance tracking
 - **Tracing**: Support distributed tracing via request_logger.py when available
-- **Cython optimizations**: rate_limiter.py can leverage `ccproxy._cython.lru_ops` for request history cleanup (20-40% improvement) - integrated
+- **Cython optimizations**: rate_limiter.py integrates `ccproxy._cython.lru_ops` for request history cleanup (20-40% improvement) and `ccproxy._cython.dict_ops` for optimized request tracking

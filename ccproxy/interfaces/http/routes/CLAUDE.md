@@ -9,8 +9,8 @@
 - `monitoring.py`: Metrics, cache stats, and operational endpoints
 
 ## Guidelines:
-- **Provider proxying**: messages.py should proxy to provider using async converters and async tokenizer
-- **Async converters**: Use `convert_messages_async()` and `convert_response_async()` for better performance
+- **Provider proxying**: messages.py should proxy to provider using async converters and async tokenizer with parallel token encoding via anyio.create_task_group
+- **Async converters**: Use `convert_messages_async()` and `convert_response_async()` for better performance with parallel message and tool call processing
 - **Anthropic compatibility**: Return Anthropic-compatible responses with proper error mapping
 - **Streaming support**: Support SSE streaming via text/event-stream content type
 - **Input validation**: Validate inputs and use request_validator where applicable

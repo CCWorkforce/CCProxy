@@ -12,7 +12,8 @@
 - `models.py`: Cache-related data models and configurations
 - `warmup.py`: CacheWarmupManager for preloading popular requests and common prompts
   - Uses `anyio.Path` for async file I/O operations and parallel warmup item loading
-  - Tracks request popularity and auto-saves frequently used prompts
+  - Tracks request popularity and auto-saves frequently used prompts based on configurable threshold (default: 3 uses)
+  - Auto-save runs periodically (default: 3600s) to persist popular request patterns
   - Configurable via environment variables (CACHE_WARMUP_*)
   - Supports warmup from log files and predefined common prompts
 
@@ -33,4 +34,4 @@
 - **TTL management**: Proper handling of time-to-live for cached entries
 - **Cache warmup**: Configure via environment to preload popular requests on startup
 - **Popularity tracking**: Auto-save popular requests based on configurable thresholds
-- **Cython optimizations**: Can leverage `ccproxy._cython.cache_keys` for cache key generation (15-25% improvement) and `ccproxy._cython.lru_ops` for LRU operations (20-40% improvement) - integrated
+- **Cython optimizations**: Integrated with `ccproxy._cython.cache_keys` for cache key generation (15-25% improvement) and `ccproxy._cython.lru_ops` for LRU eviction operations (20-40% improvement); includes optimized timestamp filtering and shard index calculation
