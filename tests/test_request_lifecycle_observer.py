@@ -1,6 +1,6 @@
-import asyncio
 import pytest
 import time
+import anyio
 from unittest.mock import Mock, AsyncMock, patch
 
 from typing import Any
@@ -209,13 +209,10 @@ async def test_concurrent_on_success_calls(mock_components: MagicMock) -> None:
     correlation_ids = [f"test-id-{i}" for i in range(5)]
     responses = [{"usage": {"total_tokens": 100 + i * 10}} for i in range(5)]
 
-    # Run concurrent requests
-    tasks = [
-        observer.on_success(cid, time.monotonic(), response)
-        for cid, response in zip(correlation_ids, responses)
-    ]
-
-    await asyncio.gather(*tasks)
+    # Run concurrent requests using anyio task groups
+    async with anyio.create_task_group() as tg:
+        for cid, response in zip(correlation_ids, responses):
+            tg.start_soon(observer.on_success, cid, time.monotonic(), response)
 
     # Verify all calls were made with unique correlation IDs
     assert mock_components["performance_monitor"].end_request.call_count == 5
@@ -271,8 +268,13 @@ async def test_concurrent_mixed_success_failure(mock_components: MagicMock) -> N
         for i, cid in enumerate(failure_ids)
     ]
 
-    # Run all tasks concurrently
-    await asyncio.gather(*(success_tasks + failure_tasks))
+    # Run all tasks concurrently using anyio task groups
+    async def run_coro(coro: Any) -> None:
+        await coro
+
+    async with anyio.create_task_group() as tg:
+        for task_coro in success_tasks + failure_tasks:
+            tg.start_soon(run_coro, task_coro)
 
     # Verify counts
     assert mock_components["metrics_collector"].record_success.call_count == 3
@@ -299,13 +301,15 @@ async def test_concurrent_request_starts(mock_components: MagicMock) -> None:
         for i in range(5)
     ]
 
-    # Run concurrent request starts
-    tasks = [
-        observer.on_request_start(req["correlation_id"], req["params"], req["trace_id"])  # type: ignore[arg-type]
-        for req in requests
-    ]
-
-    await asyncio.gather(*tasks)
+    # Run concurrent request starts using anyio task groups
+    async with anyio.create_task_group() as tg:
+        for req in requests:
+            tg.start_soon(
+                observer.on_request_start,
+                req["correlation_id"],
+                req["params"],
+                req["trace_id"]
+            )
 
     # Verify all calls were made
     assert mock_components["request_logger"].log_request.call_count == 5
@@ -338,15 +342,16 @@ async def test_concurrent_with_varying_error_types(mock_components: MagicMock) -
 
         # Return different error types for different calls
         mock_classify.side_effect = error_types
-        #         # Create failure tasks with different errors
-        tasks = [
-            observer.on_failure(
-                f"fail-{i}", time.monotonic(), Exception(f"Error {i}"), error_type
-            )
-            for i, error_type in enumerate(error_types)
-        ]
-
-        await asyncio.gather(*tasks)
+        # Create failure tasks with different errors using anyio task groups
+        async with anyio.create_task_group() as tg:
+            for i, error_type in enumerate(error_types):
+                tg.start_soon(
+                    observer.on_failure,
+                    f"fail-{i}",
+                    time.monotonic(),
+                    Exception(f"Error {i}"),
+                    error_type
+                )
 
         # Verify all failures were recorded
         assert mock_components["metrics_collector"].record_failure.call_count == 5

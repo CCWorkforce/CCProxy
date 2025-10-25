@@ -1,6 +1,6 @@
 """Benchmarks for token counting operations."""
 
-import asyncio
+import anyio
 from typing import Any
 from ccproxy.application.tokenizer import (
     count_tokens_for_anthropic_request,
@@ -81,7 +81,7 @@ class TestTokenCountingPerformance:
                 settings=Settings(cache_token_counts_enabled=False),
             )
 
-        result = benchmark(asyncio.run, count_tokens())
+        result = benchmark(anyio.run, count_tokens)
         assert result > 0
 
     def test_anthropic_complex_messages_with_tools(self: Any, benchmark: Any) -> Any:
@@ -97,7 +97,7 @@ class TestTokenCountingPerformance:
                 settings=Settings(cache_token_counts_enabled=False),
             )
 
-        result = benchmark(asyncio.run, count_tokens())
+        result = benchmark(anyio.run, count_tokens)
         assert result > 0
 
     def test_anthropic_with_cache_hit(self: Any, benchmark: Any) -> Any:
@@ -124,7 +124,7 @@ class TestTokenCountingPerformance:
                 settings=Settings(cache_token_counts_enabled=True),
             )
 
-        result = benchmark(asyncio.run, count_tokens_cached())
+        result = benchmark(anyio.run, count_tokens_cached)
         assert result > 0
 
     def test_openai_simple_messages(self: Any, benchmark: Any) -> Any:
@@ -141,7 +141,7 @@ class TestTokenCountingPerformance:
                 request_id="bench",
             )
 
-        result = benchmark(asyncio.run, count_tokens())
+        result = benchmark(anyio.run, count_tokens)
         assert result > 0
 
     def test_openai_with_tools(self: Any, benchmark: Any) -> Any:
@@ -187,7 +187,7 @@ class TestTokenCountingPerformance:
                 request_id="bench",
             )
 
-        result = benchmark(asyncio.run, count_tokens())
+        result = benchmark(anyio.run, count_tokens)
         assert result > 0
 
 

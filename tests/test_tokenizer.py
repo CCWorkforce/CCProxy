@@ -1,8 +1,8 @@
 import subprocess
 import sys
-import asyncio
 import time
 
+import anyio
 import pytest
 from ccproxy.application.tokenizer import (
     truncate_request,
@@ -232,18 +232,23 @@ async def test_concurrent_shard_access(clean_cache_state: Any) -> None:
 
     # Measure concurrent execution time
     start_time = time.time()
-    tasks = [
-        count_tokens_for_anthropic_request(
+
+    # Run tasks concurrently using anyio task groups
+    results: list[Any] = [None] * len(messages_list)
+    async def run_task(idx: int, msgs: list[Message]) -> None:
+        results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
             system=None,
             model_name="gpt-4",
             tools=None,
-            request_id=f"req_{i}",
+            request_id=f"req_{idx}",
             settings=settings,
         )
-        for i, msgs in enumerate(messages_list)
-    ]
-    results = await asyncio.gather(*tasks)
+
+    async with anyio.create_task_group() as tg:
+        for i, msgs in enumerate(messages_list):
+            tg.start_soon(run_task, i, msgs)
+
     concurrent_time = time.time() - start_time
 
     # Verify all tasks completed
@@ -252,18 +257,23 @@ async def test_concurrent_shard_access(clean_cache_state: Any) -> None:
 
     # Second run should be faster due to cache hits
     start_time = time.time()
-    tasks = [
-        count_tokens_for_anthropic_request(
+
+    # Run cached tasks concurrently using anyio task groups
+    cached_results: list[Any] = [None] * len(messages_list)
+    async def run_cached_task(idx: int, msgs: list[Message]) -> None:
+        cached_results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
             system=None,
             model_name="gpt-4",
             tools=None,
-            request_id=f"req_cached_{i}",
+            request_id=f"req_cached_{idx}",
             settings=settings,
         )
-        for i, msgs in enumerate(messages_list)
-    ]
-    cached_results = await asyncio.gather(*tasks)
+
+    async with anyio.create_task_group() as tg:
+        for i, msgs in enumerate(messages_list):
+            tg.start_soon(run_cached_task, i, msgs)
+
     cached_time = time.time() - start_time
 
     # Cached run should be significantly faster
@@ -683,7 +693,7 @@ async def test_cache_ttl_expiration(clean_cache_state: Any) -> None:
     assert tokens1 == tokens2
 
     # Wait for TTL to expire
-    await asyncio.sleep(1.5)
+    await anyio.sleep(1.5)
 
     # Third call after TTL - should be cache miss (entry expired)
     tokens3 = await count_tokens_for_anthropic_request(

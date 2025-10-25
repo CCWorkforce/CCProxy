@@ -4,7 +4,6 @@ import hashlib
 import time
 from typing import Any, Dict, Optional, List, AsyncIterator, Tuple
 import anyio
-from anyio import create_task_group
 
 from .models import CachedResponse
 from .statistics import CacheStatistics
@@ -111,21 +110,22 @@ class ResponseCache:
         self._pending_requests: Dict[str, anyio.Event] = {}
         self._lock = anyio.Lock()
 
-        # Cleanup task
-        self._cleanup_task = None
-        self._cleanup_task_group = None
+        # Cleanup task group
+        self._cleanup_task_group: Optional[Any] = None
 
     async def start_cleanup_task(self) -> None:
         """Start the background cleanup task."""
         if self._cleanup_task_group is None:
-            async with create_task_group() as tg:
-                self._cleanup_task_group = tg  # type: ignore[assignment]
-                tg.start_soon(self._cleanup_loop)
+            # Create and enter the task group context
+            self._cleanup_task_group = anyio.create_task_group()
+            await self._cleanup_task_group.__aenter__()
+            # Start the cleanup loop in the background
+            self._cleanup_task_group.start_soon(self._cleanup_loop)
 
     async def stop_cleanup_task(self) -> None:
         """Stop the background cleanup task."""
         if self._cleanup_task_group:
-            self._cleanup_task_group.cancel_scope.cancel()  # type: ignore[unreachable]
+            self._cleanup_task_group.cancel_scope.cancel()
             try:
                 await self._cleanup_task_group.__aexit__(None, None, None)
             except Exception:

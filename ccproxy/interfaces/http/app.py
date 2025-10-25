@@ -118,9 +118,11 @@ def create_app(settings: Settings) -> FastAPI:
 
         logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
+        logging.info("Response cache cleanup task started successfully")
 
         logging.info("Initializing error tracker")
         await app.state.error_tracker.initialize(settings)
+        logging.info("Error tracker initialized successfully")
 
         # Initialize cache warmup manager if enabled
         if settings.cache_warmup_enabled:
@@ -139,8 +141,11 @@ def create_app(settings: Settings) -> FastAPI:
                 cache=app.state.response_cache,
                 config=warmup_config,
             )
+            logging.info("Starting cache warmup manager")
             await app.state.cache_warmup_manager.start()
-            logging.info("Cache warmup manager started")
+            logging.info("Cache warmup manager started successfully")
+
+        logging.info("✓ Application startup complete - server ready to accept requests")
 
         try:
             yield
