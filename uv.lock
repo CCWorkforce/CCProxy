@@ -173,7 +173,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/2f/c2/f9e977608bdf95865
 
 [[package]]
 name = "ccproxy"
-version = "1.4.4"
+version = "1.4.5"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
