@@ -153,7 +153,7 @@ class ErrorResponseHandler:
         }
 
         if correlation_id:
-            error_info["correlation_id"] = correlation_id
+            error_info["correlation_id"] = correlation_id  # type: ignore[assignment]
 
         return error_info
 

@@ -38,7 +38,7 @@ if enable_cython and existing_extensions:
     try:
         from Cython.Build import cythonize
 
-        ext_modules = cythonize(
+        ext_modules = cythonize(  # type: ignore[no-untyped-call]
             [
                 Extension(name, [path], language="c")
                 for name, path in existing_extensions

@@ -165,21 +165,27 @@ class AsyncMessageConverter(BaseConverter):
         self, message: Message, role: str
     ) -> Dict[str, Any]:
         """Convert complex messages with multiple content blocks."""
-        text_parts = []
-        non_text_parts = []
-        tool_calls = []
+        text_parts: List[str] = []
+        non_text_parts: List[Any] = []
+        tool_calls: List[Any] = []
 
         # Categorize content blocks
         for block in message.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_calls.append(block)
+            if isinstance(block, str):
+                text_parts.append(block)
+            elif hasattr(block, "type"):
+                if block.type == "text" and hasattr(block, "text"):
+                    text_parts.append(block.text)
+                elif block.type == "tool_use":
+                    tool_calls.append(block)
+                else:
+                    non_text_parts.append(block)
             else:
-                non_text_parts.append(block)
+                # Unknown block type, treat as text
+                text_parts.append(str(block))
 
         # Build OpenAI message
-        openai_msg = {"role": role}
+        openai_msg: Dict[str, Any] = {"role": role}
 
         # Handle tool calls
         if tool_calls:
@@ -192,7 +198,7 @@ class AsyncMessageConverter(BaseConverter):
             for text in text_parts:
                 content.append({"type": "text", "text": text})
             for block in non_text_parts:
-                if block.type == "image":
+                if hasattr(block, "type") and block.type == "image":
                     content.append(
                         self.content_converter.convert_image_block_to_openai(block)
                     )
@@ -209,11 +215,11 @@ class AsyncMessageConverter(BaseConverter):
             # Only non-text
             content = []
             for block in non_text_parts:
-                if block.type == "image":
+                if hasattr(block, "type") and block.type == "image":
                     content.append(
                         self.content_converter.convert_image_block_to_openai(block)
                     )
-                elif block.type == "tool_use":
+                elif hasattr(block, "type") and block.type == "tool_use":
                     # Tool use blocks should be handled separately, not in content
                     pass
                 else:
@@ -339,7 +345,7 @@ class AsyncResponseConverter:
 
     async def _build_content_blocks_async(self, message: Any) -> List[Any]:
         """Build content blocks asynchronously."""
-        content = []
+        content: List[Any] = []
 
         # Handle text content
         if message.content:

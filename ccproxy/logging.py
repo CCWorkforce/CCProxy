@@ -233,7 +233,7 @@ class JSONFormatter(logging.Formatter):
                     }
                 )
         # Use Cython-optimized JSON serialization
-        return json_dumps_compact(_sanitize_for_json(header))
+        return json_dumps_compact(_sanitize_for_json(header))  # type: ignore[no-any-return]
 
 
 class ConsoleJSONFormatter(JSONFormatter):
@@ -275,7 +275,7 @@ class ConsoleJSONFormatter(JSONFormatter):
                     }
                 )
         # Use Cython-optimized JSON serialization
-        return json_dumps_compact(_sanitize_for_json(header))
+        return json_dumps_compact(_sanitize_for_json(header))  # type: ignore[no-any-return]
 
 
 def init_logging(settings: Settings) -> logging.Logger:
@@ -284,7 +284,7 @@ def init_logging(settings: Settings) -> logging.Logger:
     _log_listener = None
 
     # Create logging queue and handler
-    log_queue = queue.Queue(-1)
+    log_queue = queue.Queue(-1)  # type: ignore[var-annotated]
     queue_handler = QueueHandler(log_queue)
 
     # Setup main console handler

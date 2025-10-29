@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass, field
 
 from ...domain.models import MessagesResponse
+from typing import Any
 
 
 @dataclass
@@ -18,7 +19,7 @@ class CachedResponse:
     last_accessed: float = field(default_factory=time.time)
     size_bytes: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> Any:
         """Calculate size after initialization."""
         if self.size_bytes == 0:
             # Estimate size of the cached response
@@ -28,7 +29,7 @@ class CachedResponse:
         """Check if this cached response has expired."""
         return time.time() - self.timestamp > ttl_seconds
 
-    def update_access(self):
+    def update_access(self) -> Any:
         """Update access count and timestamp."""
         self.access_count += 1
         self.last_accessed = time.time()

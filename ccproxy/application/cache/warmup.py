@@ -5,7 +5,7 @@ import json
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import time
-import aiofiles
+import aiofiles  # type: ignore[import-untyped]
 from asyncer import asyncify
 import anyio
 from anyio import create_task_group as anyio_create_task_group
@@ -150,22 +150,22 @@ class CacheWarmupManager:
         )
 
         # Start background tasks using anyio task group
-        self._task_group = anyio_create_task_group()
-        await self._task_group.__aenter__()
+        async with anyio_create_task_group() as tg:
+            self._task_group = tg  # type: ignore[assignment]
 
-        # Start warmup on startup if configured
-        if self.config.warmup_on_startup:
-            self._task_group.start_soon(self._warmup_cache)
+            # Start warmup on startup if configured
+            if self.config.warmup_on_startup:
+                tg.start_soon(self._warmup_cache)
 
-        # Start auto-save task if configured
-        if self.config.auto_save_popular:
-            self._task_group.start_soon(self._auto_save_loop)
+            # Start auto-save task if configured
+            if self.config.auto_save_popular:
+                tg.start_soon(self._auto_save_loop)
 
     async def stop(self) -> None:
         """Stop the cache warmup manager."""
         # Cancel background tasks
         if self._task_group:
-            self._task_group.cancel_scope.cancel()
+            self._task_group.cancel_scope.cancel()  # type: ignore[unreachable]
             try:
                 await self._task_group.__aexit__(None, None, None)
             except Exception:
@@ -176,7 +176,7 @@ class CacheWarmupManager:
         if self.config.auto_save_popular:
             await self._save_popular_items()
 
-    async def _warmup_cache(self) -> None:
+    async def _warmup_cache(self) -> Any:
         """Warm up the cache with preloaded data."""
         try:
             warmup_items = []
@@ -279,7 +279,7 @@ class CacheWarmupManager:
             cache_key = await self._generate_cache_key(request)
 
             # Store in cache
-            await self.cache.set(cache_key, response, request)
+            await self.cache.cache_response(request, response)
 
             debug(
                 LogRecord(
@@ -360,7 +360,7 @@ class CacheWarmupManager:
                 )
             )
 
-    def track_cache_hit(self, cache_key: str) -> None:
+    def track_cache_hit(self, cache_key: str) -> Any:
         """Track a cache hit for popularity tracking."""
         if not self.config.auto_save_popular:
             return
@@ -406,8 +406,7 @@ class CacheWarmupManager:
         preloaded = 0
         for request, response in zip(requests, responses):
             try:
-                cache_key = await self._generate_cache_key(request)
-                await self.cache.set(cache_key, response, request)
+                await self.cache.cache_response(request, response)
                 preloaded += 1
             except Exception as e:
                 debug(

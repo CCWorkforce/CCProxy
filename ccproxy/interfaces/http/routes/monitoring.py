@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from ....monitoring import performance_monitor
-from ....application.tokenizer import _token_count_hits, _token_count_misses
+from ....application.tokenizer import get_token_cache_stats
 from ....application.converters import (
     _tools_cache,
     _tool_choice_cache,
@@ -22,16 +22,14 @@ async def get_metrics(request: Request) -> JSONResponse:
     response_cache_stats = request.app.state.response_cache.get_stats()
     request_validator_stats = request_validator.get_cache_stats()
 
+    # Get comprehensive tokenizer cache stats including shard distribution
+    token_cache_stats = get_token_cache_stats()
+
     metrics = {
         "performance": performance_metrics,
         "response_cache": response_cache_stats,
         "request_validator_cache": request_validator_stats,
-        "token_count_cache": {
-            "hits": _token_count_hits,
-            "misses": _token_count_misses,
-            "hit_rate": _token_count_hits
-            / max(1, (_token_count_hits + _token_count_misses)),
-        },
+        "token_count_cache": token_cache_stats,
         "converter_caches": {
             "tools": {
                 "currsize": getattr(_tools_cache, "cache_info")().currsize,

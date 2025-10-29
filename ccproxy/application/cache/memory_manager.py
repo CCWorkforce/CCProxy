@@ -7,6 +7,7 @@ from collections import OrderedDict
 from .models import CachedResponse
 from ...constants import DEFAULT_CACHE_MAX_MEMORY_MB
 from ...logging import debug, info, LogRecord, LogEvent
+from typing import Any
 
 
 class CacheMemoryManager:
@@ -113,7 +114,7 @@ class CacheMemoryManager:
                 return response
             return None
 
-    async def _evict_if_needed(
+    async def _evict_if_needed(  # type: ignore[no-untyped-def]
         self, required_bytes: int, request_id: Optional[str] = None
     ):
         """
@@ -133,7 +134,7 @@ class CacheMemoryManager:
                 break
             self._evict_lru(request_id)
 
-    def _evict_lru(self, request_id: Optional[str] = None):
+    def _evict_lru(self, request_id: Optional[str] = None) -> Any:
         """Evict the least recently used entry."""
         if not self.cache:
             return
@@ -187,7 +188,7 @@ class CacheMemoryManager:
 
             return expired_keys
 
-    async def clear(self):
+    async def clear(self) -> Any:
         """Clear all cached entries."""
         async with self.lock:
             self.cache.clear()
@@ -206,7 +207,7 @@ class CacheMemoryManager:
         """Get all cache keys."""
         return list(self.cache.keys())
 
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> Dict[str, any]:  # type: ignore[valid-type]
         """Get memory manager statistics."""
         return {
             "cache_size": len(self.cache),

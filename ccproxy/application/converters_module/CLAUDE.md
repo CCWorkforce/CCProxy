@@ -12,7 +12,7 @@
 - `tool_converter.py`: Tool choice mapping and tool result serialization
 - `async_converter.py`: AsyncMessageConverter and AsyncResponseConverter for parallel processing
   - Uses Asyncer's `asyncify()` for CPU-bound operations (JSON serialization, base64 encoding)
-  - Uses `asyncio.gather()` for concurrent processing of messages and tool calls
+  - Uses `anyio.create_task_group()` for structured concurrent processing of messages and tool calls
   - Provides `convert_messages_async()` and `convert_response_async()` functions
   - Optimized for high-throughput message conversion with parallel execution
 
@@ -28,4 +28,4 @@
 - **Error handling**: Graceful handling of conversion errors with fallback mechanisms
 - **Serialization**: Complex tool result serialization with proper type checking
 - **Type safety**: All converters must implement proper type annotations
-- **Cython optimizations**: Can leverage `ccproxy._cython.serialization` for content serialization (25-35% improvement) and `ccproxy._cython.json_ops` for JSON operations (10.7x faster for size estimation) - integrated in content_converter.py
+- **Cython optimizations**: Integrated with `ccproxy._cython.serialization` for tool result content serialization (25-35% improvement) and `ccproxy._cython.json_ops` for JSON operations (10.7x faster for size estimation); asyncify wraps Cython-optimized functions for non-blocking execution

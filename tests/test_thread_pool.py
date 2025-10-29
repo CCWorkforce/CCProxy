@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch, MagicMock
 import pytest
 
+from typing import Any
 from ccproxy.application.thread_pool import (
     initialize_thread_pool,
     get_thread_limiter,
@@ -17,7 +18,7 @@ from ccproxy.config import Settings
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> MagicMock:
     """Create mock settings for testing."""
     settings = MagicMock(spec=Settings)
     settings.thread_pool_max_workers = 10
@@ -30,12 +31,14 @@ class TestThreadPool:
     """Test cases for thread pool management."""
 
     @pytest.mark.anyio
-    async def test_asyncify_with_kwargs(self):
+    async def test_asyncify_with_kwargs(self) -> Any:
         """Test that asyncify correctly handles functions with keyword arguments."""
         # This is a regression test for the bug where kwargs were passed
         # to run_sync() instead of the wrapped function
 
-        def test_func(data, sort_keys=False, separators=None):
+        def test_func(
+            data: Any, sort_keys: bool = False, separators: Any = None
+        ) -> str:
             """Test function that mimics json.dumps signature."""
             if sort_keys:
                 data = dict(sorted(data.items()))
@@ -55,10 +58,10 @@ class TestThreadPool:
         assert result == '{"a":1,"b":2}'
 
     @pytest.mark.anyio
-    async def test_asyncify_with_positional_args(self):
+    async def test_asyncify_with_positional_args(self) -> Any:
         """Test asyncify with positional arguments."""
 
-        def add(a, b):
+        def add(a, b) -> Any:  # type: ignore[no-untyped-def]
             return a + b
 
         async_add = asyncify(add)
@@ -66,10 +69,10 @@ class TestThreadPool:
         assert result == 8
 
     @pytest.mark.anyio
-    async def test_asyncify_with_mixed_args(self):
+    async def test_asyncify_with_mixed_args(self) -> Any:
         """Test asyncify with both positional and keyword arguments."""
 
-        def format_string(template, name, age=0, city="Unknown"):
+        def format_string(template, name, age=0, city="Unknown") -> Any:  # type: ignore[no-untyped-def]
             return template.format(name=name, age=age, city=city)
 
         async_format = asyncify(format_string)
@@ -78,7 +81,7 @@ class TestThreadPool:
         )
         assert result == "Alice is 30 years old from NYC"
 
-    def test_initialize_thread_pool(self, mock_settings):
+    def test_initialize_thread_pool(self, mock_settings: MagicMock) -> None:
         """Test thread pool initialization."""
         initialize_thread_pool(mock_settings)
 
@@ -89,7 +92,7 @@ class TestThreadPool:
         assert stats["max_workers"] == 10
         assert stats["cpu_threshold"] == 80
 
-    def test_initialize_with_auto_calculation(self, mock_settings):
+    def test_initialize_with_auto_calculation(self, mock_settings: MagicMock) -> None:
         """Test thread pool initialization with auto-calculated values."""
         mock_settings.thread_pool_max_workers = None
         mock_settings.thread_pool_high_cpu_threshold = None
@@ -103,7 +106,7 @@ class TestThreadPool:
         assert stats["max_workers"] > 0
         assert stats["cpu_threshold"] > 0  # Should be auto-calculated
 
-    def test_uvicorn_multi_worker_detection(self, mock_settings):
+    def test_uvicorn_multi_worker_detection(self, mock_settings: MagicMock) -> None:
         """Test detection of Uvicorn multi-worker mode."""
         mock_settings.thread_pool_max_workers = None
 
@@ -119,7 +122,7 @@ class TestThreadPool:
             )  # Max allowed per worker in multi-worker mode
 
     @pytest.mark.anyio
-    async def test_json_dumps_async_compatibility(self):
+    async def test_json_dumps_async_compatibility(self) -> None:
         """Test that our asyncify works with json.dumps (the actual use case)."""
         # This test ensures the fix for the kwargs bug works with real json.dumps
         json_dumps_async = asyncify(json.dumps)
@@ -139,7 +142,9 @@ class TestThreadPool:
         assert result == '{"a":1,"m":13,"z":26}'
 
     @patch("psutil.cpu_percent")
-    def test_cpu_load_detection_auto_scale(self, mock_cpu_percent, mock_settings):
+    def test_cpu_load_detection_auto_scale(
+        self, mock_cpu_percent: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test CPU load detection with auto-scaling enabled."""
         mock_settings.thread_pool_auto_scale = True
         mock_cpu_percent.return_value = 85.0  # High CPU
@@ -152,7 +157,9 @@ class TestThreadPool:
 
     @patch("psutil.cpu_count")
     @patch.dict(os.environ, {"WEB_CONCURRENCY": "4"})
-    def test_multi_worker_thread_distribution(self, mock_cpu_count, mock_settings):
+    def test_multi_worker_thread_distribution(
+        self, mock_cpu_count: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test thread distribution in multi-worker mode."""
         mock_cpu_count.return_value = 8  # 8 CPUs
         mock_settings.thread_pool_max_workers = None  # Auto-calculate
@@ -166,7 +173,9 @@ class TestThreadPool:
         assert stats["max_workers"] >= 4  # Should have at least minimum
 
     @patch("psutil.cpu_count")
-    def test_cpu_count_edge_cases(self, mock_cpu_count, mock_settings):
+    def test_cpu_count_edge_cases(
+        self, mock_cpu_count: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test thread pool with various CPU counts."""
         # Test with very low CPU count
         mock_cpu_count.return_value = 1
@@ -187,19 +196,19 @@ class TestThreadPool:
     @pytest.mark.skip(
         reason="Complex time-based testing - requires refactoring for proper mocking"
     )
-    def test_should_scale_down_detection(self, mock_settings):
+    def test_should_scale_down_detection(self, mock_settings: MagicMock) -> Any:
         """Test detection of when to scale down threads."""
         # TODO: Refactor to properly mock time.time() which is imported locally
         pass
 
     @pytest.mark.skip(reason="Complex CPU metric mocking - requires refactoring")
-    def test_should_scale_up_detection(self, mock_settings):
+    def test_should_scale_up_detection(self, mock_settings: MagicMock) -> Any:
         """Test detection of when to scale up threads."""
         # TODO: Refactor to properly mock psutil per-core metrics
         pass
 
     @patch.dict(os.environ, {"WEB_CONCURRENCY": "2"})
-    def test_environment_variable_parsing(self, mock_settings):
+    def test_environment_variable_parsing(self, mock_settings: MagicMock) -> Any:
         """Test parsing of WEB_CONCURRENCY environment variable."""
         mock_settings.thread_pool_max_workers = None
 
@@ -209,7 +218,7 @@ class TestThreadPool:
         # Verify environment variable was read
         assert stats["max_workers"] > 0
 
-    def test_thread_pool_manager_singleton(self, mock_settings):
+    def test_thread_pool_manager_singleton(self, mock_settings: MagicMock) -> Any:
         """Test that ThreadPoolManager maintains singleton pattern."""
         initialize_thread_pool(mock_settings)
         limiter1 = get_thread_limiter()
@@ -223,7 +232,9 @@ class TestThreadPool:
         assert limiter2 is not None
 
     @patch("psutil.cpu_percent")
-    def test_auto_scale_with_varying_load(self, mock_cpu_percent, mock_settings):
+    def test_auto_scale_with_varying_load(
+        self, mock_cpu_percent: MagicMock, mock_settings: MagicMock
+    ) -> None:
         """Test auto-scaling behavior with varying CPU load."""
         mock_settings.thread_pool_auto_scale = True
         mock_settings.thread_pool_high_cpu_threshold = 75

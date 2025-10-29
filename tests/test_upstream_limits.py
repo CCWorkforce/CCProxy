@@ -5,6 +5,7 @@ import anyio
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from typing import Any
 from ccproxy.interfaces.http.upstream_limits import (
     UpstreamTimeoutError,
     enforce_timeout,
@@ -14,13 +15,13 @@ from ccproxy.interfaces.http.upstream_limits import (
 class TestUpstreamTimeoutError:
     """Test UpstreamTimeoutError exception."""
 
-    def test_error_with_default_message(self):
+    def test_error_with_default_message(self) -> Any:
         """Test error creation with default message."""
         app = FastAPI()
         client = TestClient(app)
 
         @app.get("/test")
-        async def endpoint(request: Request):
+        async def endpoint(request: Request) -> Any:
             return {"ok": True}
 
         with client:
@@ -35,7 +36,7 @@ class TestUpstreamTimeoutError:
         assert error.message == "Upstream request timeout exceeded."
         assert str(error) == "Upstream request timeout exceeded."
 
-    def test_error_with_custom_message(self):
+    def test_error_with_custom_message(self) -> None:
         """Test error creation with custom message."""
         request = Request({"type": "http", "method": "POST", "url": "http://test"})
         custom_msg = "Custom timeout message"
@@ -45,7 +46,7 @@ class TestUpstreamTimeoutError:
         assert error.message == custom_msg
         assert str(error) == custom_msg
 
-    def test_error_is_exception(self):
+    def test_error_is_exception(self) -> None:
         """Test that UpstreamTimeoutError is an Exception."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         error = UpstreamTimeoutError(request)
@@ -57,7 +58,7 @@ class TestEnforceTimeout:
     """Test enforce_timeout context manager."""
 
     @pytest.mark.anyio
-    async def test_successful_execution_within_timeout(self):
+    async def test_successful_execution_within_timeout(self) -> None:
         """Test that operations completing within timeout succeed."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         result = []
@@ -70,12 +71,12 @@ class TestEnforceTimeout:
         assert result == ["completed"]
 
     @pytest.mark.anyio
-    async def test_timeout_exceeded_raises_error(self):
+    async def test_timeout_exceeded_raises_error(self) -> None:
         """Test that exceeding timeout raises UpstreamTimeoutError."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
 
         with pytest.raises(UpstreamTimeoutError) as exc_info:
-            async with enforce_timeout(request, seconds=0.1):
+            async with enforce_timeout(request, seconds=0.1):  # type: ignore[arg-type]
                 # Operation that takes longer than timeout
                 await anyio.sleep(1.0)
 
@@ -84,7 +85,7 @@ class TestEnforceTimeout:
         assert error.message == "Upstream request timeout exceeded."
 
     @pytest.mark.anyio
-    async def test_timeout_with_zero_seconds(self):
+    async def test_timeout_with_zero_seconds(self) -> None:
         """Test timeout with very short duration."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
 
@@ -94,7 +95,7 @@ class TestEnforceTimeout:
                 await anyio.sleep(0.001)
 
     @pytest.mark.anyio
-    async def test_multiple_operations_within_timeout(self):
+    async def test_multiple_operations_within_timeout(self) -> None:
         """Test multiple quick operations within timeout."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         results = []
@@ -107,13 +108,13 @@ class TestEnforceTimeout:
         assert results == [0, 1, 2, 3, 4]
 
     @pytest.mark.anyio
-    async def test_context_manager_cleanup_on_timeout(self):
+    async def test_context_manager_cleanup_on_timeout(self) -> None:
         """Test that context manager cleans up properly on timeout."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         executed = []
 
         try:
-            async with enforce_timeout(request, seconds=0.05):
+            async with enforce_timeout(request, seconds=0.05):  # type: ignore[arg-type]
                 executed.append("started")
                 await anyio.sleep(1.0)
                 executed.append("finished")  # Should not reach here
@@ -125,7 +126,7 @@ class TestEnforceTimeout:
         assert "finished" not in executed
 
     @pytest.mark.anyio
-    async def test_timeout_preserves_request_context(self):
+    async def test_timeout_preserves_request_context(self) -> None:
         """Test that timeout error preserves the original request."""
         request = Request(
             {
@@ -137,7 +138,7 @@ class TestEnforceTimeout:
         )
 
         with pytest.raises(UpstreamTimeoutError) as exc_info:
-            async with enforce_timeout(request, seconds=0.05):
+            async with enforce_timeout(request, seconds=0.05):  # type: ignore[arg-type]
                 await anyio.sleep(1.0)
 
         error = exc_info.value
@@ -145,7 +146,7 @@ class TestEnforceTimeout:
         assert error.request.method == "POST"
 
     @pytest.mark.anyio
-    async def test_immediate_completion(self):
+    async def test_immediate_completion(self) -> None:
         """Test immediate completion without any async operations."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         executed = False
@@ -156,7 +157,7 @@ class TestEnforceTimeout:
         assert executed is True
 
     @pytest.mark.anyio
-    async def test_timeout_with_exception_inside_block(self):
+    async def test_timeout_with_exception_inside_block(self) -> None:
         """Test that other exceptions are not caught by timeout handler."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
 
@@ -165,7 +166,7 @@ class TestEnforceTimeout:
                 raise ValueError("test error")
 
     @pytest.mark.anyio
-    async def test_nested_timeouts(self):
+    async def test_nested_timeouts(self) -> None:
         """Test nested timeout contexts."""
         request1 = Request({"type": "http", "method": "GET", "url": "http://test1"})
         request2 = Request({"type": "http", "method": "GET", "url": "http://test2"})
@@ -174,14 +175,14 @@ class TestEnforceTimeout:
         async with enforce_timeout(request1, seconds=2):
             # Inner timeout is shorter and should trigger first
             with pytest.raises(UpstreamTimeoutError) as exc_info:
-                async with enforce_timeout(request2, seconds=0.05):
+                async with enforce_timeout(request2, seconds=0.05):  # type: ignore[arg-type]
                     await anyio.sleep(1.0)
 
             # Verify inner timeout triggered with correct request
             assert exc_info.value.request == request2
 
     @pytest.mark.anyio
-    async def test_timeout_with_large_value(self):
+    async def test_timeout_with_large_value(self) -> None:
         """Test timeout with large timeout value completes successfully."""
         request = Request({"type": "http", "method": "GET", "url": "http://test"})
         result = []

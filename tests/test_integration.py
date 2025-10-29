@@ -2,16 +2,17 @@
 
 import pytest
 import json
-from httpx import Response
+from httpx import Response, AsyncClient, ASGITransport
 import respx
 
 from ccproxy.interfaces.http.app import create_app
 from ccproxy.config import Settings
-from httpx import AsyncClient
+from fastapi import FastAPI
+from typing import Any
 
 
 @pytest.fixture
-def test_settings():
+def test_settings() -> Any:
     """Create test settings."""
     settings = Settings(
         openai_api_key="test-key",
@@ -26,7 +27,7 @@ def test_settings():
 
 
 @pytest.fixture
-def test_app(test_settings):
+def test_app(test_settings: Settings) -> Any:
     """Create test FastAPI app."""
     return create_app(test_settings)
 
@@ -36,7 +37,7 @@ class TestEndToEndIntegration:
 
     @pytest.mark.anyio
     @respx.mock
-    async def test_opus_to_gpt4_mapping(self, test_app):
+    async def test_opus_to_gpt4_mapping(self, test_app: FastAPI) -> None:
         """Test that opus model correctly maps to gpt-4."""
         # Mock OpenAI API response
         mock_response = {
@@ -59,7 +60,9 @@ class TestEndToEndIntegration:
             return_value=Response(200, json=mock_response)
         )
 
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=test_app), base_url="http://test"
+        ) as client:
             # Send request with opus model
             request_data = {
                 "model": "claude-3-opus-20240229",
@@ -85,7 +88,7 @@ class TestEndToEndIntegration:
 
     @pytest.mark.anyio
     @respx.mock
-    async def test_sonnet_to_gpt35_mapping(self, test_app):
+    async def test_sonnet_to_gpt35_mapping(self, test_app: FastAPI) -> None:
         """Test that sonnet model correctly maps to gpt-3.5-turbo."""
         mock_response = {
             "id": "chatcmpl-456",
@@ -105,7 +108,9 @@ class TestEndToEndIntegration:
             return_value=Response(200, json=mock_response)
         )
 
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=test_app), base_url="http://test"
+        ) as client:
             request_data = {
                 "model": "claude-3-sonnet-20240229",
                 "messages": [{"role": "user", "content": "Test message"}],
@@ -125,7 +130,7 @@ class TestEndToEndIntegration:
 
     @pytest.mark.anyio
     @respx.mock
-    async def test_error_propagation_with_retry(self, test_app):
+    async def test_error_propagation_with_retry(self, test_app: FastAPI) -> None:
         """Test that API errors are properly propagated and retried."""
         # First call fails with 503, second succeeds
         error_response = Response(503, json={"error": "Service unavailable"})
@@ -153,7 +158,9 @@ class TestEndToEndIntegration:
             side_effect=[error_response, success_response]
         )
 
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=test_app), base_url="http://test"
+        ) as client:
             request_data = {
                 "model": "claude-3-opus-20240229",
                 "messages": [{"role": "user", "content": "Test retry"}],
@@ -172,11 +179,11 @@ class TestEndToEndIntegration:
 
     @pytest.mark.anyio
     @respx.mock
-    async def test_streaming_response_conversion(self, test_app):
+    async def test_streaming_response_conversion(self, test_app: FastAPI) -> Any:
         """Test streaming response conversion from OpenAI to Anthropic format."""
 
         # Create SSE chunks
-        def create_sse_chunk(data):
+        def create_sse_chunk(data) -> Any:  # type: ignore[no-untyped-def]
             if data is None:
                 return b"data: [DONE]\n\n"
             return f"data: {json.dumps(data)}\n\n".encode()
@@ -221,7 +228,7 @@ class TestEndToEndIntegration:
             create_sse_chunk(None),  # [DONE] marker
         ]
 
-        async def stream_response():
+        async def stream_response() -> Any:
             for chunk in chunks:
                 yield chunk
 
@@ -233,7 +240,9 @@ class TestEndToEndIntegration:
             )
         )
 
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=test_app), base_url="http://test"
+        ) as client:
             request_data = {
                 "model": "claude-3-opus-20240229",
                 "messages": [{"role": "user", "content": "Stream test"}],
@@ -260,7 +269,7 @@ class TestEndToEndIntegration:
 
     @pytest.mark.anyio
     @respx.mock
-    async def test_tool_use_conversion(self, test_app):
+    async def test_tool_use_conversion(self, test_app: FastAPI) -> None:
         """Test conversion of tool use between Anthropic and OpenAI formats."""
         # Mock OpenAI response with function call
         mock_response = {
@@ -296,7 +305,9 @@ class TestEndToEndIntegration:
             return_value=Response(200, json=mock_response)
         )
 
-        async with AsyncClient(app=test_app, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=test_app), base_url="http://test"
+        ) as client:
             # Send request with tool definition
             request_data = {
                 "model": "claude-3-opus-20240229",

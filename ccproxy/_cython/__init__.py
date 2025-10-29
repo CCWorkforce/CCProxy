@@ -24,34 +24,34 @@ CYTHON_ENABLED: Final[bool] = os.getenv(
 try:
     from . import json_ops
 except ImportError:
-    json_ops = None  # type: ignore
+    json_ops = None
 
 try:
     from . import string_ops
 except ImportError:
-    string_ops = None  # type: ignore
+    string_ops = None
 
 try:
     from . import serialization
 except ImportError:
-    serialization = None  # type: ignore
+    serialization = None
 
 # Try to import Phase 3 modules if available
 try:
     from . import stream_state
 except ImportError:
-    stream_state = None  # type: ignore
+    stream_state = None
 
 try:
     from . import dict_ops
 except ImportError:
-    dict_ops = None  # type: ignore
+    dict_ops = None
 
 # Try to import Phase 4 modules if available
 try:
     from . import validation
 except ImportError:
-    validation = None  # type: ignore
+    validation = None
 
 __all__ = [
     "CYTHON_ENABLED",

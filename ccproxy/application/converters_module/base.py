@@ -18,7 +18,7 @@ class ConversionContext:
     settings: Optional[Settings] = None
     metadata: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.metadata is None:
             self.metadata = {}
 
@@ -26,7 +26,7 @@ class ConversionContext:
 class BaseConverter(ABC):
     """Abstract base class for message converters."""
 
-    def __init__(self, context: Optional[ConversionContext] = None):
+    def __init__(self, context: Optional[ConversionContext] = None) -> None:
         """Initialize converter with optional context."""
         self.context = context or ConversionContext()
 
@@ -55,7 +55,7 @@ class BaseConverter(ABC):
             target_model=kwargs.get("target_model", self.context.target_model),
             original_model=kwargs.get("original_model", self.context.original_model),
             settings=kwargs.get("settings", self.context.settings),
-            metadata={**self.context.metadata, **kwargs.get("metadata", {})},
+            metadata={**self.context.metadata, **kwargs.get("metadata", {})},  # type: ignore[dict-item]
         )
         return self.__class__(new_context)
 

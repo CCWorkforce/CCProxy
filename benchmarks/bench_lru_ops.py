@@ -1,13 +1,14 @@
 """Benchmarks for LRU cache operations."""
 
 from collections import OrderedDict
+from typing import Any
 from ccproxy.application.request_validator import RequestValidator
 
 
 class TestLRUCacheOperations:
     """Benchmark LRU cache management operations."""
 
-    def test_cache_hit(self, benchmark):
+    def test_cache_hit(self, benchmark) -> None:  # type: ignore[no-untyped-def]
         """Benchmark cache hit performance."""
         validator = RequestValidator(cache_size=1000)
 
@@ -23,11 +24,11 @@ class TestLRUCacheOperations:
         result = benchmark(validator.validate_request, request_body)
         assert result is not None
 
-    def test_cache_miss_and_validation(self, benchmark):
+    def test_cache_miss_and_validation(self: Any, benchmark: Any) -> Any:
         """Benchmark cache miss with Pydantic validation."""
         validator = RequestValidator(cache_size=1000)
 
-        def validate_new_request():
+        def validate_new_request() -> Any:
             import time
 
             # Create unique request each time to ensure cache miss
@@ -43,7 +44,7 @@ class TestLRUCacheOperations:
         result = benchmark(validate_new_request)
         assert result is not None
 
-    def test_lru_eviction(self, benchmark):
+    def test_lru_eviction(self: Any, benchmark: Any) -> Any:
         """Benchmark LRU eviction when cache is full."""
         validator = RequestValidator(cache_size=10)
 
@@ -57,7 +58,7 @@ class TestLRUCacheOperations:
             validator.validate_request(request_body)
 
         # Benchmark insertion that triggers eviction
-        def insert_with_eviction():
+        def insert_with_eviction() -> Any:
             request_body = {
                 "model": "claude-3-5-sonnet-20241022",
                 "max_tokens": 1024,
@@ -68,10 +69,10 @@ class TestLRUCacheOperations:
         result = benchmark(insert_with_eviction)
         assert result is not None
 
-    def test_ordered_dict_operations(self, benchmark):
+    def test_ordered_dict_operations(self: Any, benchmark: Any) -> Any:
         """Benchmark raw OrderedDict operations (baseline)."""
 
-        def ordered_dict_ops():
+        def ordered_dict_ops() -> Any:
             cache = OrderedDict()
 
             # Populate
@@ -98,7 +99,7 @@ class TestLRUCacheOperations:
 class TestCacheKeyGeneration:
     """Benchmark cache key generation (hashing)."""
 
-    def test_hash_generation_small_request(self, benchmark):
+    def test_hash_generation_small_request(self: Any, benchmark: Any) -> Any:
         """Benchmark hash generation for small requests."""
         import json
         import hashlib
@@ -109,14 +110,14 @@ class TestCacheKeyGeneration:
             "messages": [{"role": "user", "content": "Hello"}],
         }
 
-        def generate_hash():
+        def generate_hash() -> Any:
             request_json = json.dumps(request_body, sort_keys=True)
             return hashlib.sha256(request_json.encode()).hexdigest()
 
         result = benchmark(generate_hash)
         assert len(result) == 64
 
-    def test_hash_generation_large_request(self, benchmark):
+    def test_hash_generation_large_request(self: Any, benchmark: Any) -> Any:
         """Benchmark hash generation for large requests (with tools)."""
         import json
         import hashlib
@@ -167,7 +168,7 @@ class TestCacheKeyGeneration:
             ],
         }
 
-        def generate_hash():
+        def generate_hash() -> Any:
             request_json = json.dumps(request_body, sort_keys=True)
             return hashlib.sha256(request_json.encode()).hexdigest()
 

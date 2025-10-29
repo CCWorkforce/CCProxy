@@ -7,22 +7,23 @@ from fastapi.testclient import TestClient
 from fastapi.responses import Response, JSONResponse
 
 from ccproxy.interfaces.http.middleware import logging_middleware
+from typing import Any
 
 
 class TestLoggingMiddleware:
     """Test logging middleware functionality."""
 
     @pytest.mark.anyio
-    async def test_adds_request_id_to_state(self):
+    async def test_adds_request_id_to_state(self) -> Any:
         """Test that middleware adds request ID to request state."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint(request: Request):
+        async def endpoint(request: Request) -> Any:
             assert hasattr(request.state, "request_id")
             assert isinstance(request.state.request_id, str)
             assert len(request.state.request_id) > 0
@@ -35,16 +36,16 @@ class TestLoggingMiddleware:
         assert "request_id" in data
 
     @pytest.mark.anyio
-    async def test_adds_request_id_header_to_response(self):
+    async def test_adds_request_id_header_to_response(self) -> Any:
         """Test that middleware adds X-Request-ID header to response."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint():
+        async def endpoint() -> Any:
             return {"ok": True}
 
         client = TestClient(app)
@@ -53,16 +54,16 @@ class TestLoggingMiddleware:
         assert len(response.headers["X-Request-ID"]) > 0
 
     @pytest.mark.anyio
-    async def test_adds_response_time_header(self):
+    async def test_adds_response_time_header(self) -> Any:
         """Test that middleware adds X-Response-Time-ms header."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint():
+        async def endpoint() -> Any:
             return {"ok": True}
 
         client = TestClient(app)
@@ -72,22 +73,22 @@ class TestLoggingMiddleware:
         assert response_time >= 0
 
     @pytest.mark.anyio
-    async def test_preserves_existing_request_id(self):
+    async def test_preserves_existing_request_id(self) -> Any:
         """Test that middleware preserves existing request ID if already set."""
         app = FastAPI()
         existing_id = "existing-request-id-123"
 
         @app.middleware("http")
-        async def set_id_first(request: Request, call_next):
+        async def set_id_first(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             request.state.request_id = existing_id
             return await call_next(request)
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint(request: Request):
+        async def endpoint(request: Request) -> Any:
             return {"request_id": request.state.request_id}
 
         client = TestClient(app)
@@ -97,16 +98,16 @@ class TestLoggingMiddleware:
         assert response.headers["X-Request-ID"] == existing_id
 
     @pytest.mark.anyio
-    async def test_sets_start_time(self):
+    async def test_sets_start_time(self) -> Any:
         """Test that middleware sets start_time_monotonic."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint(request: Request):
+        async def endpoint(request: Request) -> Any:
             assert hasattr(request.state, "start_time_monotonic")
             assert isinstance(request.state.start_time_monotonic, float)
             return {"ok": True}
@@ -116,22 +117,22 @@ class TestLoggingMiddleware:
         assert response.status_code == 200
 
     @pytest.mark.anyio
-    async def test_preserves_existing_start_time(self):
+    async def test_preserves_existing_start_time(self) -> Any:
         """Test that middleware preserves existing start_time if already set."""
         app = FastAPI()
         existing_time = time.monotonic()
 
         @app.middleware("http")
-        async def set_time_first(request: Request, call_next):
+        async def set_time_first(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             request.state.start_time_monotonic = existing_time
             return await call_next(request)
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint(request: Request):
+        async def endpoint(request: Request) -> Any:
             return {"start_time": request.state.start_time_monotonic}
 
         client = TestClient(app)
@@ -140,16 +141,16 @@ class TestLoggingMiddleware:
         assert data["start_time"] == existing_time
 
     @pytest.mark.anyio
-    async def test_response_time_calculation(self):
+    async def test_response_time_calculation(self) -> Any:
         """Test that response time is calculated correctly."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint():
+        async def endpoint() -> Any:
             import anyio
 
             await anyio.sleep(0.05)  # Sleep for 50ms
@@ -162,28 +163,28 @@ class TestLoggingMiddleware:
         assert response_time >= 40
 
     @pytest.mark.anyio
-    async def test_handles_different_http_methods(self):
+    async def test_handles_different_http_methods(self) -> Any:
         """Test that middleware works with different HTTP methods."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def get_endpoint():
+        async def get_endpoint() -> Any:
             return {"method": "GET"}
 
         @app.post("/test")
-        async def post_endpoint():
+        async def post_endpoint() -> Any:
             return {"method": "POST"}
 
         @app.put("/test")
-        async def put_endpoint():
+        async def put_endpoint() -> Any:
             return {"method": "PUT"}
 
         @app.delete("/test")
-        async def delete_endpoint():
+        async def delete_endpoint() -> Any:
             return {"method": "DELETE"}
 
         client = TestClient(app)
@@ -194,16 +195,16 @@ class TestLoggingMiddleware:
             assert "X-Response-Time-ms" in response.headers
 
     @pytest.mark.anyio
-    async def test_handles_custom_error_response(self):
+    async def test_handles_custom_error_response(self) -> Any:
         """Test that middleware works with custom error responses."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/error")
-        async def error_endpoint():
+        async def error_endpoint() -> Any:
             return JSONResponse(status_code=400, content={"error": "Bad request"})
 
         client = TestClient(app)
@@ -214,16 +215,16 @@ class TestLoggingMiddleware:
         assert "X-Response-Time-ms" in response.headers
 
     @pytest.mark.anyio
-    async def test_no_tracing_by_default(self):
+    async def test_no_tracing_by_default(self) -> Any:
         """Test that middleware works without tracing enabled."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint():
+        async def endpoint() -> Any:
             return {"ok": True}
 
         client = TestClient(app)
@@ -233,20 +234,20 @@ class TestLoggingMiddleware:
         # (unless explicitly passed and enabled)
 
     @pytest.mark.anyio
-    async def test_different_response_types(self):
+    async def test_different_response_types(self) -> Any:
         """Test that middleware works with different response types."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/json")
-        async def json_endpoint():
+        async def json_endpoint() -> Any:
             return JSONResponse({"type": "json"})
 
         @app.get("/text")
-        async def text_endpoint():
+        async def text_endpoint() -> Any:
             return Response(content="text response", media_type="text/plain")
 
         client = TestClient(app)
@@ -262,19 +263,19 @@ class TestLoggingMiddleware:
         assert "X-Response-Time-ms" in response.headers
 
     @pytest.mark.anyio
-    async def test_handles_streaming_response(self):
+    async def test_handles_streaming_response(self) -> Any:
         """Test that middleware handles streaming responses."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/stream")
-        async def stream_endpoint():
+        async def stream_endpoint() -> Any:
             from fastapi.responses import StreamingResponse
 
-            async def generate():
+            async def generate() -> Any:
                 for i in range(3):
                     yield f"chunk{i}\n".encode()
 
@@ -286,16 +287,16 @@ class TestLoggingMiddleware:
         assert "X-Response-Time-ms" in response.headers
 
     @pytest.mark.anyio
-    async def test_request_id_uniqueness(self):
+    async def test_request_id_uniqueness(self) -> Any:
         """Test that each request gets a unique request ID."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test")
-        async def endpoint():
+        async def endpoint() -> Any:
             return {"ok": True}
 
         client = TestClient(app)
@@ -310,16 +311,16 @@ class TestLoggingMiddleware:
         assert len(request_ids) == 10
 
     @pytest.mark.anyio
-    async def test_multiple_concurrent_requests(self):
+    async def test_multiple_concurrent_requests(self) -> Any:
         """Test that middleware handles concurrent requests correctly."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/test/{item_id}")
-        async def endpoint(item_id: int, request: Request):
+        async def endpoint(item_id: int, request: Request) -> Any:
             import anyio
 
             await anyio.sleep(0.01)
@@ -342,24 +343,24 @@ class TestLoggingMiddleware:
             assert "X-Response-Time-ms" in response.headers
 
     @pytest.mark.anyio
-    async def test_different_status_codes(self):
+    async def test_different_status_codes(self) -> Any:
         """Test that middleware works with different status codes."""
         app = FastAPI()
 
         @app.middleware("http")
-        async def middleware(request: Request, call_next):
+        async def middleware(request: Request, call_next) -> Any:  # type: ignore[no-untyped-def]
             return await logging_middleware(request, call_next)
 
         @app.get("/200")
-        async def ok_endpoint():
+        async def ok_endpoint() -> Any:
             return {"status": 200}
 
         @app.get("/404")
-        async def not_found_endpoint():
+        async def not_found_endpoint() -> Any:
             return Response(status_code=404, content="Not found")
 
         @app.get("/500")
-        async def error_endpoint():
+        async def error_endpoint() -> Any:
             return Response(status_code=500, content="Server error")
 
         client = TestClient(app, raise_server_exceptions=False)

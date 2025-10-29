@@ -37,7 +37,7 @@ class OpenAIProvider:
     maintainability and testability.
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings) -> None:
         """
         Initialize the OpenAI provider with modular components.
 
@@ -45,7 +45,7 @@ class OpenAIProvider:
             settings: Application settings
         """
         self.settings = settings
-        self._openAIClient: Optional[AsyncOpenAI] = None
+        self._openai_client: Optional[AsyncOpenAI] = None
         self._http_client = None
 
         # Create components using factory
@@ -64,7 +64,7 @@ class OpenAIProvider:
 
         # Create request pipeline
         self._pipeline = RequestPipeline(
-            client=self._openAIClient,
+            client=self._openai_client,  # type: ignore[arg-type]
             circuit_breaker=self._resilience.circuit_breaker,
             resilient_executor=self._resilience.resilient_executor,
             rate_limiter=self._rate_limiter,
@@ -87,11 +87,11 @@ class OpenAIProvider:
         """Initialize HTTP and OpenAI clients."""
         try:
             # Create HTTP client using factory
-            self._http_client = HttpClientFactory.create_client(self.settings)
-            HttpClientFactory.log_client_configuration(self._http_client, self.settings)
+            self._http_client = HttpClientFactory.create_client(self.settings)  # type: ignore[assignment]
+            HttpClientFactory.log_client_configuration(self._http_client, self.settings)  # type: ignore[arg-type]
 
             # Initialize OpenAI client with the configured HTTP client
-            self._openAIClient = AsyncOpenAI(
+            self._openai_client = AsyncOpenAI(
                 api_key=self.settings.openai_api_key,
                 base_url=self.settings.base_url,
                 default_headers=HttpClientFactory.get_default_headers(self.settings),
@@ -119,7 +119,7 @@ class OpenAIProvider:
             openai.APIError: If there are issues with the API call after retries
             Exception: If circuit breaker is open or rate limit exceeded
         """
-        if not self._openAIClient:
+        if not self._openai_client:
             raise ValueError("OpenAI client not properly initialized")
 
         # Generate correlation ID
@@ -162,7 +162,7 @@ class OpenAIProvider:
             logging.warning(
                 f"Recovered from decode error in {correlation_id} with partial replacement"
             )
-            raise openai.APIError(
+            raise openai.APIError(  # type: ignore[call-arg]
                 message=f"Partial decode recovery applied: {str(e)}",
                 status_code=500,
                 body={
@@ -300,7 +300,7 @@ class OpenAIProvider:
 
             return total_chars // 4
 
-    async def close(self) -> None:
+    async def close(self) -> Any:
         """Clean up resources when shutting down."""
         # Stop rate limiter if running
         if self._rate_limiter:
@@ -313,7 +313,7 @@ class OpenAIProvider:
         # Close HTTP client using factory method
         await HttpClientFactory.close_client(self._http_client)
         self._http_client = None
-        self._openAIClient = None
+        self._openai_client = None
 
     async def __aenter__(self) -> "OpenAIProvider":
         """Async context manager entry."""

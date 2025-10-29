@@ -12,10 +12,11 @@ from ccproxy.infrastructure.providers.resilience import (
 from ccproxy.infrastructure.providers.rate_limiter import ClientRateLimiter
 from ccproxy.infrastructure.providers.response_handlers import ResponseProcessor
 from ccproxy.infrastructure.providers.request_logger import RequestLogger
+from typing import Any, Dict
 
 
 @pytest.fixture
-def mock_components():
+def mock_components() -> Dict[str, Any]:
     return {
         "client": AsyncMock(spec=AsyncOpenAI),
         "circuit_breaker": Mock(spec=CircuitBreaker),
@@ -26,22 +27,24 @@ def mock_components():
     }
 
 
-def test_init(mock_components):
+def test_init(mock_components: Dict[str, Any]) -> None:
     pipeline = RequestPipeline(**mock_components)
 
     assert pipeline._client == mock_components["client"]
     assert pipeline._circuit_breaker == mock_components["circuit_breaker"]
     assert pipeline._resilient_executor == mock_components["resilient_executor"]
     assert pipeline._rate_limiter == mock_components["rate_limiter"]
-    assert pipeline._request_logger == mock_components["request_logger"]
+    assert pipeline._request_logger == mock_components["request_logger"]  # type: ignore[unused-ignore]
     assert pipeline._response_processor == mock_components["response_processor"]
 
 
 @pytest.mark.anyio
-async def test_process_request_success_non_streaming(mock_components):
+async def test_process_request_success_non_streaming(
+    mock_components: Dict[str, Any],
+) -> None:
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"].acquire.return_value = True
-    mock_components["request_logger"].prepare_trace_headers.return_value = {
+    mock_components["request_logger"].prepare_trace_headers.return_value = {  # type: ignore[unused-ignore]
         "trace-id": "123"
     }
     mock_components["resilient_executor"].execute.return_value = {
@@ -69,7 +72,7 @@ async def test_process_request_success_non_streaming(mock_components):
 
 
 @pytest.mark.anyio
-async def test_process_request_streaming(mock_components):
+async def test_process_request_streaming(mock_components: Dict[str, Any]) -> None:
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"] = None  # No limiter
     params = {"model": "gpt-4", "stream": True}
@@ -88,7 +91,7 @@ async def test_process_request_streaming(mock_components):
 
 
 @pytest.mark.anyio
-async def test_process_request_circuit_open(mock_components):
+async def test_process_request_circuit_open(mock_components: Dict[str, Any]) -> None:
     mock_components["circuit_breaker"].is_open = True
     params = {"model": "gpt-4"}
     correlation_id = "test-id"
@@ -102,7 +105,9 @@ async def test_process_request_circuit_open(mock_components):
 
 
 @pytest.mark.anyio
-async def test_process_request_rate_limit_exceeded(mock_components):
+async def test_process_request_rate_limit_exceeded(
+    mock_components: Dict[str, Any],
+) -> None:
     mock_components["circuit_breaker"].is_open = False
     mock_components["rate_limiter"].acquire.return_value = False
     params = {"model": "gpt-4"}
@@ -118,7 +123,7 @@ async def test_process_request_rate_limit_exceeded(mock_components):
 
 
 @pytest.mark.anyio
-async def test_check_circuit_breaker_closed(mock_components):
+async def test_check_circuit_breaker_closed(mock_components: Dict[str, Any]) -> None:
     mock_components["circuit_breaker"].is_open = False
     pipeline = RequestPipeline(**mock_components)
     await pipeline._check_circuit_breaker("test-id")
@@ -126,7 +131,7 @@ async def test_check_circuit_breaker_closed(mock_components):
 
 
 @pytest.mark.anyio
-async def test_check_circuit_breaker_open(mock_components):
+async def test_check_circuit_breaker_open(mock_components: Dict[str, Any]) -> None:
     mock_components["circuit_breaker"].is_open = True
     pipeline = RequestPipeline(**mock_components)
     with pytest.raises(Exception, match="circuit breaker is open"):
@@ -134,7 +139,7 @@ async def test_check_circuit_breaker_open(mock_components):
 
 
 @pytest.mark.anyio
-async def test_apply_rate_limiting_no_limiter(mock_components):
+async def test_apply_rate_limiting_no_limiter(mock_components: Dict[str, Any]) -> None:
     mock_components["rate_limiter"] = None
     pipeline = RequestPipeline(**mock_components)
     await pipeline._apply_rate_limiting({"model": "gpt-4"}, "test-id")
@@ -142,26 +147,26 @@ async def test_apply_rate_limiting_no_limiter(mock_components):
 
 
 @pytest.mark.anyio
-async def test_apply_rate_limiting_exceeded(mock_components):
+async def test_apply_rate_limiting_exceeded(mock_components: Dict[str, Any]) -> None:
     mock_components["rate_limiter"].acquire.return_value = False
     pipeline = RequestPipeline(**mock_components)
     with pytest.raises(Exception, match="Client-side rate limit exceeded"):
         await pipeline._apply_rate_limiting({"model": "gpt-4"}, "test-id")
 
 
-def test_prepare_trace_headers(mock_components):
-    mock_components["request_logger"].prepare_trace_headers.return_value = {
+def test_prepare_trace_headers(mock_components: Dict[str, Any]) -> None:
+    mock_components["request_logger"].prepare_trace_headers.return_value = {  # type: ignore[unused-ignore]
         "trace": "value"
     }
     params = {"model": "gpt-4"}
     pipeline = RequestPipeline(**mock_components)
     headers = pipeline._prepare_trace_headers("test-id", params)
     assert headers == {"trace": "value"}
-    assert params["extra_headers"] == {"trace": "value"}
+    assert params["extra_headers"] == {"trace": "value"}  # type: ignore[comparison-overlap]
 
 
-def test_prepare_trace_headers_none(mock_components):
-    mock_components["request_logger"].prepare_trace_headers.return_value = None
+def test_prepare_trace_headers_none(mock_components: Dict[str, Any]) -> None:
+    mock_components["request_logger"].prepare_trace_headers.return_value = None  # type: ignore[unused-ignore]
     params = {"model": "gpt-4"}
     pipeline = RequestPipeline(**mock_components)
     headers = pipeline._prepare_trace_headers("test-id", params)
@@ -170,7 +175,7 @@ def test_prepare_trace_headers_none(mock_components):
 
 
 @pytest.mark.anyio
-async def test_execute_request(mock_components):
+async def test_execute_request(mock_components: Dict[str, Any]) -> None:
     params = {"model": "gpt-4", "stream": False}
     pipeline = RequestPipeline(**mock_components)
     response = await pipeline._execute_request(params, False)
@@ -183,15 +188,17 @@ async def test_execute_request(mock_components):
 
 
 @pytest.mark.anyio
-async def test_ensure_utf8_response_no_choices(mock_components):
-    response = {}
+async def test_ensure_utf8_response_no_choices(mock_components: Dict[str, Any]) -> None:
+    response: Dict[str, Any] = {}
     pipeline = RequestPipeline(**mock_components)
     result = await pipeline._ensure_utf8_response(response, "test-id")
     assert result == {}
 
 
 @pytest.mark.anyio
-async def test_ensure_utf8_response_str_content(mock_components, caplog):
+async def test_ensure_utf8_response_str_content(
+    mock_components: Dict[str, Any], caplog: Any
+) -> None:
     response = {"choices": [{"message": {"content": "hello"}}]}
     pipeline = RequestPipeline(**mock_components)
     result = await pipeline._ensure_utf8_response(response, "test-id")
@@ -200,7 +207,9 @@ async def test_ensure_utf8_response_str_content(mock_components, caplog):
 
 
 @pytest.mark.anyio
-async def test_ensure_utf8_response_bytes_success(mock_components):
+async def test_ensure_utf8_response_bytes_success(
+    mock_components: Dict[str, Any],
+) -> None:
     b_content = b"hello".decode("utf-8").encode("utf-8")
     response = {"choices": [{"message": {"content": b_content}}]}
     pipeline = RequestPipeline(**mock_components)
@@ -209,10 +218,12 @@ async def test_ensure_utf8_response_bytes_success(mock_components):
 
 
 @pytest.mark.anyio
-async def test_ensure_utf8_response_bytes_replace(caplog):
+async def test_ensure_utf8_response_bytes_replace(
+    mock_components: Dict[str, Any], caplog: Any
+) -> None:
     response = {"choices": [{"message": {"content": b"\xff"}}]}
     mock_components["request_logger"] = Mock()  # For logging
-    pipeline = RequestPipeline(
+    pipeline = RequestPipeline(  # type: ignore[call-arg]
         mock_client=Mock(),
         **{k: v for k, v in mock_components.items() if k != "client"},
     )
@@ -222,7 +233,7 @@ async def test_ensure_utf8_response_bytes_replace(caplog):
 
 
 @pytest.mark.anyio
-async def test_handle_rate_limit_response(mock_components):
+async def test_handle_rate_limit_response(mock_components: Dict[str, Any]) -> None:
     mock_error = Mock(spec=openai.RateLimitError)
     mock_response = Mock()
     mock_response.headers = {"retry-after": "30"}
@@ -243,7 +254,7 @@ async def test_handle_rate_limit_response(mock_components):
 
 
 @pytest.mark.anyio
-async def test_release_tokens_on_success(mock_components):
+async def test_release_tokens_on_success(mock_components: Dict[str, Any]) -> None:
     response = {"usage": {"total_tokens": 100}}
     mock_components["response_processor"].extract_usage_info.return_value = {
         "total_tokens": 100
@@ -270,7 +281,9 @@ async def test_release_tokens_on_success(mock_components):
 
 
 @pytest.mark.anyio
-async def test_full_openai_response_utf8_decode_success(mock_components):
+async def test_full_openai_response_utf8_decode_success(
+    mock_components: Dict[str, Any],
+) -> None:
     """Test full OpenAI response with UTF-8 decode success."""
     # Mock full OpenAI response with multiple choices
     response_data = {
@@ -315,9 +328,9 @@ async def test_full_openai_response_utf8_decode_success(mock_components):
 
 
 @pytest.mark.anyio
-async def test_full_openai_response_utf8_decode_error_with_replacement(
+async def test_full_openai_response_utf8_decode_error_with_replacement(  # type: ignore[no-untyped-def]
     mock_components, caplog
-):
+) -> None:
     """Test full OpenAI response with UTF-8 decode error using replacement."""
     # Mock response with invalid UTF-8 bytes
     response_data = {
@@ -355,11 +368,13 @@ async def test_full_openai_response_utf8_decode_error_with_replacement(
 
 
 @pytest.mark.anyio
-async def test_streaming_response_with_rate_limit_per_chunk(mock_components):
+async def test_streaming_response_with_rate_limit_per_chunk(
+    mock_components: Dict[str, Any],
+) -> None:
     """Test streaming response with rate limiter checking per chunk."""
 
     # Create async generator for streaming chunks
-    async def mock_stream():
+    async def mock_stream() -> Any:
         chunks = [
             {"choices": [{"delta": {"content": "First"}}], "usage": None},
             {"choices": [{"delta": {"content": " chunk"}}], "usage": None},
@@ -396,18 +411,20 @@ async def test_streaming_response_with_rate_limit_per_chunk(mock_components):
 
 
 @pytest.mark.anyio
-async def test_streaming_response_rate_limit_failure_mid_stream(mock_components):
+async def test_streaming_response_rate_limit_failure_mid_stream(
+    mock_components: Dict[str, Any],
+) -> Any:
     """Test streaming response when rate limit fails mid-stream."""
 
     # Create async generator that will fail on second chunk
     call_count = 0
 
-    async def mock_acquire_token(*args, **kwargs):
+    async def mock_acquire_token(*args, **kwargs) -> Any:  # type: ignore[no-untyped-def]
         nonlocal call_count
         call_count += 1
         return call_count <= 2  # Fail on third call
 
-    async def mock_stream():
+    async def mock_stream() -> Any:
         chunks = [
             {"choices": [{"delta": {"content": "First"}}]},
             {"choices": [{"delta": {"content": " chunk"}}]},
@@ -441,10 +458,12 @@ async def test_streaming_response_rate_limit_failure_mid_stream(mock_components)
 
 
 @pytest.mark.anyio
-async def test_streaming_with_total_tokens_release(mock_components):
+async def test_streaming_with_total_tokens_release(
+    mock_components: Dict[str, Any],
+) -> None:
     """Test that streaming properly releases tokens at the end."""
 
-    async def mock_stream():
+    async def mock_stream() -> Any:
         yield {"choices": [{"delta": {"content": "Test"}}]}
         yield {"choices": [{"delta": {"content": " stream"}}]}
         yield {"choices": [{"finish_reason": "stop"}], "usage": {"total_tokens": 100}}

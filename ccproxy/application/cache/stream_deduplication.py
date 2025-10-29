@@ -6,6 +6,7 @@ from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStre
 from typing import Dict, List, Optional, Tuple
 
 from ...logging import debug, info, warning, LogRecord, LogEvent
+from typing import Any
 
 
 class StreamDeduplicator:
@@ -17,9 +18,9 @@ class StreamDeduplicator:
     clients receive the same streamed response.
     """
 
-    def __init__(self, max_queue_size: int = 100):
+    def __init__(self, max_queue_size: int = 100) -> None:
         """Initialize stream deduplicator."""
-        self.subscribers: Dict[
+        self.subscribers: Dict[  # type: ignore[type-arg]
             str, List[Tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]]
         ] = {}
         self.lock = anyio.Lock()
@@ -28,7 +29,7 @@ class StreamDeduplicator:
 
     async def register(
         self, key: str, request_id: Optional[str] = None
-    ) -> Tuple[bool, MemoryObjectReceiveStream]:
+    ) -> Tuple[bool, MemoryObjectReceiveStream]:  # type: ignore[type-arg]
         """Register a subscriber channel for the given stream key."""
 
         # Create a channel with the specified buffer size
@@ -61,7 +62,9 @@ class StreamDeduplicator:
         return is_primary, receive_stream
 
     async def unregister(
-        self, key: str, receive_stream: MemoryObjectReceiveStream
+        self,
+        key: str,
+        receive_stream: MemoryObjectReceiveStream,  # type: ignore[type-arg]
     ) -> None:
         """Remove a subscriber channel from the stream."""
 
@@ -159,7 +162,7 @@ class StreamDeduplicator:
         """Get the number of subscribers for a stream."""
         return len(self.subscribers.get(key, []))
 
-    async def clear(self):
+    async def clear(self) -> Any:
         """Clear all active streams and subscribers."""
         async with self.lock:
             # Finalize all active streams

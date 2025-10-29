@@ -2,6 +2,7 @@
 
 import json
 import pytest
+from typing import Any
 from unittest.mock import MagicMock
 from ccproxy.application.converters_module.async_converter import (
     AsyncMessageConverter,
@@ -31,7 +32,7 @@ class TestAsyncMessageConverter:
     """Test async message converter with parallel processing."""
 
     @pytest.mark.anyio
-    async def test_convert_messages_async(self):
+    async def test_convert_messages_async(self) -> None:
         """Test async message conversion."""
         messages = [
             Message(role="user", content="Hello, how are you?"),
@@ -48,7 +49,7 @@ class TestAsyncMessageConverter:
         assert result[2]["role"] == "assistant"
 
     @pytest.mark.anyio
-    async def test_convert_messages_with_context(self):
+    async def test_convert_messages_with_context(self) -> None:
         """Test async message conversion with context."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
@@ -80,7 +81,7 @@ class TestAsyncMessageConverter:
         assert len(result[0]["content"]) == 2
 
     @pytest.mark.anyio
-    async def test_parallel_processing(self):
+    async def test_parallel_processing(self) -> None:
         """Test that messages are processed in parallel."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
@@ -103,7 +104,7 @@ class TestAsyncResponseConverter:
     """Test async response converter."""
 
     @pytest.mark.anyio
-    async def test_convert_response_async(self):
+    async def test_convert_response_async(self) -> None:
         """Test async response conversion."""
         # Create mock OpenAI response
         openai_response = ChatCompletion(
@@ -138,7 +139,7 @@ class TestAsyncResponseConverter:
         assert result.usage.output_tokens == 8
 
     @pytest.mark.anyio
-    async def test_convert_response_with_tool_calls(self):
+    async def test_convert_response_with_tool_calls(self) -> None:
         """Test async response conversion with tool calls."""
         # Create mock OpenAI response with tool calls
         tool_call = ChatCompletionMessageToolCall(
@@ -176,7 +177,7 @@ class TestAsyncResponseConverter:
         assert result.content[0].input == {"location": "New York"}
 
     @pytest.mark.anyio
-    async def test_convert_response_with_context(self):
+    async def test_convert_response_with_context(self) -> None:
         """Test async response conversion with context."""
         settings = MagicMock(spec=Settings)
         context = ConversionContext(
@@ -204,14 +205,14 @@ class TestAsyncResponseConverter:
         result = await converter.convert_response_async(openai_response)
 
         assert isinstance(result, MessagesResponse)
-        assert result.content[0].text == "Response with context"
+        assert result.content[0].text == "Response with context"  # type: ignore[union-attr]
 
 
 class TestAsyncConverterIntegration:
     """Test async converter integration with the application."""
 
     @pytest.mark.anyio
-    async def test_end_to_end_conversion(self):
+    async def test_end_to_end_conversion(self) -> None:
         """Test complete conversion flow."""
         # Input messages
         messages = [Message(role="user", content="What's the weather like?")]
@@ -249,14 +250,14 @@ class TestAsyncConverterIntegration:
 
         assert isinstance(anthropic_response, MessagesResponse)
         assert (
-            anthropic_response.content[0].text
+            anthropic_response.content[0].text  # type: ignore[union-attr]
             == "I'll need to check the weather for you."
         )
         assert anthropic_response.usage.input_tokens == 6
         assert anthropic_response.usage.output_tokens == 10
 
     @pytest.mark.anyio
-    async def test_performance_improvement(self):
+    async def test_performance_improvement(self) -> None:
         """Test that async converters provide performance improvement."""
         import time
 
@@ -283,7 +284,7 @@ class TestToolConsistencyValidation:
     """Test tool consistency validation logic."""
 
     @pytest.mark.anyio
-    async def test_orphaned_tool_calls_removal(self):
+    async def test_orphaned_tool_calls_removal(self) -> None:
         """Test that orphaned tool calls are removed when there are subsequent messages."""
         from ccproxy.domain.models import ContentBlockToolUse
 
@@ -318,7 +319,7 @@ class TestToolConsistencyValidation:
         )
 
     @pytest.mark.anyio
-    async def test_tool_calls_preserved_at_end(self):
+    async def test_tool_calls_preserved_at_end(self) -> None:
         """Test that tool calls are preserved when they're the last messages."""
         from ccproxy.domain.models import ContentBlockToolUse
 
@@ -345,7 +346,7 @@ class TestToolConsistencyValidation:
         assert len(result[0]["tool_calls"]) == 1
 
     @pytest.mark.anyio
-    async def test_matching_tool_results(self):
+    async def test_matching_tool_results(self) -> None:
         """Test that tool calls with matching results are preserved."""
         from ccproxy.domain.models import ContentBlockToolUse, ContentBlockToolResult
 
@@ -387,7 +388,7 @@ class TestComplexMessageConversion:
     """Test complex message conversion scenarios."""
 
     @pytest.mark.anyio
-    async def test_mixed_text_and_images(self):
+    async def test_mixed_text_and_images(self) -> None:
         """Test message with both text and image content."""
         from ccproxy.domain.models import ContentBlockImage, ContentBlockImageSource
 
@@ -421,7 +422,7 @@ class TestComplexMessageConversion:
         assert msg["content"][0]["text"] == "Look at this:"
 
     @pytest.mark.anyio
-    async def test_multiple_tool_calls_in_message(self):
+    async def test_multiple_tool_calls_in_message(self) -> None:
         """Test message with multiple tool calls."""
         from ccproxy.domain.models import ContentBlockToolUse
 
@@ -458,7 +459,7 @@ class TestComplexMessageConversion:
         assert msg["content"] == "Let me check both locations"
 
     @pytest.mark.anyio
-    async def test_empty_content_message(self):
+    async def test_empty_content_message(self) -> None:
         """Test handling of message with empty content."""
         messages = [Message(role="user", content="")]
 
@@ -470,7 +471,7 @@ class TestComplexMessageConversion:
         assert "content" in result[0] or result[0] == {"role": "user"}
 
     @pytest.mark.anyio
-    async def test_only_images_no_text(self):
+    async def test_only_images_no_text(self) -> None:
         """Test message with only images, no text."""
         from ccproxy.domain.models import ContentBlockImage, ContentBlockImageSource
 
@@ -502,7 +503,7 @@ class TestSystemContentHandling:
     """Test system content handling."""
 
     @pytest.mark.anyio
-    async def test_system_as_string(self):
+    async def test_system_as_string(self) -> None:
         """Test system content as simple string."""
         messages = [Message(role="user", content="Hello")]
 
@@ -514,7 +515,7 @@ class TestSystemContentHandling:
         assert result[1]["role"] == "user"
 
     @pytest.mark.anyio
-    async def test_system_as_content_list(self):
+    async def test_system_as_content_list(self) -> None:
         """Test system content as list of SystemContent blocks."""
         from ccproxy.domain.models import SystemContent
 
@@ -532,7 +533,7 @@ class TestSystemContentHandling:
         assert "Be concise" in result[0]["content"]
 
     @pytest.mark.anyio
-    async def test_no_system_content(self):
+    async def test_no_system_content(self) -> None:
         """Test conversion without system content."""
         messages = [Message(role="user", content="Hello")]
 
@@ -546,7 +547,7 @@ class TestResponseConversionEdgeCases:
     """Test response conversion edge cases."""
 
     @pytest.mark.anyio
-    async def test_no_choices_error(self):
+    async def test_no_choices_error(self) -> None:
         """Test error when OpenAI response has no choices."""
         openai_response = ChatCompletion(
             id="test",
@@ -563,7 +564,7 @@ class TestResponseConversionEdgeCases:
             await converter.convert_response_async(openai_response)
 
     @pytest.mark.anyio
-    async def test_response_with_refusal(self):
+    async def test_response_with_refusal(self) -> None:
         """Test handling of OpenAI refusal."""
         from unittest.mock import MagicMock
 
@@ -590,10 +591,10 @@ class TestResponseConversionEdgeCases:
 
         assert isinstance(result, MessagesResponse)
         assert len(result.content) == 1
-        assert result.content[0].text == "I cannot help with that request"
+        assert result.content[0].text == "I cannot help with that request"  # type: ignore[union-attr]
 
     @pytest.mark.anyio
-    async def test_finish_reason_mappings(self):
+    async def test_finish_reason_mappings(self) -> None:
         """Test all finish reason mappings."""
         # Test valid finish reasons
         finish_reason_tests = [
@@ -645,7 +646,7 @@ class TestResponseConversionEdgeCases:
         assert result.stop_reason == "stop_sequence"
 
     @pytest.mark.anyio
-    async def test_empty_content_in_response(self):
+    async def test_empty_content_in_response(self) -> None:
         """Test response with empty content."""
         openai_response = ChatCompletion(
             id="test-empty",
@@ -669,7 +670,7 @@ class TestResponseConversionEdgeCases:
         assert len(result.content) >= 1
 
     @pytest.mark.anyio
-    async def test_large_tool_arguments_async_parsing(self):
+    async def test_large_tool_arguments_async_parsing(self) -> None:
         """Test async parsing for large tool arguments."""
         # Create large arguments (> 1000 chars)
         large_args = {"data": "x" * 2000, "items": list(range(100))}
@@ -709,7 +710,7 @@ class TestResponseConversionEdgeCases:
         assert len(tool_use.input["data"]) == 2000
 
     @pytest.mark.anyio
-    async def test_response_with_zero_usage(self):
+    async def test_response_with_zero_usage(self) -> None:
         """Test response with zero usage tokens."""
         openai_response = ChatCompletion(
             id="test-zero-usage",
@@ -740,7 +741,7 @@ class TestResponseConversionEdgeCases:
 class TestSyncConvertFallback:
     """Test synchronous convert method fallback."""
 
-    def test_sync_convert_fallback(self):
+    def test_sync_convert_fallback(self) -> Any:
         """Test that sync convert method uses AnthropicToOpenAIConverter."""
         from ccproxy.application.converters_module.base import ConversionContext
         from unittest.mock import MagicMock
@@ -766,7 +767,7 @@ class TestToolUseSingleMessageConversion:
     """Test tool use handling in single message conversion."""
 
     @pytest.mark.anyio
-    async def test_single_message_tool_use_conversion(self):
+    async def test_single_message_tool_use_conversion(self) -> None:
         """Test conversion when single message contains tool_use content block (line 155)."""
         from ccproxy.domain.models import ContentBlockToolUse
 
@@ -799,7 +800,7 @@ class TestComplexMessageAsyncStringConversion:
     """Test async string conversion in complex message handling."""
 
     @pytest.mark.anyio
-    async def test_mixed_text_and_other_content_types(self):
+    async def test_mixed_text_and_other_content_types(self) -> None:
         """Test text_and_non_text branch (line 207) with unknown content types triggering async str conversion (lines 201-203, 216-221)."""
         from ccproxy.domain.models import ContentBlockText
 
@@ -827,7 +828,7 @@ class TestComplexMessageAsyncStringConversion:
         )
 
     @pytest.mark.anyio
-    async def test_only_non_text_content_blocks_array_format(self):
+    async def test_only_non_text_content_blocks_array_format(self) -> None:
         """Test only non-text content blocks requiring array format (line 227)."""
         from ccproxy.domain.models import ContentBlockToolUse
 

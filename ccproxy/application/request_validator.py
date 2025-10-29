@@ -41,13 +41,13 @@ if not _USING_CYTHON:
 
     def cython_generate_request_hash(json_str: str) -> str:
         """Generate hash for a JSON request string."""
-        return compute_sha256_hex_from_str(json_str)
+        return compute_sha256_hex_from_str(json_str)  # type: ignore[no-any-return]
 
 
 class RequestValidator:
     """Validates and caches request validation results."""
 
-    def __init__(self, cache_size: int = 10000):
+    def __init__(self, cache_size: int = 10000) -> Any:
         """Create a request validator with an LRU cache.
 
         Parameters
@@ -76,7 +76,7 @@ class RequestValidator:
         Uses SHA-256 for cryptographic security to prevent hash collision attacks.
         Uses Cython-optimized hashing for 15-25% performance improvement.
         """
-        return cython_generate_request_hash(request_json)
+        return cython_generate_request_hash(request_json)  # type: ignore[no-any-return]
 
     def validate_request(
         self, raw_body: Dict[str, Any], request_id: Optional[str] = None

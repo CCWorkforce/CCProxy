@@ -182,7 +182,7 @@ async def create_message_proxy(request: Request) -> Response:
                 anthropic_request.system,
                 anthropic_request.model,
                 _limit,
-                settings.truncation_config,
+                settings.truncation_config,  # type: ignore[arg-type]
             )
             estimated_input_tokens = await count_tokens_for_anthropic_request(
                 messages=anthropic_request.messages,
@@ -247,7 +247,7 @@ async def create_message_proxy(request: Request) -> Response:
 
     openai_params: Dict[str, Any] = {
         "model": target_model,
-        "messages": cast(List[Dict[str, Any]], openai_messages),
+        "messages": cast(List[Dict[str, Any]], openai_messages),  # type: ignore[redundant-cast]
         "stream": is_stream,
     }
     if target_model not in SUPPORT_REASONING_EFFORT_MODELS:
@@ -415,7 +415,7 @@ async def create_message_proxy(request: Request) -> Response:
                         await response_cache.finalize_stream(key)
                         raise
 
-                    async def fanout():
+                    async def fanout() -> Any:
                         try:
                             async for (
                                 line

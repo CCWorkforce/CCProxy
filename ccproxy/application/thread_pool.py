@@ -29,7 +29,7 @@ _cpu_threshold: int = 80  # Default threshold
 _shrink_events: int = 0
 _last_low_cpu_time: Optional[float] = None
 _pool_utilization_history: list[float] = []
-_pool_resize_events: list[dict] = []  # Track resize events for metrics
+_pool_resize_events: list[dict[str, Any]] = []
 
 
 def initialize_thread_pool(settings: Settings) -> None:
@@ -140,7 +140,7 @@ def get_thread_limiter() -> Optional[CapacityLimiter]:
     return _thread_limiter
 
 
-def check_cpu_contention() -> dict:
+def check_cpu_contention() -> dict[str, Any]:
     """Check current CPU utilization to detect contention.
 
     Returns:
@@ -370,7 +370,7 @@ def configure_for_high_load() -> None:
             _last_low_cpu_time = None
 
 
-def get_pool_stats() -> dict:
+def get_pool_stats() -> dict[str, Any]:
     """Get current thread pool statistics including shrink metrics.
 
     Returns:

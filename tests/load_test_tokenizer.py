@@ -1,9 +1,9 @@
 """Load test for tokenizer sharded cache to measure lock contention improvements."""
 
-import asyncio
 import time
 import statistics
-from typing import Tuple
+from typing import Tuple, Any
+import anyio
 
 from ccproxy.application.tokenizer import (
     count_tokens_for_anthropic_request,
@@ -15,7 +15,7 @@ from ccproxy.config import Settings
 
 async def benchmark_cache_contention(
     num_requests: int = 100, num_shards: int = 16, cache_enabled: bool = True
-) -> Tuple[float, float, dict]:
+) -> Tuple[float, float, dict]:  # type: ignore[type-arg]
     """Measure cache performance under high concurrency.
 
     Args:
@@ -50,18 +50,23 @@ async def benchmark_cache_contention(
         f"\nRunning {num_requests} concurrent requests (shards={num_shards}, cache={cache_enabled})..."
     )
     start = time.time()
-    tasks = [
-        count_tokens_for_anthropic_request(
+
+    # Run tasks concurrently using anyio task groups
+    results: list[Any] = [None] * len(message_sets)
+    async def run_task(idx: int, msgs: list) -> None:  # type: ignore[type-arg]
+        results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
             system=None,
             model_name="gpt-4",
             tools=None,
-            request_id=f"req_{i}",
+            request_id=f"req_{idx}",
             settings=settings,
         )
-        for i, msgs in enumerate(message_sets)
-    ]
-    results = await asyncio.gather(*tasks)
+
+    async with anyio.create_task_group() as tg:
+        for i, msgs in enumerate(message_sets):
+            tg.start_soon(run_task, i, msgs)
+
     first_run_time = time.time() - start
 
     print(f"First run completed in {first_run_time:.3f}s")
@@ -70,18 +75,23 @@ async def benchmark_cache_contention(
     # Second run - should hit cache if enabled
     print("\nRunning cached requests...")
     start = time.time()
-    tasks = [
-        count_tokens_for_anthropic_request(
+
+    # Run cached tasks concurrently using anyio task groups
+    cached_results: list[Any] = [None] * len(message_sets)
+    async def run_cached_task(idx: int, msgs: list) -> None:  # type: ignore[type-arg]
+        cached_results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
             system=None,
             model_name="gpt-4",
             tools=None,
-            request_id=f"req_cached_{i}",
+            request_id=f"req_cached_{idx}",
             settings=settings,
         )
-        for i, msgs in enumerate(message_sets)
-    ]
-    cached_results = await asyncio.gather(*tasks)
+
+    async with anyio.create_task_group() as tg:
+        for i, msgs in enumerate(message_sets):
+            tg.start_soon(run_cached_task, i, msgs)
+
     cached_run_time = time.time() - start
 
     print(f"Cached run completed in {cached_run_time:.3f}s")
@@ -93,7 +103,7 @@ async def benchmark_cache_contention(
     return first_run_time, cached_run_time, stats_final
 
 
-async def compare_shard_configurations():
+async def compare_shard_configurations() -> None:
     """Compare performance across different shard configurations."""
     print("=" * 60)
     print("Token Cache Sharding Performance Test")
@@ -184,7 +194,7 @@ async def compare_shard_configurations():
         print(f"Improvement over single shard: {improvement:.1f}%")
 
 
-async def stress_test_high_concurrency():
+async def stress_test_high_concurrency() -> None:
     """Test with very high concurrency to stress the sharding system."""
     print("\n" + "=" * 60)
     print("HIGH CONCURRENCY STRESS TEST")
@@ -215,7 +225,7 @@ async def stress_test_high_concurrency():
             print(f"  Failed with error: {e}")
 
 
-async def main():
+async def main() -> None:
     """Run all performance tests."""
     # Compare different shard configurations
     await compare_shard_configurations()
@@ -229,4 +239,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    anyio.run(main)

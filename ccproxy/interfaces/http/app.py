@@ -26,12 +26,13 @@ try:
     tracing_available = True
 except ImportError:
     tracing_available = False
-    init_tracing = None
+    init_tracing = None  # type: ignore[assignment]
 from .routes.messages import router as messages_router
 from .routes.health import router as health_router
 from .routes.monitoring import router as monitoring_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from typing import Any
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -49,7 +50,7 @@ def create_app(settings: Settings) -> FastAPI:
     init_logging(settings)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> Any:
         # Initialize thread pool for CPU-bound operations
         logging.info("Initializing thread pool for CPU-bound operations")
         initialize_thread_pool(settings)
@@ -117,9 +118,11 @@ def create_app(settings: Settings) -> FastAPI:
 
         logging.info("Starting response cache cleanup task")
         await app.state.response_cache.start_cleanup_task()
+        logging.info("Response cache cleanup task started successfully")
 
         logging.info("Initializing error tracker")
         await app.state.error_tracker.initialize(settings)
+        logging.info("Error tracker initialized successfully")
 
         # Initialize cache warmup manager if enabled
         if settings.cache_warmup_enabled:
@@ -138,8 +141,11 @@ def create_app(settings: Settings) -> FastAPI:
                 cache=app.state.response_cache,
                 config=warmup_config,
             )
+            logging.info("Starting cache warmup manager")
             await app.state.cache_warmup_manager.start()
-            logging.info("Cache warmup manager started")
+            logging.info("Cache warmup manager started successfully")
+
+        logging.info("✓ Application startup complete - server ready to accept requests")
 
         try:
             yield
@@ -232,7 +238,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(monitoring_router, tags=["Monitoring"])
 
     @app.exception_handler(openai.APIError)
-    async def openai_api_error_handler(request: Request, exc: openai.APIError):
+    async def openai_api_error_handler(request: Request, exc: openai.APIError) -> Any:
         err_type, err_msg, err_status, prov_details = (
             get_anthropic_error_details_from_execution(exc)
         )
@@ -241,7 +247,9 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.exception_handler(ValidationError)
-    async def pydantic_validation_error_handler(request: Request, exc: ValidationError):
+    async def pydantic_validation_error_handler(
+        request: Request, exc: ValidationError
+    ) -> Any:
         return await log_and_return_error_response(
             request,
             422,
@@ -251,7 +259,9 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.exception_handler(json.JSONDecodeError)
-    async def json_decode_error_handler(request: Request, exc: json.JSONDecodeError):
+    async def json_decode_error_handler(
+        request: Request, exc: json.JSONDecodeError
+    ) -> Any:
         return await log_and_return_error_response(
             request,
             400,
@@ -261,7 +271,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception):
+    async def generic_exception_handler(request: Request, exc: Exception) -> Any:
         return await log_and_return_error_response(
             request,
             500,

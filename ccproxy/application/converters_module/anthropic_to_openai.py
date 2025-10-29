@@ -18,17 +18,42 @@ from ...logging import debug, LogRecord, LogEvent
 from ..type_utils import (
     is_string_content,
     is_list_content,
-    is_text_block,
-    is_image_block,
-    is_tool_use_block,
-    is_tool_result_block,
 )
+
+
+# Local type checking helpers
+def is_text_block(obj: Any) -> bool:
+    """Check if object is a text block."""
+    return isinstance(obj, ContentBlockText) or (
+        hasattr(obj, "type") and obj.type == "text" and hasattr(obj, "text")
+    )
+
+
+def is_image_block(obj: Any) -> bool:
+    """Check if object is an image block."""
+    return isinstance(obj, ContentBlockImage) or (
+        hasattr(obj, "type") and obj.type == "image"
+    )
+
+
+def is_tool_use_block(obj: Any) -> bool:
+    """Check if object is a tool use block."""
+    return isinstance(obj, ContentBlockToolUse) or (
+        hasattr(obj, "type") and obj.type == "tool_use"
+    )
+
+
+def is_tool_result_block(obj: Any) -> bool:
+    """Check if object is a tool result block."""
+    return isinstance(obj, ContentBlockToolResult) or (
+        hasattr(obj, "type") and obj.type == "tool_result"
+    )
 
 
 class AnthropicToOpenAIConverter(MessageConverter):
     """Converts Anthropic messages to OpenAI format."""
 
-    def __init__(self, context: Optional[ConversionContext] = None):
+    def __init__(self, context: Optional[ConversionContext] = None) -> Any:
         super().__init__(context)
         self.content_converter = ContentConverter()
         self.tool_converter = ToolConverter()
@@ -71,10 +96,10 @@ class AnthropicToOpenAIConverter(MessageConverter):
         if not content:
             return {"role": role, "content": ""}
 
-        openai_parts = []
-        tool_calls = []
-        text_content = []
-        tool_results = []
+        openai_parts: List[Dict[str, Any]] = []
+        tool_calls: List[Dict[str, Any]] = []
+        text_content: List[str] = []
+        tool_results: List[Dict[str, Any]] = []
 
         for block_idx, block in enumerate(content):
             block_log_ctx = {
@@ -84,29 +109,56 @@ class AnthropicToOpenAIConverter(MessageConverter):
 
             if isinstance(block, ContentBlockText) or is_text_block(block):
                 if role == "user":
-                    openai_parts.append({"type": "text", "text": block.text})
+                    text = (
+                        block.text
+                        if isinstance(block, ContentBlockText)
+                        else getattr(block, "text", str(block))
+                    )
+                    openai_parts.append({"type": "text", "text": text})
                 elif role == "assistant":
-                    text_content.append(block.text)
+                    text = (
+                        block.text
+                        if isinstance(block, ContentBlockText)
+                        else getattr(block, "text", str(block))
+                    )
+                    text_content.append(text)
 
             elif (
                 isinstance(block, ContentBlockImage) or is_image_block(block)
             ) and role == "user":
-                openai_parts.append(
-                    self.content_converter.convert_image_block_to_openai(block)
-                )
+                if isinstance(block, ContentBlockImage):
+                    openai_parts.append(
+                        self.content_converter.convert_image_block_to_openai(block)
+                    )
+                else:
+                    # Handle dict-like image blocks
+                    openai_parts.append(
+                        self.content_converter.convert_image_block_to_openai(block)  # type: ignore[arg-type]
+                    )
 
             elif (
                 isinstance(block, ContentBlockToolUse) or is_tool_use_block(block)
             ) and role == "assistant":
-                tool_call = self.content_converter.convert_tool_use_to_openai(
-                    block, len(tool_calls)
-                )
+                if isinstance(block, ContentBlockToolUse):
+                    tool_call = self.content_converter.convert_tool_use_to_openai(
+                        block, len(tool_calls)
+                    )
+                else:
+                    # Handle dict-like tool use blocks
+                    tool_call = self.content_converter.convert_tool_use_to_openai(
+                        block,
+                        len(tool_calls),  # type: ignore[arg-type]
+                    )
                 tool_calls.append(tool_call)
 
             elif (
                 isinstance(block, ContentBlockToolResult) or is_tool_result_block(block)
             ) and role == "user":
-                tool_results.append(self._convert_tool_result(block, block_log_ctx))
+                if isinstance(block, ContentBlockToolResult):
+                    tool_results.append(self._convert_tool_result(block, block_log_ctx))
+                else:
+                    # Handle dict-like tool result blocks
+                    tool_results.append(self._convert_tool_result(block, block_log_ctx))  # type: ignore[arg-type]
 
             else:
                 debug(
@@ -118,12 +170,14 @@ class AnthropicToOpenAIConverter(MessageConverter):
                     )
                 )
 
-        return self._assemble_openai_message(
+        return self._assemble_openai_message(  # type: ignore[return-value]
             role, openai_parts, text_content, tool_calls, tool_results
         )
 
     def _convert_tool_result(
-        self, block: ContentBlockToolResult, log_context: Dict
+        self,
+        block: ContentBlockToolResult,
+        log_context: Dict,  # type: ignore[type-arg]
     ) -> Dict[str, Any]:
         """Convert a tool result block to OpenAI format."""
         content_str = self.content_converter.serialize_tool_result_content(
@@ -138,10 +192,10 @@ class AnthropicToOpenAIConverter(MessageConverter):
     def _assemble_openai_message(
         self,
         role: str,
-        openai_parts: List,
-        text_content: List,
-        tool_calls: List,
-        tool_results: List,
+        openai_parts: List[Dict[str, Any]],
+        text_content: List[str],
+        tool_calls: List[Dict[str, Any]],
+        tool_results: List[Dict[str, Any]],
     ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Assemble the final OpenAI message(s) from converted parts."""
         messages = []
@@ -158,9 +212,9 @@ class AnthropicToOpenAIConverter(MessageConverter):
             if text_content:
                 assistant_msg["content"] = "\n".join(text_content)
             else:
-                assistant_msg["content"] = None
+                assistant_msg["content"] = None  # type: ignore[assignment]
             if tool_calls:
-                assistant_msg["tool_calls"] = tool_calls
+                assistant_msg["tool_calls"] = tool_calls  # type: ignore[assignment]
             messages.append(assistant_msg)
 
         # Tool results become separate messages
@@ -171,7 +225,7 @@ class AnthropicToOpenAIConverter(MessageConverter):
     def convert_messages(
         self,
         messages: List[Message],
-        system_prompt: Optional[Union[str, List]] = None,
+        system_prompt: Optional[Union[str, List]] = None,  # type: ignore[type-arg]
     ) -> List[Dict[str, Any]]:
         """
         Convert a list of Anthropic messages to OpenAI format.
@@ -193,8 +247,8 @@ class AnthropicToOpenAIConverter(MessageConverter):
         # Convert each message
         for msg in messages:
             converted = self.convert_message(msg)
-            if isinstance(converted, list):
-                openai_messages.extend(converted)
+            if isinstance(converted, list):  # type: ignore[unreachable]
+                openai_messages.extend(converted)  # type: ignore[unreachable]
             else:
                 openai_messages.append(converted)
 
@@ -271,7 +325,8 @@ class AnthropicToOpenAIConverter(MessageConverter):
                                 msg["content"] = ""
 
     def _convert_system_prompt(
-        self, system_prompt: Union[str, List]
+        self,
+        system_prompt: Union[str, List],  # type: ignore[type-arg]
     ) -> List[Dict[str, Any]]:
         """Convert system prompt to OpenAI format."""
         system_text = self.content_converter.extract_system_text(
