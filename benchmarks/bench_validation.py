@@ -229,9 +229,7 @@ def benchmark_validate_message_structure(iterations=30000) -> Any:
         start = time.time()
         for _ in range(iterations):
             if cython_validation is not None:
-                cython_validation.validate_message_structure(
-                        VALID_MESSAGE_WITH_BLOCKS
-                    )  # type: ignore[attr-defined]
+                cython_validation.validate_message_structure(VALID_MESSAGE_WITH_BLOCKS)  # type: ignore[attr-defined]
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100

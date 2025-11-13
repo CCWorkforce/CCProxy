@@ -235,6 +235,7 @@ async def test_concurrent_shard_access(clean_cache_state: Any) -> None:
 
     # Run tasks concurrently using anyio task groups
     results: list[Any] = [None] * len(messages_list)
+
     async def run_task(idx: int, msgs: list[Message]) -> None:
         results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
@@ -260,6 +261,7 @@ async def test_concurrent_shard_access(clean_cache_state: Any) -> None:
 
     # Run cached tasks concurrently using anyio task groups
     cached_results: list[Any] = [None] * len(messages_list)
+
     async def run_cached_task(idx: int, msgs: list[Message]) -> None:
         cached_results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,

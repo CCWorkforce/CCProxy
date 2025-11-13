@@ -53,6 +53,7 @@ async def benchmark_cache_contention(
 
     # Run tasks concurrently using anyio task groups
     results: list[Any] = [None] * len(message_sets)
+
     async def run_task(idx: int, msgs: list) -> None:  # type: ignore[type-arg]
         results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,
@@ -78,6 +79,7 @@ async def benchmark_cache_contention(
 
     # Run cached tasks concurrently using anyio task groups
     cached_results: list[Any] = [None] * len(message_sets)
+
     async def run_cached_task(idx: int, msgs: list) -> None:  # type: ignore[type-arg]
         cached_results[idx] = await count_tokens_for_anthropic_request(
             messages=msgs,

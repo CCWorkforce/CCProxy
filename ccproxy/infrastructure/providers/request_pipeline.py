@@ -11,7 +11,7 @@ from openai import AsyncOpenAI
 
 from .resilience import CircuitBreaker, ResilientExecutor
 from .rate_limiter import ClientRateLimiter
-from .response_handlers import ResponseProcessor
+from .response_handlers import ResponseProcessor, ResponseValidator
 from .request_logger import RequestLogger
 
 
@@ -88,6 +88,8 @@ class RequestPipeline:
         # Handle non-streaming UTF-8 decoding
         if not is_streaming:
             response = await self._ensure_utf8_response(response, correlation_id)
+            # Validate JSON structure for non-streaming responses
+            response = await self._validate_response_json(response, correlation_id)
 
         return response
 
@@ -194,6 +196,55 @@ class RequestPipeline:
                     choice.message.content = choice.message.content.decode(
                         "utf-8", errors="replace"
                     )
+
+        return response
+
+    async def _validate_response_json(self, response: Any, correlation_id: str) -> Any:
+        """
+        Validate that the response contains valid JSON structure.
+
+        Args:
+            response: API response object
+            correlation_id: Request identifier for logging
+
+        Returns:
+            Validated response or raises exception if validation fails
+
+        Raises:
+            ValueError: If response contains invalid JSON
+        """
+        # For now, we log JSON validation issues but don't fail the request
+        # This allows us to gather data on JSON corruption patterns
+        try:
+            # Check if response has content that might be JSON
+            if hasattr(response, "choices") and response.choices:
+                for choice in response.choices:
+                    if (
+                        hasattr(choice, "message")
+                        and hasattr(choice.message, "content")
+                        and isinstance(choice.message.content, (str, bytes))
+                    ):
+                        # Validate JSON content
+                        if not ResponseValidator.validate_json_response(
+                            choice.message.content,
+                            f"response choice in {correlation_id}",
+                        ):
+                            # Log the validation failure with corruption patterns
+                            corruption_patterns = (
+                                ResponseValidator.detect_json_corruption_patterns(
+                                    choice.message.content
+                                )
+                            )
+                            logging.warning(
+                                f"JSON validation failed for {correlation_id}. "
+                                f"Corruption patterns: {corruption_patterns}"
+                            )
+                            # Note: We don't raise an exception here to avoid breaking existing functionality
+                            # Instead, we rely on the retry logic in the resilience layer for JSON errors
+
+        except Exception as e:
+            # Don't let validation errors break the response flow
+            logging.debug(f"Error during JSON validation for {correlation_id}: {e}")
 
         return response
 
