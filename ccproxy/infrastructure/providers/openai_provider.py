@@ -6,6 +6,7 @@ Supports multiple HTTP client backends for maximum performance.
 import json
 import logging
 import time
+from json.decoder import JSONDecodeError
 from typing import Any, Optional, Dict, List
 
 import openai
@@ -183,6 +184,18 @@ class OpenAIProvider:
             await self._lifecycle_observer.on_failure(
                 correlation_id, request_start, e, ErrorType.AUTH_ERROR
             )
+            raise
+
+        except JSONDecodeError as e:
+            # Handle JSON parsing errors specifically
+            await self._lifecycle_observer.on_failure(
+                correlation_id, request_start, e, ErrorType.API_ERROR
+            )
+            logging.warning(
+                f"JSON decode error in {correlation_id}: {e}. "
+                f"This error will be handled by retry logic in the resilience layer."
+            )
+            # Re-raise to let the resilience layer handle retry logic
             raise
 
         except Exception as e:

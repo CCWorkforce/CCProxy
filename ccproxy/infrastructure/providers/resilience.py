@@ -8,6 +8,7 @@ import logging
 import random
 from datetime import datetime
 from enum import Enum
+from json.decoder import JSONDecodeError
 from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 
 import httpx
@@ -200,14 +201,21 @@ class RetryHandler:
                 httpx.ConnectError,
                 httpx.TimeoutException,
                 httpx.NetworkError,
+                JSONDecodeError,
             ) as e:
                 if attempt >= self.max_retries:
                     raise e
                 delay = self._calculate_delay(attempt)
-                logging.debug(
-                    f"Network error, retrying in {delay:.2f}s "
-                    f"(attempt {attempt + 1}/{self.max_retries}): {e}"
-                )
+                if isinstance(e, JSONDecodeError):
+                    logging.debug(
+                        f"JSON decode error, retrying in {delay:.2f}s "
+                        f"(attempt {attempt + 1}/{self.max_retries}): {e}"
+                    )
+                else:
+                    logging.debug(
+                        f"Network error, retrying in {delay:.2f}s "
+                        f"(attempt {attempt + 1}/{self.max_retries}): {e}"
+                    )
                 await anyio.sleep(delay)
                 attempt += 1
 
