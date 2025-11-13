@@ -308,7 +308,7 @@ async def test_concurrent_request_starts(mock_components: MagicMock) -> None:
                 observer.on_request_start,
                 req["correlation_id"],
                 req["params"],
-                req["trace_id"]
+                req["trace_id"],
             )
 
     # Verify all calls were made
@@ -350,7 +350,7 @@ async def test_concurrent_with_varying_error_types(mock_components: MagicMock) -
                     f"fail-{i}",
                     time.monotonic(),
                     Exception(f"Error {i}"),
-                    error_type
+                    error_type,
                 )
 
         # Verify all failures were recorded

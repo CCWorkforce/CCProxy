@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from json.decoder import JSONDecodeError
 
-from ccproxy.infrastructure.providers.resilience import CircuitBreaker, RetryHandler, ResilientExecutor
+from ccproxy.infrastructure.providers.resilience import (
+    CircuitBreaker,
+    RetryHandler,
+    ResilientExecutor,
+)
 from ccproxy.infrastructure.providers.response_handlers import (
     ErrorResponseHandler,
     ResponseValidator,
@@ -18,17 +22,26 @@ class TestResponseValidator:
     def test_validate_json_response_valid_json_string(self) -> None:
         """Test validation of valid JSON string."""
         valid_json = '{"message": "Hello, World!", "count": 42}'
-        assert ResponseValidator.validate_json_response(valid_json, "test response") is True
+        assert (
+            ResponseValidator.validate_json_response(valid_json, "test response")
+            is True
+        )
 
     def test_validate_json_response_valid_json_bytes(self) -> None:
         """Test validation of valid JSON bytes."""
         valid_json = b'{"message": "Hello, World!", "count": 42}'
-        assert ResponseValidator.validate_json_response(valid_json, "test response") is True
+        assert (
+            ResponseValidator.validate_json_response(valid_json, "test response")
+            is True
+        )
 
     def test_validate_json_response_invalid_json(self) -> None:
         """Test validation of invalid JSON."""
         invalid_json = '{"message": "unclosed object"'
-        assert ResponseValidator.validate_json_response(invalid_json, "test response") is False
+        assert (
+            ResponseValidator.validate_json_response(invalid_json, "test response")
+            is False
+        )
 
     def test_validate_json_response_empty_string(self) -> None:
         """Test validation of empty string."""
@@ -47,7 +60,10 @@ class TestResponseValidator:
     def test_validate_json_response_malformed_utf8_bytes(self) -> None:
         """Test validation of malformed UTF-8 bytes."""
         malformed_bytes = b"\xff\xfe\x00\x00"  # Invalid UTF-8 sequence
-        assert ResponseValidator.validate_json_response(malformed_bytes, "test response") is False
+        assert (
+            ResponseValidator.validate_json_response(malformed_bytes, "test response")
+            is False
+        )
 
     def test_safe_parse_json_valid_json(self) -> None:
         """Test safe parsing of valid JSON."""
@@ -119,7 +135,10 @@ class TestResponseValidator:
         assert error_response["error"]["validation_context"] == context
         assert "corruption_patterns" in error_response["error"]
         assert "response_preview" in error_response["error"]
-        assert "unmatched_braces_truncated_json" in error_response["error"]["corruption_patterns"]
+        assert (
+            "unmatched_braces_truncated_json"
+            in error_response["error"]["corruption_patterns"]
+        )
 
     def test_create_validation_error_response_without_content(self) -> None:
         """Test creation of validation error response without content."""
@@ -199,7 +218,9 @@ class TestRetryHandler:
         """Test that JSON error retry attempts are logged."""
         retry_handler = RetryHandler(max_retries=1, base_delay=0.01)
 
-        with patch("ccproxy.infrastructure.providers.resilience.logging") as mock_logging:
+        with patch(
+            "ccproxy.infrastructure.providers.resilience.logging"
+        ) as mock_logging:
 
             async def failing_function() -> str:
                 raise JSONDecodeError("Expecting value", '{"invalid": }', 15)
@@ -210,7 +231,9 @@ class TestRetryHandler:
             # Check that debug logging was called for JSON decode error
             mock_logging.debug.assert_called()
             calls = mock_logging.debug.call_args_list
-            json_retry_call = any("JSON decode error, retrying" in str(call) for call in calls)
+            json_retry_call = any(
+                "JSON decode error, retrying" in str(call) for call in calls
+            )
             assert json_retry_call is True
 
 
@@ -225,9 +248,7 @@ class TestCircuitBreaker:
         # First two JSON errors should open the circuit
         for _ in range(2):
             try:
-                await circuit_breaker.call(
-                    self._failing_function_with_json_error
-                )
+                await circuit_breaker.call(self._failing_function_with_json_error)
             except JSONDecodeError:
                 pass  # Expected
 
@@ -257,7 +278,7 @@ class TestIntegration:
 
         resilient_executor = ResilientExecutor(
             circuit_breaker=CircuitBreaker(failure_threshold=3),
-            retry_handler=RetryHandler(max_retries=2, base_delay=0.01)
+            retry_handler=RetryHandler(max_retries=2, base_delay=0.01),
         )
 
         call_count = 0
@@ -295,7 +316,7 @@ class TestIntegration:
             resilient_executor=mock_resilient_executor,
             rate_limiter=mock_rate_limiter,
             request_logger=mock_request_logger,
-            response_processor=mock_response_processor
+            response_processor=mock_response_processor,
         )
 
         # Mock response with invalid JSON content
@@ -305,7 +326,10 @@ class TestIntegration:
         mock_client.chat.completions.create.return_value = mock_response
 
         # Process request
-        params = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "test"}]}
+        params = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "test"}],
+        }
         response = await pipeline.process_request(params, "test-correlation-id")
 
         # Response should be returned even with validation warning

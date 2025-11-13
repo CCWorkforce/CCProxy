@@ -259,7 +259,9 @@ class ResponseValidator:
     """Validates API responses for JSON structure and content integrity."""
 
     @staticmethod
-    def validate_json_response(response_content: Union[str, bytes], context: str = "API response") -> bool:
+    def validate_json_response(
+        response_content: Union[str, bytes], context: str = "API response"
+    ) -> bool:
         """
         Validate that response content is valid JSON.
 
@@ -274,12 +276,14 @@ class ResponseValidator:
             ValueError: If response_content is not a valid type
         """
         if not isinstance(response_content, (str, bytes)):
-            raise ValueError(f"Response content must be str or bytes, got {type(response_content)}")
+            raise ValueError(
+                f"Response content must be str or bytes, got {type(response_content)}"
+            )
 
         try:
             # Convert bytes to string if needed
             if isinstance(response_content, bytes):
-                content_str = response_content.decode('utf-8')
+                content_str = response_content.decode("utf-8")
             else:
                 content_str = response_content
 
@@ -294,18 +298,16 @@ class ResponseValidator:
             )
             return False
         except UnicodeDecodeError as e:
-            logging.error(
-                f"Failed to decode response bytes in {context}: {e}"
-            )
+            logging.error(f"Failed to decode response bytes in {context}: {e}")
             return False
         except Exception as e:
-            logging.error(
-                f"Unexpected error validating JSON in {context}: {e}"
-            )
+            logging.error(f"Unexpected error validating JSON in {context}: {e}")
             return False
 
     @staticmethod
-    def safe_parse_json(response_content: Union[str, bytes], context: str = "API response") -> Optional[Dict[str, Any]]:
+    def safe_parse_json(
+        response_content: Union[str, bytes], context: str = "API response"
+    ) -> Optional[Dict[str, Any]]:
         """
         Safely parse JSON response with comprehensive error handling.
 
@@ -322,7 +324,7 @@ class ResponseValidator:
         try:
             # Convert bytes to string if needed
             if isinstance(response_content, bytes):
-                content_str = response_content.decode('utf-8')
+                content_str = response_content.decode("utf-8")
             else:
                 content_str = response_content
 
@@ -331,13 +333,13 @@ class ResponseValidator:
 
         except Exception as e:
             # This should rarely happen since we validated first, but handle just in case
-            logging.error(
-                f"Unexpected error parsing validated JSON in {context}: {e}"
-            )
+            logging.error(f"Unexpected error parsing validated JSON in {context}: {e}")
             return None
 
     @staticmethod
-    def detect_json_corruption_patterns(response_content: Union[str, bytes]) -> list[str]:
+    def detect_json_corruption_patterns(
+        response_content: Union[str, bytes],
+    ) -> list[str]:
         """
         Detect common patterns of JSON corruption.
 
@@ -350,7 +352,7 @@ class ResponseValidator:
         issues = []
 
         if isinstance(response_content, bytes):
-            content_str = response_content.decode('utf-8', errors='replace')
+            content_str = response_content.decode("utf-8", errors="replace")
         else:
             content_str = response_content
 
@@ -364,7 +366,9 @@ class ResponseValidator:
         if content_str.startswith("<?xml"):
             issues.append("xml_response_instead_of_json")
 
-        if "error" in content_str.lower() and ("500" in content_str or "502" in content_str or "503" in content_str):
+        if "error" in content_str.lower() and (
+            "500" in content_str or "502" in content_str or "503" in content_str
+        ):
             issues.append("server_error_response")
 
         if len(content_str) < 10 and not content_str.strip().startswith("{"):
@@ -390,7 +394,7 @@ class ResponseValidator:
     def create_validation_error_response(
         original_error: Exception,
         response_content: Optional[Union[str, bytes]] = None,
-        context: str = "API response"
+        context: str = "API response",
     ) -> Dict[str, Any]:
         """
         Create a structured error response for JSON validation failures.
@@ -414,13 +418,17 @@ class ResponseValidator:
 
         # Add corruption pattern detection if response content is available
         if response_content is not None:
-            corruption_patterns = ResponseValidator.detect_json_corruption_patterns(response_content)
+            corruption_patterns = ResponseValidator.detect_json_corruption_patterns(
+                response_content
+            )
             if corruption_patterns:
                 error_response["error"]["corruption_patterns"] = corruption_patterns
 
             # Add response preview (first 300 characters) for debugging
             if isinstance(response_content, bytes):
-                content_preview = response_content[:300].decode('utf-8', errors='replace')
+                content_preview = response_content[:300].decode(
+                    "utf-8", errors="replace"
+                )
             else:
                 content_preview = response_content[:300]
 

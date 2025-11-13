@@ -226,11 +226,14 @@ class RequestPipeline:
                     ):
                         # Validate JSON content
                         if not ResponseValidator.validate_json_response(
-                            choice.message.content, f"response choice in {correlation_id}"
+                            choice.message.content,
+                            f"response choice in {correlation_id}",
                         ):
                             # Log the validation failure with corruption patterns
-                            corruption_patterns = ResponseValidator.detect_json_corruption_patterns(
-                                choice.message.content
+                            corruption_patterns = (
+                                ResponseValidator.detect_json_corruption_patterns(
+                                    choice.message.content
+                                )
                             )
                             logging.warning(
                                 f"JSON validation failed for {correlation_id}. "
@@ -241,9 +244,7 @@ class RequestPipeline:
 
         except Exception as e:
             # Don't let validation errors break the response flow
-            logging.debug(
-                f"Error during JSON validation for {correlation_id}: {e}"
-            )
+            logging.debug(f"Error during JSON validation for {correlation_id}: {e}")
 
         return response
 

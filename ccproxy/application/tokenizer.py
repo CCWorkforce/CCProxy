@@ -34,6 +34,7 @@ class TruncationConfig:
     min_tokens: int = 100
     preserve_system: bool = True
 
+
 # Try to import Cython-optimized functions
 if CYTHON_ENABLED:
     try:

@@ -73,8 +73,8 @@ def benchmark_build_sse_event(iterations=50000) -> None:  # type: ignore[no-unty
         for _ in range(iterations):
             if cython_stream_state is not None:
                 cython_stream_state.build_sse_event(  # type: ignore[attr-defined]
-                        "content_block_delta", CONTENT_BLOCK_DELTA_DATA
-                    )
+                    "content_block_delta", CONTENT_BLOCK_DELTA_DATA
+                )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -113,8 +113,8 @@ def benchmark_format_content_block_start(iterations=25000) -> None:  # type: ign
         for _ in range(iterations):
             if cython_stream_state is not None:
                 cython_stream_state.format_content_block_start(  # type: ignore[attr-defined]
-                        0, "text", {"type": "text", "text": "Hello"}
-                    )
+                    0, "text", {"type": "text", "text": "Hello"}
+                )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -153,8 +153,8 @@ def benchmark_format_content_block_delta(iterations=100000) -> None:  # type: ig
         for _ in range(iterations):
             if cython_stream_state is not None:
                 cython_stream_state.format_content_block_delta(  # type: ignore[attr-defined]
-                        0, {"type": "text_delta", "text": "word"}
-                    )
+                    0, {"type": "text_delta", "text": "word"}
+                )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
@@ -200,8 +200,8 @@ def benchmark_format_message_start(iterations=10000) -> None:  # type: ignore[no
         for _ in range(iterations):
             if cython_stream_state is not None:
                 cython_stream_state.format_message_start(  # type: ignore[attr-defined]
-                        "msg_123", "claude-3-5-sonnet-20241022", 100
-                    )
+                    "msg_123", "claude-3-5-sonnet-20241022", 100
+                )
         cython_time = time.time() - start
 
         improvement = (baseline_time - cython_time) / baseline_time * 100
