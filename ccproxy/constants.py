@@ -117,6 +117,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("baidu/ernie-4.5-21b-a3b-thinking", 131_072),
         ("inclusionai/ling-1t", 131_072),
         ("inclusionai/ring-1t", 131_072),
+        ("kwaipilot/kat-coder-pro:free", 256_000),
     }
 )
 
@@ -155,6 +156,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("inclusionai/ring-1t", 30_720),
         ("qwen/qwen3-vl-235b-a22b-thinking", 32_768),
         ("qwen/qwen3-vl-30b-a3b-thinking", 262_144),
+        ("kwaipilot/kat-coder-pro:free", 32_000),
     }
 )
 
