@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=80.9.0", "wheel", "cython>=3.2.0"]
+requires = ["setuptools>=80.9.0", "wheel", "cython>=3.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -61,7 +61,7 @@ dev = [
     "respx>=0.22.0",
     "ruff>=0.14.4",
     "mypy>=1.18.2",
-    "cython>=3.2.0",
+    "cython>=3.2.1",
     "line-profiler>=5.0.0",
     "setuptools>=80.9.0",
 ]
