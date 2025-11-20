@@ -31,6 +31,7 @@ OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS: FrozenSet[str] = frozenset(
         "deepseek/deepseek-v3.1-terminus",
         "x-ai/grok-code-fast-1",
         "x-ai/grok-4-fast",
+        "x-ai/grok-4.1-fast",
         "deepseek/deepseek-v3.2-exp",
     }
 )
@@ -117,6 +118,7 @@ MODEL_INPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("qwen/qwen3-coder-plus", 128_000),
         ("qwen/qwen3-coder-flash", 128_000),
         ("x-ai/grok-4-fast", 2_000_000),
+        ("x-ai/grok-4.1-fast", 2_000_000),
         ("z-ai/glm-4.6", 202_752),
         ("moonshotai/kimi-k2-0905", 262_144),
         ("deepseek/deepseek-v3.1-terminus", 131_072),
@@ -154,6 +156,7 @@ MODEL_MAX_OUTPUT_TOKEN_LIMIT: FrozenSet[Tuple[str, int]] = frozenset(
         ("qwen/qwen3-coder-plus", 66_560),
         ("qwen/qwen3-coder-flash", 66_560),
         ("x-ai/grok-4-fast", 30_720),
+        ("x-ai/grok-4.1-fast", 30_720),
         ("z-ai/glm-4.6", 202_752),
         ("moonshotai/kimi-k2-0905", 30_720),
         ("deepseek/deepseek-v3.1-terminus", 65_536),
