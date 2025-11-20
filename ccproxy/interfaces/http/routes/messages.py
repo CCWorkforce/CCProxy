@@ -302,8 +302,8 @@ async def create_message_proxy(request: Request) -> Response:
         openai_params["stop"] = anthropic_request.stop_sequences
     if openai_tools:
         openai_params["tools"] = openai_tools
-    if openai_tool_choice:
-        openai_params["tool_choice"] = openai_tool_choice
+        if openai_tool_choice:
+            openai_params["tool_choice"] = openai_tool_choice
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
