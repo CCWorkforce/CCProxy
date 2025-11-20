@@ -329,7 +329,11 @@ async def create_message_proxy(request: Request) -> Response:
         if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
             # Use OpenRouter reasoning format
             extra_body = {
-                "reasoning": {"enabled": True}
+                "reasoning": {
+                    "enabled": True,
+                    "effort": "high",
+                    "exclude": True,
+                }
             }  # https://openrouter.ai/x-ai/grok-4.1-fast
             openai_params["extra_body"] = extra_body
 
