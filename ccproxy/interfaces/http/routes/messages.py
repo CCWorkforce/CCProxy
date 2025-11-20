@@ -302,8 +302,8 @@ async def create_message_proxy(request: Request) -> Response:
         openai_params["stop"] = anthropic_request.stop_sequences
     if openai_tools:
         openai_params["tools"] = openai_tools
-    if openai_tool_choice:
-        openai_params["tool_choice"] = openai_tool_choice
+        if openai_tool_choice:
+            openai_params["tool_choice"] = openai_tool_choice
     if anthropic_request.metadata and anthropic_request.metadata.get("user_id"):
         user_val = str(anthropic_request.metadata["user_id"])
         openai_params["user"] = user_val[:128] if len(user_val) > 128 else user_val
@@ -327,24 +327,17 @@ async def create_message_proxy(request: Request) -> Response:
         is_openrouter = "openrouter" in settings.base_url.lower()
 
         if is_openrouter and target_model in OPENROUTER_SUPPORT_REASONING_EFFORT_MODELS:
-            # Use OpenRouter reasoning format with effort and max_tokens
-            requested_budget = thinking_config.budget_tokens
-            max_reasoning_tokens = max(min(requested_budget, 65536), 32768)
-
-            reasoning_config = {
-                "effort": reasoning_effort,
-                "max_tokens": max_reasoning_tokens,
-                "enabled": True,
-                "exclude": True,
-            }
-            openai_params["reasoning"] = reasoning_config
+            # Use OpenRouter reasoning format
+            extra_body = {
+                "reasoning": {"enabled": True}
+            }  # https://openrouter.ai/x-ai/grok-4.1-fast
+            openai_params["extra_body"] = extra_body
 
             info(
                 LogRecord(
                     LogEvent.STREAM_EVENT.value,
-                    f"OpenRouter model supports reasoning; 'reasoning' config with effort '{reasoning_effort}' and max_tokens {max_reasoning_tokens} will be added for model {target_model}.",
+                    f"OpenRouter model supports reasoning, model {target_model}.",
                     request_id,
-                    {"parameter": "reasoning", "config": reasoning_config},
                 )
             )
         else:
