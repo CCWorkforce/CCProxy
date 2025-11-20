@@ -12,17 +12,17 @@ authors = [
     {name = "CCWorkforce Engineers"}
 ]
 dependencies = [
-    "fastapi[standard]>=0.121.1",
+    "fastapi[standard]>=0.121.3",
     "uvicorn>=0.38.0",
     "httpx[http2]>=0.28.1",
     "pydantic>=2.12.4",
     "python-dotenv>=1.2.1",
-    "openai[aiohttp]>=2.7.2",
+    "openai[aiohttp]>=2.8.1",
     "httpx-aiohttp>=0.1.9",
     "pydantic-settings>=2.12.0",
     "tiktoken>=0.12.0",
     "yarl>=1.22.0",
-    "starlette>=0.49.3",
+    "starlette>=0.50.0",
     "standard>=1.0.3",
     "asyncer>=0.0.10",
     "anyio>=4.11.0",
@@ -37,7 +37,6 @@ dependencies = [
     "typing-inspection>=0.4.2",
     "uvloop>=0.22.1",
     "httptools>=0.7.1",
-    "locust==2.42.2"
 ]
 
 [project.optional-dependencies]
@@ -53,13 +52,13 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest-mock>=3.15.1",
-    "pytest>=8.4.2",
+    "pytest>=9.0.1",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
     "pytest-benchmark>=5.2.3",
     "aiofiles>=25.1.0",
     "respx>=0.22.0",
-    "ruff>=0.14.4",
+    "ruff>=0.14.5",
     "mypy>=1.18.2",
     "cython>=3.2.1",
     "line-profiler>=5.0.0",
