@@ -154,6 +154,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anyio" },
     { name = "asyncer" },
+    { name = "cython" },
     { name = "fastapi", extra = ["standard"] },
     { name = "httptools" },
     { name = "httpx", extra = ["http2"] },
@@ -192,7 +193,6 @@ aiohttp = [
 [package.dev-dependencies]
 dev = [
     { name = "aiofiles" },
-    { name = "cython" },
     { name = "line-profiler" },
     { name = "mypy" },
     { name = "pytest" },
@@ -210,6 +210,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.13.2" },
     { name = "anyio", specifier = ">=4.11.0" },
     { name = "asyncer", specifier = ">=0.0.10" },
+    { name = "cython", specifier = ">=3.2.1" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.121.3" },
     { name = "httptools", specifier = ">=0.7.1" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
@@ -243,7 +244,6 @@ provides-extras = ["aiohttp"]
 [package.metadata.requires-dev]
 dev = [
     { name = "aiofiles", specifier = ">=25.1.0" },
-    { name = "cython", specifier = ">=3.2.1" },
     { name = "line-profiler", specifier = ">=5.0.0" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "pytest", specifier = ">=9.0.1" },
@@ -478,7 +478,7 @@ standard = [
 
 [[package]]
 name = "fastapi-cloud-cli"
-version = "0.4.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastar" },
@@ -490,9 +490,9 @@ dependencies = [
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/7c/5e72b1a8f0828f45f00a51f3ec73ddeecc719c1fc5ee1367107c6c24c54f/fastapi_cloud_cli-0.4.0.tar.gz", hash = "sha256:335c6655d8c2c04f85282ffc70eb33b6dd9e220e89ebef9ff7ccedcb37f94e1d", size = 26005, upload-time = "2025-11-19T09:59:46.227Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/8d/cb1ae52121190eb75178b146652bfdce9296d2fd19aa30410ebb1fab3a63/fastapi_cloud_cli-0.5.1.tar.gz", hash = "sha256:5ed9591fda9ef5ed846c7fb937a06c491a00eef6d5bb656c84d82f47e500804b", size = 30746, upload-time = "2025-11-20T16:53:24.491Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/fb/33894cb2f10fff4794dca43992aaa4416a23c97e76247f4ce2e6ce761f6b/fastapi_cloud_cli-0.4.0-py3-none-any.whl", hash = "sha256:6c44bd0636e57fb9a156ff67f4c54f17b5fbb3d84c65ea9e2461d4daaf64d9e7", size = 20540, upload-time = "2025-11-19T09:59:44.87Z" },
+    { url = "https://files.pythonhosted.org/packages/42/d6/b83f0801fd2c3f648e3696cdd2a1967b176f43c0c9db35c0350a67e7c141/fastapi_cloud_cli-0.5.1-py3-none-any.whl", hash = "sha256:1a28415b059b27af180a55a835ac2c9e924a66be88412d5649d4f91993d1a698", size = 23216, upload-time = "2025-11-20T16:53:23.119Z" },
 ]
 
 [[package]]

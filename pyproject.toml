@@ -41,6 +41,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "itsdangerous>=2.2.0",
     "pyyaml>=6.0.3",
+    "cython>=3.2.1",
 ]
 
 [project.optional-dependencies]
@@ -64,7 +65,6 @@ dev = [
     "respx>=0.22.0",
     "ruff>=0.14.5",
     "mypy>=1.18.2",
-    "cython>=3.2.1",
     "line-profiler>=5.0.0",
     "setuptools>=80.9.0",
 ]
